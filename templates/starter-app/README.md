@@ -27,6 +27,9 @@ cp .env.example .env
 pnpm dev
 ```
 
-Ohne Gateway gibt es lokal keinen Nutzer. Setze `OPENAPPS_GATEWAY_SECRET` und
-rufe mit den `X-Auth-*`-Headern plus Signal auf — oder nutze den Dev-Modus des
-SDK, der einen festen Testnutzer liefert und in Produktion nicht greift.
+Ohne Gateway gibt es lokal keinen Nutzer: `getUser` wirft, weil keine gültige
+Signatur anliegt. Zum lokalen Aufrufen erzeugst du die fünf `X-Auth-*`-Header
+mit `signatureFor` aus `@openapps/sdk` — dieselbe Funktion, die das Gateway
+benutzt — und setzt `OPENAPPS_AUTH_SECRET`, `OPENAPPS_APP_ID` und
+`OPENAPPS_APP_HOST` passend dazu. Baue keinen Umweg, der die Prüfung lokal
+abschaltet: er landet irgendwann in Produktion.

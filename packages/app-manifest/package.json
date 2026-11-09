@@ -1,0 +1,31 @@
+{
+  "name": "@openapps/app-manifest",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Maßgebliches Schema für app.json, das Rechtemodell im Manifest und die Katalog-Quellen-Abstraktion.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./app.schema.json": "./schema/app.schema.json"
+  },
+  "files": ["dist", "schema"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node dist/bin/write-json-schema.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" package.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "3.24.1",
+    "zod-to-json-schema": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "prettier": "3.4.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

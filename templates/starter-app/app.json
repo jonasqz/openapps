@@ -32,11 +32,34 @@
     }
   ],
   "permissions": [
-    { "subject": "group", "verb": "read", "resource": "app", "note": "Wer die App öffnen darf." }
+    {
+      "subject": "group",
+      "verb": "read",
+      "resource": "app",
+      "note": "Wer die App öffnen darf."
+    }
   ],
   "env": [
-    { "name": "DATABASE_URL", "secret": true, "description": "Verbindung auf das eigene Schema. Setzt die Control Plane." },
-    { "name": "OPENAPPS_GATEWAY_SECRET", "secret": true, "description": "Signal, mit dem das SDK den Gateway-Aufruf prüft. Setzt die Control Plane." }
+    {
+      "name": "DATABASE_URL",
+      "secret": true,
+      "description": "Verbindung auf das eigene Schema, mit der App-Rolle. Setzt die Control Plane."
+    },
+    {
+      "name": "OPENAPPS_AUTH_SECRET",
+      "secret": true,
+      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prueft. Setzt die Control Plane pro Deployment."
+    },
+    {
+      "name": "OPENAPPS_APP_ID",
+      "secret": false,
+      "description": "Id dieser App im Signatur-Material. Muss byte-gleich dem sein, was das Gateway schreibt."
+    },
+    {
+      "name": "OPENAPPS_APP_HOST",
+      "secret": false,
+      "description": "Eigene App-Domain im Signatur-Material, getrimmt und kleingeschrieben."
+    }
   ],
   "egress": []
 }

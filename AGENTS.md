@@ -8,9 +8,13 @@ als MCP-Prompt `how_to_build_app` über den Plattform-MCP.
 
 ## Die sieben Regeln
 
-1. **Keinen eigenen Login bauen.** Der Nutzer kommt aus den Request-Headern, die
-   das Gateway setzt (`X-Auth-User-Id`, `X-Auth-User-Email`, `X-Auth-Groups`).
-   Vertraue diesen Headern nur über `@openapps/sdk`, niemals direkt.
+1. **Keinen eigenen Login bauen.** Der Nutzer kommt aus fünf Request-Headern,
+   die das Gateway setzt: `X-Auth-User-Id`, `X-Auth-User-Email`,
+   `X-Auth-Groups`, `X-Auth-Issued-At` und `X-Auth-Signature`. Der letzte ist
+   ein HMAC über die anderen plus Host und App-Id. Lies **keinen** davon
+   selbst — nur `getUser` aus `@openapps/sdk` prüft die Signatur, das
+   Zeitfenster und die Domain. Ohne diese Prüfung kann jeder Client die Header
+   selbst setzen (ADR 0004).
 2. **Nur das eigene Schema nutzen.** Die App bekommt genau eine DB-Rolle und
    genau ein Schema. Keine Superuser-Verbindung, kein `search_path`-Trick, kein
    Zugriff auf Tabellen anderer Apps. Fremde Daten nur über eine Freigabe, die
