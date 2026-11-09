@@ -1,23 +1,21 @@
 {
-  "$schema": "../../packages/app-manifest/schema/app.schema.json",
+  "manifestVersion": 1,
   "name": "starter-app",
-  "title": "Starter App",
+  "displayName": "Starter App",
   "description": "Vorlage für eine neue App. Benenne sie um, bevor du etwas baust.",
   "category": "internal",
   "version": "0.1.0",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "v0.1.0",
-    "path": "templates/starter-app"
+    "tag": "v0.1.0"
   },
-  "tables": [
+  "requiredTables": [
     {
       "name": "items",
-      "description": "Beispiel-Tabelle. Ersetze sie durch die Tabellen deiner App.",
-      "shared": false
+      "description": "Beispiel-Tabelle. Ersetze sie durch die Tabellen deiner App."
     }
   ],
-  "tools": [
+  "offeredTools": [
     {
       "name": "items.list",
       "description": "Listet Einträge.",
@@ -31,12 +29,15 @@
       "verb": "write"
     }
   ],
-  "permissions": [
+  "requestedGrants": [
     {
-      "subject": "group",
+      "subjectKind": "group",
       "verb": "read",
-      "resource": "app",
-      "note": "Wer die App öffnen darf."
+      "resource": {
+        "kind": "app",
+        "app": "starter-app"
+      },
+      "reason": "Wer die App öffnen darf. Welche Gruppe, entscheidet die Freigabe in der Control Plane — ein gewünschtes Recht ist ein Antrag, keine Vergabe."
     }
   ],
   "env": [
@@ -53,7 +54,7 @@
     {
       "name": "OPENAPPS_AUTH_SECRET",
       "secret": true,
-      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prueft. Setzt die Control Plane pro Deployment."
+      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prüft. Setzt die Control Plane pro Deployment."
     },
     {
       "name": "OPENAPPS_APP_ID",
@@ -63,12 +64,12 @@
     {
       "name": "OPENAPPS_APP_HOST",
       "secret": false,
-      "description": "Die gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben. Fuer alle Apps dieselbe (ADR 0007)."
+      "description": "Gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben."
     },
     {
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
-      "description": "Pfad dieser App auf der gemeinsamen Domain: /<app-name>. next.config.js setzt ihn als basePath; die Control Plane setzt ihn pro Deployment (ADR 0007)."
+      "description": "Pfad, unter dem die App liegt (z. B. /starter-app). Muss beim Build gesetzt sein, sonst zeigen Verweise und Bilder ins Leere."
     }
   ],
   "egress": []

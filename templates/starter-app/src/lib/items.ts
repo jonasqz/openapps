@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { query } from './db.js';
+import { query } from './db';
 
 export const ItemInput = z.object({
   title: z.string().trim().min(1).max(200),

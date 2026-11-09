@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ItemInput } from './items.js';
+import { ItemInput } from './items';
 
 /**
  * Das Muster für Tests in einer App: prüfe die Validierung und die Grenzen,

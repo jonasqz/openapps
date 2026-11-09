@@ -10,8 +10,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "mcp:generate": "node scripts/generate-mcp-tools.mjs"
+    "test": "vitest run"
   },
   "dependencies": {
     "@openapps/sdk": "workspace:*",
