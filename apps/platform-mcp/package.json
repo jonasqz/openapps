@@ -1,0 +1,33 @@
+{
+  "name": "@openapps/platform-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plattform-MCP: die sechs Tools der Control Plane, der Prompt how_to_build_app und die Weiterleitung der App-Tools.",
+  "exports": {
+    ".": "./src/server.ts",
+    "./tools": "./src/tools.ts",
+    "./app-tools": "./src/app-tools.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/http.ts",
+    "start": "tsx src/index.ts",
+    "start:http": "tsx src/http.ts",
+    "build": "echo \"kein Build-Schritt: laeuft ueber tsx aus der TypeScript-Quelle\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "prettier --check \"**/*.{ts,json,md}\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.12.1",
+    "@openapps/control-plane": "workspace:*",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.5",
+    "prettier": "3.4.2",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}
