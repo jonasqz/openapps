@@ -1,0 +1,42 @@
+{
+  "$schema": "../../packages/app-manifest/schema/app.schema.json",
+  "name": "starter-app",
+  "title": "Starter App",
+  "description": "Vorlage für eine neue App. Benenne sie um, bevor du etwas baust.",
+  "category": "internal",
+  "version": "0.1.0",
+  "source": {
+    "git": "https://github.com/jonasqz/openapps.git",
+    "tag": "v0.1.0",
+    "path": "templates/starter-app"
+  },
+  "tables": [
+    {
+      "name": "items",
+      "description": "Beispiel-Tabelle. Ersetze sie durch die Tabellen deiner App.",
+      "shared": false
+    }
+  ],
+  "tools": [
+    {
+      "name": "items.list",
+      "description": "Listet Einträge.",
+      "operationId": "listItems",
+      "verb": "read"
+    },
+    {
+      "name": "items.create",
+      "description": "Legt einen Eintrag an.",
+      "operationId": "createItem",
+      "verb": "write"
+    }
+  ],
+  "permissions": [
+    { "subject": "group", "verb": "read", "resource": "app", "note": "Wer die App öffnen darf." }
+  ],
+  "env": [
+    { "name": "DATABASE_URL", "secret": true, "description": "Verbindung auf das eigene Schema. Setzt die Control Plane." },
+    { "name": "OPENAPPS_GATEWAY_SECRET", "secret": true, "description": "Signal, mit dem das SDK den Gateway-Aufruf prüft. Setzt die Control Plane." }
+  ],
+  "egress": []
+}

@@ -1,0 +1,65 @@
+# Die Wahrheit über die Funktionen dieser App.
+# Aus dieser Datei erzeugt die Plattform die MCP-Tools. Eine UI-Aktion ohne
+# passende Operation hier blockiert das Review-Gate.
+openapi: 3.1.0
+info:
+  title: Starter App
+  version: 0.1.0
+  description: Vorlage. Beschreibe hier jede Funktion, bevor du einen Screen baust.
+servers:
+  - url: /api
+paths:
+  /items:
+    get:
+      operationId: listItems
+      summary: Listet Einträge
+      x-openapps-verb: read
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Freitextfilter
+      responses:
+        '200':
+          description: Liste
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Item' }
+        '401': { description: Kein gültiger Gateway-Aufruf }
+    post:
+      operationId: createItem
+      summary: Legt einen Eintrag an
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ItemInput' }
+      responses:
+        '201':
+          description: Angelegt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Item' }
+        '400': { description: Validierung fehlgeschlagen }
+        '401': { description: Kein gültiger Gateway-Aufruf }
+components:
+  schemas:
+    Item:
+      type: object
+      required: [id, title, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        createdAt: { type: string, format: date-time }
+    ItemInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
