@@ -12,6 +12,7 @@ sie nicht an.
 | Pfad | Was |
 | --- | --- |
 | `scripts/check-auth.sh` | Nachweis fuer DoD 2: kein App-Pfad ohne Session erreichbar, vor und nach jedem Coolify-Update |
+| `scripts/traefik-guard.py` | Die Auswertung der Traefik-API fuer `check-auth.sh`: Router, Middlewares, `forwardedHeaders` |
 | `app-urls.txt.example` | Vorlage fuer die Adressliste, die das Skript prueft (eine Domain, ein Pfad je App — ADR 0007) |
 | `traefik/dynamic/openapps.example.yaml` | **Beispiel**, nicht zum Ausrollen: was der Generator ausgibt. Auf dem Host schreibt die Control Plane diese Datei selbst |
 | `traefik/deny-backend/` | nginx, das auf jede Anfrage 403 antwortet. Das Einzige hier, was auf einen Host gehoert |
@@ -151,11 +152,13 @@ geschlossen nach aussen.
 Das Update selbst ist kein Grund, eine Reparatur vorzuziehen: Der Lauf soll
 zeigen, was das Update von sich aus tut (Spec 4.3).
 
-**Offen:** Der zweite Teil von `check-auth.sh` prueft noch die
-Middleware-Kette am Entrypoint `websecure` aus dem alten Aufbau. Den
-Entrypoint gibt es in Coolifys Konfiguration nicht (sie heisst `https`), und
-die Kette haengt nicht mehr dort. Bis das umgestellt ist, ist dieser Teil des
-Skripts kein Nachweis — die Router-Pruefung oben ersetzt ihn von Hand.
+Schritt 2 von Hand braucht es nur, wenn man zusehen will: Der zweite Teil von
+`check-auth.sh` prueft genau das, ueber `scripts/traefik-guard.py`. Er geht
+ueber **jeden** Router mit dem Praefix `openapps-`, den die API nennt, nicht
+ueber eine Liste erwarteter Namen — und zusaetzlich ueber `forwardedHeaders` am
+Entrypoint, der jetzt Coolify gehoert. Dieselben Pruefungen macht der
+Startup-Check der Control Plane; `tests/traefik-guard-skript.spec.ts` haelt
+beide Fassungen auf demselben Urteil.
 
 ## Was auf dem Host noch gebraucht wird
 

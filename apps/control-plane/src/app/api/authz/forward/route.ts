@@ -105,7 +105,7 @@ async function handle(request: Request): Promise<Response> {
       }
       const user = await currentUser(request);
       return user === null
-        ? redirectToLogin(request, host, path)
+        ? redirectToLogin(env.controlPlaneHost, host, path)
         : new Response(null, { status: 200 });
     }
 
@@ -120,7 +120,7 @@ async function handle(request: Request): Promise<Response> {
     // Schritt 2: Session.
     const user = await currentUser(request);
     if (user === null) {
-      return redirectToLogin(request, host, path);
+      return redirectToLogin(env.controlPlaneHost, host, path);
     }
 
     // Schritt 3: Freigabe.
@@ -163,9 +163,22 @@ function deny(reason: string): Response {
  * 302 auf den Login, mit dem Ziel als Rueckweg. Traefik gibt 3xx an den Client
  * weiter (Spec Abschnitt 2), also landet der Nutzer beim Login und danach
  * wieder hier.
+ *
+ * Die Adresse kommt aus `CONTROL_PLANE_HOST`, **nicht** aus `request.url`.
+ * Diese Route wird von Traefik aufgerufen, nicht vom Browser: `request.url`
+ * traegt die container-interne Adresse der Forward-Auth
+ * (`http://openapps-control-plane:3000/api/authz/forward`). Ein Redirect
+ * darauf schickt den Browser an einen Namen, den es im Netz des Nutzers nicht
+ * gibt — der Login waere unerreichbar, und zwar genau in dem Fall, in dem er
+ * gebraucht wird.
+ *
+ * `https` bei beiden Adressen: Unsere Router haengen an genau einem
+ * Entrypoint, und das ist der mit TLS (`GATEWAY_ENTRYPOINT`, Default `https`).
+ * Eine Weiterleitung auf `http` landete erst in Coolifys Umleitung auf https —
+ * ein Umweg, den wir selbst gebaut haetten.
  */
-function redirectToLogin(request: Request, host: string, path: string): Response {
-  const login = new URL('/login', request.url);
+function redirectToLogin(controlPlaneHost: string, host: string, path: string): Response {
+  const login = new URL('/login', `https://${controlPlaneHost}`);
   login.searchParams.set('next', `https://${host}${path.startsWith('/') ? path : `/${path}`}`);
   return new Response(null, { status: 302, headers: { location: login.toString() } });
 }

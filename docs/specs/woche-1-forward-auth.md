@@ -240,20 +240,23 @@ Aufruf: `check-auth.sh <adressliste>`, Muster in `infra/app-urls.txt.example`.
    401, 403 oder eine Weiterleitung auf den Login. Alles andere — auch 200,
    auch 502 — ist ein Fehlschlag: Ein Dienst, der nicht antwortet, ist kein
    Beweis dafür, dass er geschützt ist.
-3. Zweiter Teil: Prüfungen gegen die Traefik-API, als Shell, damit der Nachweis
-   nach einem Coolify-Update auch ohne laufende Control Plane geführt werden
-   kann. Adresse über `TRAEFIK_API_URL`; ohne erreichbare API wird dieser Teil
-   **sichtbar** übersprungen.
+3. Zweiter Teil: Prüfungen gegen die Traefik-API (`scripts/traefik-guard.py`,
+   vom Skript aufgerufen), damit der Nachweis nach einem Coolify-Update auch
+   ohne laufende Control Plane geführt werden kann. Geprüft wird dasselbe wie
+   im Startup-Check: beide Middlewares vorhanden und `enabled`, **jeder**
+   Router mit dem Präfix `openapps-` trägt `[strip, forward-auth]` in dieser
+   Reihenfolge und ist `enabled`, der Catch-all ist da, `forwardedHeaders` am
+   Entrypoint ist leer. Adresse über `TRAEFIK_API_URL`, Entrypoint über
+   `GATEWAY_ENTRYPOINT`; ohne erreichbare API — und ohne `python3` — wird
+   dieser Teil **sichtbar** übersprungen.
 4. Ausgabe als Zeile pro Adresse, Exit-Code 1 bei jedem Verstoß, Protokoll nach
    `docs/nachweise/dod-02-laeufe/`.
 
-**Offen:** Der zweite Teil des Skripts prüft noch die Middleware-Kette am
-Entrypoint `websecure` aus Fassung 1. Diesen Entrypoint gibt es in Coolifys
-Konfiguration nicht (sie heißt `https`), und die Kette hängt nicht mehr dort.
-Die Prüfung muss auf das umgestellt werden, was der Startup-Check heute macht:
-jeder Router mit dem Präfix `openapps-` trägt `[strip, forward-auth]` in dieser
-Reihenfolge und ist `enabled`, der Catch-all ist da, `forwardedHeaders` am
-Entrypoint ist leer. Bis dahin ist der zweite Teil kein Nachweis.
+Die Prüfung steht damit zweimal da, in TypeScript für den Start der Control
+Plane und in Python für den Nachweis ohne sie. Zwei Fassungen einer
+Sicherheitsprüfung können auseinanderlaufen, und dann sagt ein grüner Lauf
+nichts mehr: `apps/control-plane/tests/traefik-guard-skript.spec.ts` gibt beiden
+dieselbe Antwort der Traefik-API und vergleicht das Urteil.
 
 Was `check-auth.sh` nicht kann: Header-Fälschung und „Control Plane aus“ prüft
 heute nur `local/nachweis.sh` gegen den lokalen Stapel.

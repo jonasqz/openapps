@@ -1,5 +1,5 @@
 # Nur fuer den lokalen Nachweis: ein selbst signiertes Standard-Zertifikat,
-# damit der Entrypoint `websecure` ohne Let's Encrypt TLS kann. Die Datei wird
+# damit der Entrypoint `https` ohne Let's Encrypt TLS kann. Die Datei wird
 # vom Compose zusaetzlich in das dynamische Verzeichnis gemountet und gehoert
 # nicht auf einen Server.
 tls:

@@ -69,14 +69,27 @@ function sessionFor(user: { id: string; email: string } | null) {
   } as Parameters<typeof createBetterAuthSessionReader>[0]['auth'];
 }
 
-function requestFor(options: { host: string; path?: string; cookie?: string }): Request {
+function requestFor(options: {
+  host: string;
+  path?: string;
+  cookie?: string;
+  /**
+   * Die Adresse, unter der die Route **aufgerufen** wird. Default ist die
+   * oeffentliche; im Betrieb ruft Traefik sie unter ihrem container-internen
+   * Namen auf, und darauf darf keine Antwort aufbauen (siehe den Test zum
+   * Login-Redirect).
+   */
+  requestUrl?: string;
+}): Request {
   const headers = new Headers({
     'x-forwarded-host': options.host,
     'x-forwarded-uri': options.path ?? '/',
     'x-forwarded-method': 'GET',
   });
   if (options.cookie !== undefined) headers.set('cookie', options.cookie);
-  return new Request(`https://${CONTROL_PLANE_HOST}/api/authz/forward`, { headers });
+  return new Request(options.requestUrl ?? `https://${CONTROL_PLANE_HOST}/api/authz/forward`, {
+    headers,
+  });
 }
 
 describe('Forward-Auth mit Session', () => {
@@ -121,11 +134,12 @@ describe('Forward-Auth mit Session', () => {
   }
 
   /** Ein Aufruf auf die App: gemeinsame Domain, Pfad der App. */
-  function appRequest(options?: { path?: string; cookie?: string }): Request {
+  function appRequest(options?: { path?: string; cookie?: string; requestUrl?: string }): Request {
     return requestFor({
       host: APPS_DOMAIN,
       path: options?.path ?? APP_PATH,
       ...(options?.cookie === undefined ? {} : { cookie: options.cookie }),
+      ...(options?.requestUrl === undefined ? {} : { requestUrl: options.requestUrl }),
     });
   }
 
@@ -148,8 +162,36 @@ describe('Forward-Auth mit Session', () => {
     const response = await GET(appRequest({ path: `${APP_PATH}/1` }));
     expect(response.status).toBe(302);
     const location = response.headers.get('location');
-    expect(location).toContain('/login');
-    expect(location).toContain(encodeURIComponent(`https://${APPS_DOMAIN}${APP_PATH}/1`));
+    expect(location).toBe(
+      `https://${CONTROL_PLANE_HOST}/login?next=${encodeURIComponent(
+        `https://${APPS_DOMAIN}${APP_PATH}/1`,
+      )}`,
+    );
+  });
+
+  /**
+   * Der Fall, der im Betrieb zuschlaegt und den kein anderer Test sieht:
+   * Traefik ruft diese Route unter dem **container-internen** Namen auf. Baut
+   * der Redirect seine Adresse aus `request.url`, schickt er den Browser an
+   * `http://openapps-control-plane:3000/login` — einen Namen, den es im Netz
+   * des Nutzers nicht gibt. Der Login waere genau dann unerreichbar, wenn er
+   * gebraucht wird.
+   */
+  it('nimmt den Login-Host aus der Env, nicht aus der Adresse des Aufrufs', async () => {
+    await appOnPath();
+    const response = await GET(
+      appRequest({
+        path: APP_PATH,
+        requestUrl: 'http://openapps-control-plane:3000/api/authz/forward',
+      }),
+    );
+
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.host).toBe(CONTROL_PLANE_HOST);
+    expect(location.protocol).toBe('https:');
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('next')).toBe(`https://${APPS_DOMAIN}${APP_PATH}`);
   });
 
   it('gibt 403 fuer jeden Pfad ohne App, auch mit Freigabe auf alles', async () => {
@@ -254,7 +296,10 @@ describe('Forward-Auth mit Session', () => {
     ]) {
       const response = await GET(requestFor({ host: CONTROL_PLANE_HOST, path }));
       expect(response.status, path).toBe(302);
-      expect(response.headers.get('location'), path).toContain('/login');
+      const location = new URL(response.headers.get('location') ?? '');
+      expect(`${location.origin}${location.pathname}`, path).toBe(
+        `https://${CONTROL_PLANE_HOST}/login`,
+      );
     }
   });
 
