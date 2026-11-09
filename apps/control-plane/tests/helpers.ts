@@ -7,19 +7,20 @@
  * geprueft.
  */
 
-import { createTraefikLabelLint } from '../src/adapters/coolify';
-import { systemClock, uuidIds, type DomainContext } from '../src/domain';
-import type { GatewayLabelLint } from '../src/domain/ports';
+import { systemClock, uuidIds, type DomainContext, type GatewaySettings } from '../src/domain';
 import { createPipeline } from '../src/domain/review-gate';
 import type { ReviewPipeline, ReviewStep } from '../src/domain/review-gate/types';
 import {
   createRecordingAlarmSink,
   createRecordingBackend,
+  createRecordingGatewayConfigStore,
   createRecordingProvisioner,
   createRecordingRepositoryBackend,
   type RecordingAlarmSink,
   type RecordingBackend,
   type RecordingBackendOptions,
+  type RecordingGatewayConfigStore,
+  type RecordingGatewayConfigStoreOptions,
   type RecordingProvisioner,
   type RecordingRepositoryBackend,
 } from '../src/infra/memory/doubles';
@@ -33,17 +34,28 @@ export interface Harness {
   readonly provisioner: RecordingProvisioner;
   readonly repositories: RecordingRepositoryBackend;
   readonly alarms: RecordingAlarmSink;
+  readonly gatewayConfig: RecordingGatewayConfigStore;
 }
 
 /**
- * Der echte Label-Lint des Adapters. Absichtlich nicht gestubbt: Was
- * „vollstaendig" heisst, soll in den Tests dasselbe heissen wie im Betrieb.
- * Die Adresse ist dieselbe wie in `.env.example`.
+ * Die Werte, mit denen die Gateway-Konfiguration in den Tests erzeugt wird.
+ * Absichtlich die echten Defaults und kein Stub: Der Generator ist die Stelle,
+ * an der das Default-Deny haengt (ADR 0008) — er soll in den Tests dasselbe
+ * rechnen wie im Betrieb.
  */
-export const TEST_FORWARD_AUTH_URL = 'http://127.0.0.1:8090/api/authz/forward';
+export const TEST_FORWARD_AUTH_URL = 'http://openapps-control-plane:3000/api/authz/forward';
 
-export function testLabelLint(): GatewayLabelLint {
-  return createTraefikLabelLint(TEST_FORWARD_AUTH_URL);
+export function testGatewaySettings(): GatewaySettings {
+  return {
+    forwardAuthAddress: TEST_FORWARD_AUTH_URL,
+    denyBackendUrl: 'http://openapps-deny-backend:8080',
+    entryPoint: 'https',
+    certResolver: 'letsencrypt',
+    controlPlane: {
+      host: 'control-plane.apps.test',
+      url: 'http://openapps-control-plane:3000',
+    },
+  };
 }
 
 /**
@@ -57,14 +69,24 @@ export function createHarness(options?: {
   pipeline?: ReviewPipeline;
   appsDomain?: string;
   repositoryFailsWith?: string;
-  /** Was das Backend nach dem Deploy zurueckliest. Default: der echte Satz. */
-  gatewayLabels?: RecordingBackendOptions['gatewayLabels'];
+  /** Was das Backend nach dem Deploy ueber die App selbst sagt. */
+  appGatewayFacts?: RecordingBackendOptions['appGatewayFacts'];
+  /** Was der Konfigurations-Speicher sagt. Default: er stimmt. */
+  gatewayVerification?: RecordingGatewayConfigStoreOptions['verification'];
+  /** Soll das Schreiben der Konfiguration scheitern? */
+  gatewayPublishFailsWith?: string;
 }): Harness {
   const store = createMemoryStore();
-  const lint = testLabelLint();
-  const backend = createRecordingBackend({
-    lint,
-    ...(options?.gatewayLabels === undefined ? {} : { gatewayLabels: options.gatewayLabels }),
+  const backend = createRecordingBackend(
+    options?.appGatewayFacts === undefined ? {} : { appGatewayFacts: options.appGatewayFacts },
+  );
+  const gatewayConfig = createRecordingGatewayConfigStore({
+    ...(options?.gatewayVerification === undefined
+      ? {}
+      : { verification: options.gatewayVerification }),
+    ...(options?.gatewayPublishFailsWith === undefined
+      ? {}
+      : { publishFailsWith: options.gatewayPublishFailsWith }),
   });
   const alarms = createRecordingAlarmSink();
   const provisioner = createRecordingProvisioner();
@@ -81,7 +103,8 @@ export function createHarness(options?: {
     clock: systemClock,
     ids: uuidIds,
     backend,
-    gatewayLint: lint,
+    gatewayConfig,
+    gatewaySettings: testGatewaySettings(),
     repositories,
     reviewGate: options?.pipeline ?? createPipeline(options?.steps ?? []),
     provisioner,
@@ -90,7 +113,7 @@ export function createHarness(options?: {
     ...(options?.appsDomain === undefined ? {} : { appsDomain: options.appsDomain }),
   };
 
-  return { ctx, store, backend, provisioner, repositories, alarms };
+  return { ctx, store, backend, provisioner, repositories, alarms, gatewayConfig };
 }
 
 /** Der Plattform-Administrator: die eine Freigabe aus Migration 0006. */

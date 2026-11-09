@@ -1,6 +1,13 @@
 /**
  * Implementierung von `DeploymentBackend` gegen die Coolify-REST-API.
  *
+ * Was dieser Adapter seit ADR 0008 **nicht** mehr tut: Er haengt keine
+ * Traefik-Labels an die App und gibt ihr keine Domain. Router, Dienst und
+ * Middlewares stehen in unserer eigenen dynamischen Konfiguration
+ * (`domain/gateway-config.ts`, geschrieben von `infra/gateway-config-store.ts`).
+ * Dieser Adapter sorgt nur noch dafuer, dass Coolify der App **keinen** eigenen
+ * Weg nach innen gibt — siehe `createApp` und `readAppGatewayFacts`.
+ *
  * Sie uebersetzt in beide Richtungen: aus neutralen Begriffen der Domaene
  * werden Coolify-Endpunkte, und aus Coolify-Antworten werden neutrale
  * Ergebnisse. Wenn Coolify nicht traegt, wird genau diese Datei ersetzt
@@ -8,15 +15,14 @@
  */
 
 import type {
+  AppGatewayFactsReading,
   BackendAppSpec,
   BackendDeployRequest,
   BackendDeployResult,
   BackendStatus,
   DeploymentBackend,
-  GatewayLabelReading,
 } from '../../domain/ports';
 import type { CoolifyConfig } from './config';
-import { forwardAuthLabels } from './traefik';
 
 interface CoolifyApplication {
   readonly uuid?: string;
@@ -27,6 +33,11 @@ interface CoolifyApplication {
    * nimmt beides.
    */
   readonly custom_labels?: string | null;
+  /** Veroeffentlichte Host-Ports. Erwartet: leer (ADR 0008). */
+  readonly ports_mappings?: string | null;
+  /** Domains, die Coolify der App gegeben hat. Erwartet: keine (ADR 0008). */
+  readonly fqdn?: string | null;
+  readonly domains?: string | null;
 }
 
 interface CoolifyDeployment {
@@ -70,7 +81,35 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
           git_repository: spec.gitUrl,
           git_branch: spec.gitRef,
           build_pack: 'nixpacks',
-          domains: spec.domain,
+          // --- Die vier Zeilen, auf die es nach ADR 0008 ankommt ----------
+          //
+          // 1. **Keine Domain, und zwar ausdruecklich.** `autogenerate_domain`
+          //    ist in Coolifys API default `true`
+          //    (`ApplicationsController.php:1690`): Wer `domains` weglaesst,
+          //    bekommt trotzdem eine sslip.io-Domain — und mit ihr einen
+          //    Router **ohne** unsere Middlewares. Das Weglassen von `domains`
+          //    allein reicht also nicht.
+          autogenerate_domain: false,
+          // 2. Der Netz-Alias, unter dem unser Dienst die App anspricht. Der
+          //    Containername taugt dafuer nicht: Default ist
+          //    `<uuid>-<Zeitstempel>`, er aendert sich bei jedem Deploy
+          //    (`docker.php:670-686`).
+          custom_network_aliases: spec.networkAlias,
+          // 3. Zweiter Halt: ein stabiler Containername mit demselben Wert.
+          //    Dann traegt auch der Containername den Alias, falls
+          //    `custom_network_aliases` in einer Coolify-Fassung einmal nicht
+          //    greift.
+          is_consistent_container_name_enabled: true,
+          custom_internal_name: spec.networkAlias,
+          // 4. Kein veroeffentlichter Host-Port. Leer heisst: der Container ist
+          //    nur im Docker-Netz erreichbar
+          //    (`ApplicationDeploymentJob.php:4785`, `:4902-4903`). Ein Wert
+          //    hier macht die App am Gateway vorbei erreichbar und das
+          //    Signatur-Modell aus Spec 3.2 wertlos.
+          ports_mappings: '',
+          // Der Port, auf dem die App lauscht — fuer Coolifys Healthcheck und
+          // sein `EXPOSE`. Unser Dienst nennt ihn ohnehin selbst in der URL.
+          ports_exposes: String(spec.port),
           instant_deploy: false,
         },
       });
@@ -136,49 +175,30 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
       };
     },
 
-    async setDomain(backendRef, domain): Promise<void> {
-      await call(`/applications/${backendRef}`, {
-        method: 'PATCH',
-        body: { domains: domain },
-      });
-    },
-
-    async ensureGateway(backendRef, spec): Promise<void> {
-      // Hier entsteht die Traefik-Konfiguration: die Labels kommen aus
-      // `traefik.ts`, Coolify uebergibt sie als "custom labels" an Traefik.
-      const labels = forwardAuthLabels({
-        appName: spec.appName,
-        domain: spec.domain,
-        port: spec.port,
-        forwardAuthUrl: config.forwardAuthUrl,
-      });
-      await call(`/applications/${backendRef}`, {
-        method: 'PATCH',
-        body: {
-          custom_labels: Object.entries(labels)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n'),
-          is_container_label_escape_enabled: false,
-        },
-      });
-    },
-
     /**
-     * Liest die Labels zurueck, mit denen diese App am Gateway haengt.
+     * Liest zurueck, was Coolify der App selbst gegeben hat.
      *
-     * Was das hier genau ist — und was nicht: Gelesen wird der Label-Satz, den
-     * das Deploy-Backend an dieser App **fuehrt** und bei jedem Start an den
-     * Container gibt, nicht die Labels aus einem `docker inspect`. Mehr gibt
-     * die REST-API nicht her. Das reicht fuer den Fall, der im Gateway-Lauf
-     * wirklich passiert ist (alle Traefik-Labels weg, docs/nachweise/
-     * dod-02-laeufe), und es ist eine Messung und keine Ableitung: Steht hier
-     * etwas anderes als das, was `ensureGateway` gesetzt hat, hat es jemand
-     * oder etwas geaendert.
+     * Unter ADR 0008 ist das eine **Negativ**-Messung, und das ist die
+     * Umkehrung der alten Fassung: Vorher wurde geprueft, ob unsere Labels noch
+     * stehen; jetzt wird geprueft, dass **keine** Traefik-Labels, kein
+     * Host-Port und keine Domain an der App stehen. Jedes davon waere ein
+     * Router ohne unsere Middlewares oder ein Weg am Gateway vorbei.
+     *
+     * Gelesen wird, was das Backend an dieser App **fuehrt** — nicht ein
+     * `docker inspect`. Mehr gibt die REST-API nicht her, und es reicht: Was
+     * Coolify fuehrt, gibt es bei jedem Start an den Container.
+     *
+     * `custom_labels` ist uneinheitlich kodiert (ADR 0008: Eingang base64,
+     * Ausgang je nach Pfad base64 oder Klartext) — `parseCoolifyLabels` nimmt
+     * beides. Und: Ohne `read:sensitive` oder `root` am API-Token liefert die
+     * API `custom_labels` gar nicht (`ApiSensitiveData.php:14-19`); dann sieht
+     * diese Messung einen leeren Satz, also „keine Labels", also kein Befund.
+     * Das ist die eine Richtung, in der dieser Weg stumm sein kann.
      *
      * Jeder Fehler beim Lesen ist `unreachable` und **kein** Befund. Ein
      * Netzwerkfehler sagt nichts darueber, wie die App haengt.
      */
-    async readGatewayLabels(backendRef): Promise<GatewayLabelReading> {
+    async readAppGatewayFacts(backendRef): Promise<AppGatewayFactsReading> {
       let app: CoolifyApplication;
       try {
         app = await call<CoolifyApplication>(`/applications/${backendRef}`);
@@ -190,28 +210,44 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
       }
 
       if (typeof app !== 'object' || app === null || app.uuid === undefined) {
-        // Keine verwertbare App-Antwort: Wir wissen nichts ueber die Labels.
-        // Daraus einen Befund zu machen hiesse, eine Formaenderung der API als
-        // Sicherheitsvorfall zu melden.
+        // Keine verwertbare App-Antwort: Wir wissen nichts. Daraus einen Befund
+        // zu machen hiesse, eine Formaenderung der API als Sicherheitsvorfall
+        // zu melden.
         return { state: 'unreachable', reason: 'Antwort enthaelt keine App mit Referenz' };
       }
 
-      // Eine App **ohne** Labels ist dagegen eine Messung: genau so sieht es
-      // aus, wenn ein Update den Satz entfernt hat.
-      return { state: 'read', labels: parseCoolifyLabels(app.custom_labels ?? '') };
+      return {
+        state: 'read',
+        facts: {
+          labels: parseCoolifyLabels(app.custom_labels ?? ''),
+          portsMappings: app.ports_mappings ?? '',
+          // Coolify fuehrt die Domain je nach Fassung als `fqdn` oder
+          // `domains`. Beide werden gelesen: Eine Domain, die nur in einem der
+          // Felder steht, bringt denselben Router mit.
+          domains: [app.fqdn ?? '', app.domains ?? '']
+            .map((v) => v.trim())
+            .filter((v) => v !== '')
+            .join(','),
+        },
+      };
     },
   };
 }
 
 /**
  * `key=value` pro Zeile, wie Coolify die „custom labels" fuehrt — je nach
- * Version base64-kodiert. Beides wird akzeptiert: Entscheidend ist, dass ein
- * fehlendes Label nicht als „base64-Muell" durchgeht und damit stillschweigend
- * zu einem leeren Satz wird (der dann als Befund gemeldet wuerde, obwohl wir
- * nur falsch gelesen haben).
+ * Version base64-kodiert (ADR 0008: Eingang verlangt base64, Ausgang liefert
+ * je nach Pfad base64 oder Klartext mit Zeilenumbruechen).
+ *
+ * Beides wird akzeptiert, und die Unterscheidung haengt nicht mehr am Wort
+ * `traefik.`: Unter ADR 0008 ist ein Label-Satz **ohne** `traefik.` der
+ * Normalfall, und ein Satz, den wir falsch lesen, waere ein leerer Satz —
+ * also „keine fremden Labels", also stillschweigend kein Befund. Die
+ * Unterscheidung laeuft deshalb ueber das Alphabet: base64 enthaelt keinen
+ * Punkt, kein Doppelpunkt und kein Leerzeichen.
  */
 export function parseCoolifyLabels(raw: string): Readonly<Record<string, string>> {
-  const text = raw.includes('=') && raw.includes('traefik.') ? raw : decodeIfBase64(raw);
+  const text = decodeIfBase64(raw);
 
   const labels: Record<string, string> = {};
   for (const line of text.split(/\r?\n/)) {

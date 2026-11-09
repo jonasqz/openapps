@@ -18,6 +18,7 @@ import type {
   SubjectRef,
   Verb,
 } from './types';
+import type { GatewayDynamicConfig } from './gateway-config';
 
 export interface NewApp {
   readonly name: string;
@@ -132,7 +133,14 @@ export interface BackendAppSpec {
   readonly appName: string;
   readonly gitUrl: string;
   readonly gitRef: string;
-  readonly domain: string;
+  /**
+   * Der Netz-Alias, unter dem das Gateway den Container erreicht
+   * (`naming.ts`, `gatewayAliasFor`). Keine Domain: Apps werden ohne Domain
+   * deployt, damit das Backend ihnen keinen eigenen Router gibt (ADR 0008).
+   */
+  readonly networkAlias: string;
+  /** Port, auf dem die App lauscht (`domain/app-port.ts`). */
+  readonly port: number;
 }
 
 export interface BackendDeployRequest {
@@ -148,72 +156,66 @@ export interface BackendDeployResult {
 
 export type BackendStatus = 'unknown' | 'building' | 'running' | 'stopped' | 'failed';
 
-/* ----------------------------- Label-Lint --------------------------------- */
+/* --------------------- Die eigene Gateway-Konfiguration -------------------- */
 
 /**
- * Die App, wie das Gateway sie sieht: Name, Domain, Port. Neutral gehalten —
- * kein Traefik- und kein Coolify-Begriff.
- */
-export interface GatewayTarget {
-  readonly appName: string;
-  readonly domain: string;
-  readonly port: number;
-}
-
-/**
- * Was das Backend fuer eine App ans Gateway geben wuerde, aufgeschluesselt in
- * die Teile, auf die es ankommt.
+ * Wohin die erzeugte Gateway-Konfiguration geschrieben wird und wie sie
+ * zurueckgelesen wird (ADR 0008: `/data/coolify/proxy/dynamic/openapps.yaml`).
  *
- * Warum nicht einfach die rohen Labels: Die Namen der Label-Schluessel sind
- * Traefik-Vokabular und gehoeren in den Adapter. Die **Bedeutung** — laeuft
- * eine Forward-Auth davor, werden mitgeschickte Identitaets-Header entfernt,
- * steht der Port drin — gehoert in die Domaene, weil nur sie beurteilen kann,
- * ob das reicht. Der Adapter uebersetzt, die Domaene urteilt.
+ * Die Domaene erzeugt die Struktur (`domain/gateway-config.ts`), dieser
+ * Anschluss bringt sie auf den Host. Wie — Dateisystem, SSH, API — entscheidet
+ * die Infrastruktur (`infra/gateway-config-store.ts`).
+ *
+ * `verify` ist absichtlich hier und nicht in der Domaene: Der Vergleich
+ * braucht die **Serialisierung**, und die kennt nur die Seite, die schreibt.
+ * Die Domaene bekommt das Urteil in drei Zustaenden und entscheidet, was es
+ * bedeutet.
  */
-export interface GatewayLabelPlan {
-  /** Der vollstaendige Satz, wie er ans Backend ginge. Fuer den Nachweis. */
-  readonly labels: Readonly<Record<string, string>>;
-  /** Port, den das Gateway fuer den Dienst benutzt, als Zeichenkette wie im Label. */
-  readonly servicePort: string | undefined;
-  /** Adresse, die die Forward-Auth pro Aufruf fragt. */
-  readonly forwardAuthAddress: string | undefined;
-  /** Die Host-Regel des Routers, z. B. ``Host(`app.example.com`)``. */
-  readonly hostRule: string | undefined;
-  /** Middleware-Kette des Routers, in Reihenfolge. */
-  readonly middlewares: readonly string[];
+export interface GatewayConfigStore {
+  /** Schreibt die Konfiguration. Ein Fehler wird geworfen, nicht geschluckt. */
+  publish(config: GatewayDynamicConfig): Promise<void>;
   /**
-   * `true`, wenn die Kette eine Middleware enthaelt, die die `X-Auth-*`-Header
-   * der **Anfrage** loescht, und diese **vor** der Forward-Auth steht.
+   * Vergleicht, was wirklich auf dem Host liegt, mit der uebergebenen
+   * Konfiguration. Das ist die Messung nach dem Deploy — das Gegenstueck zur
+   * Ableitung vor dem Deploy.
    */
-  readonly stripsIdentityHeaders: boolean;
-  /** `true`, wenn die Kette eine Forward-Auth enthaelt. */
-  readonly forwardsAuth: boolean;
+  verify(config: GatewayDynamicConfig): Promise<GatewayConfigVerification>;
 }
 
 /**
- * Der Label-Lint aus Spec Woche 1, Abschnitt 1 (Baustein „Label-Lint", „vor und
- * nach jedem Deploy"). Zwei Richtungen, beide noetig:
- *
- * - `plan` — was wuerden wir setzen? Das ist eine **Ableitung** und laeuft vor
- *   dem Deploy. Sie faengt den Fall, dass die Ableitung schon scheitert.
- * - `missing` — was fehlt an einem **gemessenen** Satz? Das laeuft nach dem
- *   Deploy gegen die Labels, die wirklich am Container stehen, und ist der
- *   Teil, der etwas beweist.
+ * Drei Zustaende, nicht zwei. „Nicht lesbar" ist **kein** Befund ueber die
+ * Konfiguration (dasselbe Muster wie `src/infra/gateway-guard.ts`): Wer daraus
+ * einen Alarm macht, hat beim ersten Dateisystemfehler einen Alarm, den
+ * niemand mehr liest.
  */
-export interface GatewayLabelLint {
-  plan(target: GatewayTarget): GatewayLabelPlan;
-  /** Fehlende oder abweichende Label-Schluessel. Leer heisst vollstaendig. */
-  missing(actual: Readonly<Record<string, string>>, target: GatewayTarget): readonly string[];
-}
+export type GatewayConfigVerification =
+  | { readonly state: 'match' }
+  | { readonly state: 'mismatch'; readonly problems: readonly string[] }
+  | { readonly state: 'unreachable'; readonly reason: string };
+
+/* ------------------- Was das Backend der App selbst gibt ------------------- */
 
 /**
- * Das Ergebnis des Zuruecklesens. Drei Zustaende waeren zwei zu wenig: „nicht
- * erreichbar" ist **kein** Befund ueber die Labels (dasselbe Muster wie
- * `src/infra/gateway-guard.ts`). Wer daraus einen Befund macht, hat beim
- * ersten Netzwerkfehler einen Alarm, den niemand mehr liest.
+ * Was am Container der App haengt, nachdem das Deploy-Backend mit ihr fertig
+ * ist. Unter ADR 0008 ist das eine **Negativ**-Messung: Hier darf nichts
+ * stehen. Jede `traefik.*`-Label und jede Port-Veroeffentlichung waere ein
+ * Weg an unserer Konfiguration und damit an der Forward-Auth vorbei.
  */
-export type GatewayLabelReading =
-  | { readonly state: 'read'; readonly labels: Readonly<Record<string, string>> }
+export interface AppGatewayFacts {
+  /** Labels, die das Backend an dieser App fuehrt. Erwartet: keine `traefik.*`. */
+  readonly labels: Readonly<Record<string, string>>;
+  /**
+   * Veroeffentlichte Host-Ports, wie das Backend sie fuehrt (Coolify:
+   * `ports_mappings`). Erwartet: leer. Ein Host-Port macht den Container am
+   * Gateway vorbei erreichbar und das Signatur-Modell aus Spec 3.2 wertlos.
+   */
+  readonly portsMappings: string;
+  /** Domains, die das Backend der App gegeben hat. Erwartet: keine. */
+  readonly domains: string;
+}
+
+export type AppGatewayFactsReading =
+  | { readonly state: 'read'; readonly facts: AppGatewayFacts }
   | { readonly state: 'unreachable'; readonly reason: string };
 
 /* -------------------------------- Alarme ---------------------------------- */
@@ -242,40 +244,26 @@ export interface AlarmSink {
  * ohne dass die Domaene es merkt (Abbruchpfad aus dem Brief).
  */
 export interface DeploymentBackend {
+  /**
+   * Legt die App im Backend an — **ohne Domain** und ohne eigenen Router
+   * (ADR 0008). Der Adapter muss das ausdruecklich erzwingen; Coolifys API
+   * erzeugt sonst von sich aus eine sslip.io-Domain samt Router ohne unsere
+   * Middlewares (`ApplicationsController.php:1690`).
+   */
   createApp(spec: BackendAppSpec): Promise<{ backendRef: string }>;
   setEnv(backendRef: string, env: Readonly<Record<string, string>>): Promise<void>;
   deploy(request: BackendDeployRequest): Promise<BackendDeployResult>;
   status(backendRef: string): Promise<BackendStatus>;
   /** Auf die genannte Version zurueck. Muss unter 2 Minuten liefern (DoD 5). */
   rollback(backendRef: string, gitSha: string): Promise<BackendDeployResult>;
-  setDomain(backendRef: string, domain: string): Promise<void>;
   /**
-   * Stellt die App hinter das Gateway, sodass jeder Aufruf durch die
-   * Forward-Auth laeuft. Die Domaene uebergibt Name, Domain und den Port, auf
-   * dem die App lauscht — wie das beim Backend aussieht (Labels, Middleware,
-   * Router, Dienst), weiss der Adapter. Ohne diesen Schritt gibt es keinen
-   * Deploy (DoD 2).
-   *
-   * `port` steht hier, weil das Gateway ohne ihn nur raten kann: Traefik faellt
-   * sonst auf das `EXPOSE` des Images zurueck und bekommt bei keinem oder
-   * mehreren `EXPOSE` keinen Dienst zusammen. Woher der Wert kommt, steht in
-   * `domain/app-port.ts`.
-   */
-  ensureGateway(
-    backendRef: string,
-    spec: { appName: string; domain: string; port: number },
-  ): Promise<void>;
-  /**
-   * Liest zurueck, welche Gateway-Labels an dieser App stehen — nach dem
-   * Deploy, als Messung und nicht als Ableitung (Spec Woche 1, Abschnitt 1:
-   * Label-Lint „vor und nach jedem Deploy").
+   * Liest zurueck, was das Backend der App selbst gegeben hat — nach dem
+   * Deploy, als Messung und nicht als Ableitung.
    *
    * Der Rueckgabewert unterscheidet „gelesen" von „nicht erreichbar", weil die
-   * Domaene aus dem zweiten Fall **keinen** Befund machen darf. Was der
-   * Adapter dafuer anfaellt, ist seine Sache; die Domaene bekommt flache
-   * Schluessel-Wert-Paare.
+   * Domaene aus dem zweiten Fall **keinen** Befund machen darf.
    */
-  readGatewayLabels(backendRef: string): Promise<GatewayLabelReading>;
+  readAppGatewayFacts(backendRef: string): Promise<AppGatewayFactsReading>;
 }
 
 /* -------------------------------------------------------------------------- */

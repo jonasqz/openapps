@@ -17,17 +17,33 @@ import { domainContext } from '../lib/runtime';
 
 export const dynamic = 'force-dynamic';
 
-const COLUMNS: readonly TableColumn<App>[] = [
-  { key: 'name', header: 'Name', cell: (app) => app.displayName },
-  { key: 'domain', header: 'Domain', cell: (app) => app.primaryDomain ?? '—' },
-  { key: 'schema', header: 'Schema', cell: (app) => app.schemaName, hideBelow: 'md' },
-  {
-    key: 'deployment',
-    header: 'Aktuelles Deployment',
-    cell: (app) => app.currentDeploymentId ?? 'noch nicht deployt',
-    hideBelow: 'sm',
-  },
+/**
+ * Die Seite rendert auf dem Server, `Table` ist eine Client-Komponente: Eine
+ * Spalte nennt deshalb ihr `field` und keine `cell`. Abgeleitete Werte stehen
+ * vorher in der Zeile (`AppRow`), nicht in einer Funktion.
+ */
+interface AppRow {
+  id: string;
+  displayName: string;
+  primaryDomain: string | null;
+  schemaName: string;
+  deployment: string;
+}
+
+const COLUMNS: readonly TableColumn<AppRow>[] = [
+  { field: 'displayName', header: 'Name' },
+  { field: 'primaryDomain', header: 'Domain' },
+  { field: 'schemaName', header: 'Schema', hideBelow: 'md' },
+  { field: 'deployment', header: 'Aktuelles Deployment', hideBelow: 'sm' },
 ];
+
+const toRow = (app: App): AppRow => ({
+  id: app.id,
+  displayName: app.displayName,
+  primaryDomain: app.primaryDomain,
+  schemaName: app.schemaName,
+  deployment: app.currentDeploymentId ?? 'noch nicht deployt',
+});
 
 export default async function AppsPage() {
   const requestHeaders = await headers();
@@ -52,8 +68,7 @@ export default async function AppsPage() {
       <Table
         caption="Apps dieser Instanz"
         columns={COLUMNS}
-        rows={apps}
-        rowKey={(app) => app.id}
+        rows={apps.map(toRow)}
         {...(failure === undefined
           ? {}
           : { error: { title: 'Apps konnten nicht geladen werden', description: failure } })}

@@ -43,6 +43,24 @@ export function appPathFor(appName: string): string {
 }
 
 /**
+ * Der Netz-Alias, unter dem das Gateway den Container dieser App erreicht
+ * (ADR 0008).
+ *
+ * Warum nicht der Containername: Coolifys Default ist `<uuid>-<Zeitstempel>`,
+ * und der aendert sich bei **jedem** Deploy (`docker.php:670-686`). Ein
+ * Dienst, der darauf zeigt, zeigt nach dem naechsten Deploy ins Leere. Also
+ * leiten wir den Alias selbst ab — aus dem App-Namen, wie Schema, Rolle und
+ * Pfad — und setzen ihn als `custom_network_aliases` am Deploy-Backend.
+ *
+ * Form: ein einzelnes DNS-Label, kein Punkt. Das Praefix trennt ihn von
+ * Containernamen, die Coolify oder jemand anders vergibt.
+ */
+export function gatewayAliasFor(appName: string): string {
+  assertAppName(appName);
+  return `openapps-${appName}`;
+}
+
+/**
  * Die eine Domain, unter der alle Apps liegen (ADR 0007). Keine Subdomain je
  * App — die App-Domain **ist** die gemeinsame Domain, getrennt wird ueber den
  * Pfad.

@@ -2,14 +2,14 @@
  * Auf welchem Port im Container eine App lauscht.
  *
  * Warum das hier steht und nicht im Adapter: Der Port ist eine Eigenschaft der
- * App, kein Coolify-Begriff und kein Traefik-Begriff. Der Adapter bekommt ihn
- * durch `ensureGateway` uebergeben und schreibt daraus das Label
- * `traefik.http.services.<name>.loadbalancer.server.port`.
+ * App, kein Coolify-Begriff und kein Traefik-Begriff. Der
+ * Konfigurations-Generator (`domain/gateway-config.ts`) schreibt ihn in die
+ * Adresse des Dienstes (`http://<netz-alias>:<port>`).
  *
- * Ohne dieses Label raet Traefik: Es nimmt den einen `EXPOSE` des Images, und
- * nur wenn es genau einen gibt. Ein Image ohne `EXPOSE` oder mit mehreren
- * bekommt keinen funktionierenden Router — die App ist dann kaputt (nicht
- * unsicher, der Schutz haengt am Entrypoint).
+ * Ohne ihn gibt es keine Adresse: In unserer eigenen Konfiguration gibt es
+ * keine `EXPOSE`-Heuristik, auf die Traefik zurueckfallen koennte. Ein
+ * falscher Port macht die App kaputt (nicht unsicher — die Forward-Auth haengt
+ * am Router davor).
  *
  * Die Quelle ist eine **Konvention mit Default 3000**, die das
  * Starter-Template von sich aus bedient (`next start` lauscht auf 3000);

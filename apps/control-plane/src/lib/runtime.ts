@@ -4,9 +4,9 @@
  * steckt: Postgres, Coolify, echte Scanner.
  */
 
-import { createConfiguredBackend, createConfiguredGatewayLabelLint } from '../adapters/coolify';
+import { createConfiguredBackend } from '../adapters/coolify';
 import { createConfiguredRepositoryBackend } from '../adapters/github';
-import { systemClock, uuidIds, type DomainContext } from '../domain';
+import { systemClock, uuidIds, type DomainContext, type GatewaySettings } from '../domain';
 import { createDefaultPipeline } from '../domain/review-gate';
 import {
   createAgentIdentityRepository,
@@ -19,11 +19,29 @@ import {
   getPool,
 } from '../infra/pg';
 import { createAlarmSink } from '../infra/alarms';
+import { createFileGatewayConfigStore } from '../infra/gateway-config-store';
 import { gitleaksScanner, semgrepScanner } from '../infra/scanners';
 import { setSessionReaderFactory } from './actor';
 import { getAuth } from './auth';
-import { readEnv } from './env';
+import { readEnv, type ControlPlaneEnv } from './env';
 import { createBetterAuthSessionReader } from './session';
+
+/**
+ * Die Werte, mit denen die Gateway-Konfiguration erzeugt wird — aus der Env,
+ * an einer Stelle. Sie gehen in zwei Richtungen in dieselbe Rechnung: ins
+ * Review-Gate vor dem Deploy und in die veroeffentlichte Datei danach.
+ */
+function gatewaySettingsFromEnv(env: ControlPlaneEnv): GatewaySettings {
+  return {
+    forwardAuthAddress: env.forwardAuthAddress,
+    denyBackendUrl: env.denyBackendUrl,
+    entryPoint: env.gatewayEntryPoint,
+    certResolver: env.gatewayCertResolver,
+    ...(env.controlPlaneUrl === undefined
+      ? {}
+      : { controlPlane: { host: env.controlPlaneHost, url: env.controlPlaneUrl } }),
+  };
+}
 
 let context: DomainContext | undefined;
 
@@ -32,9 +50,10 @@ export function domainContext(): DomainContext {
 
   const env = readEnv();
   const pool = getPool();
-  // Eine Instanz, zweimal gebraucht: im Review-Gate vor dem Deploy und in
-  // `requestDeploy` gegen die zurueckgelesenen Labels danach.
-  const gatewayLint = createConfiguredGatewayLabelLint();
+  // Einmal gelesen, zweimal gebraucht: im Review-Gate vor dem Deploy
+  // (erzeugen und lesen) und in `requestDeploy` danach (schreiben und
+  // vergleichen). Zwei Quellen waeren zwei Konfigurationen.
+  const gatewaySettings = gatewaySettingsFromEnv(env);
 
   context = {
     apps: createAppRepository(pool),
@@ -45,14 +64,16 @@ export function domainContext(): DomainContext {
     clock: systemClock,
     ids: uuidIds,
     backend: createConfiguredBackend(),
-    gatewayLint,
+    gatewayConfig: createFileGatewayConfigStore({ directory: env.gatewayDynamicDir }),
+    gatewaySettings,
     repositories: createConfiguredRepositoryBackend(),
     reviewGate: createDefaultPipeline({
       gitleaks: gitleaksScanner(env.gitleaksBinary),
       semgrep: semgrepScanner(env.semgrepBinary),
-      // Der Label-Lint vor dem Deploy. Nicht optional: ohne ihn blockiert das
-      // Gate, statt einen Deploy ohne Gateway-Pruefung durchzulassen.
-      gatewayLint,
+      // Der Konfigurations-Lint vor dem Deploy. Nicht optional: ohne ihn
+      // blockiert das Gate, statt einen Deploy ohne Gateway-Pruefung
+      // durchzulassen.
+      gatewaySettings,
       gatewayNetwork: env.gatewayNetwork,
       // UI-Linter-Regeln liefert der UI-Agent; bis dahin wird der Schritt
       // uebersprungen und blockiert nicht.

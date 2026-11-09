@@ -10,9 +10,9 @@ import {
   type DomainContext,
 } from '@openapps/control-plane/domain';
 import { createPipeline } from '@openapps/control-plane/review-gate';
-import { createTraefikLabelLint } from '@openapps/control-plane/adapters/coolify';
 import {
   createRecordingBackend,
+  createRecordingGatewayConfigStore,
   createRecordingProvisioner,
   createRecordingRepositoryBackend,
 } from '@openapps/control-plane/infra/memory/doubles';
@@ -35,10 +35,16 @@ export function createHarness(): Harness {
     clock: systemClock,
     ids: uuidIds,
     backend: createRecordingBackend(),
-    // Der Label-Lint gehoert zum Kontext, seit er vor und nach jedem Deploy
-    // laeuft (Spec Woche 1, Abschnitt 1). Hier der echte, mit der Adresse aus
-    // `.env.example`.
-    gatewayLint: createTraefikLabelLint('http://127.0.0.1:8090/api/authz/forward'),
+    // Die Gateway-Konfiguration gehoert zum Kontext, seit die Control Plane
+    // sie selbst schreibt (ADR 0008). Hier ein Double, das sich merkt, was
+    // veroeffentlicht wurde.
+    gatewayConfig: createRecordingGatewayConfigStore(),
+    gatewaySettings: {
+      forwardAuthAddress: 'http://openapps-control-plane:3000/api/authz/forward',
+      denyBackendUrl: 'http://openapps-deny-backend:8080',
+      entryPoint: 'https',
+      certResolver: 'letsencrypt',
+    },
     repositories: createRecordingRepositoryBackend(),
     reviewGate: createPipeline([]),
     provisioner: createRecordingProvisioner(),

@@ -1,0 +1,166 @@
+# Nachweis DoD 2 — lokaler Lauf nach ADR 0008 (eigene dynamische Konfiguration)
+
+Datum: 2026-11-09 · Aufbau: `infra/traefik/docker-compose.yml`
+Vorgaenger: `2026-11-09-lokal-gateway.txt` (alter Aufbau, Entrypoint-Middleware
+und Subdomains). Diese Datei ersetzt ihn nicht — sie dokumentiert den **neuen**
+Aufbau und laesst sich daneben lesen.
+
+## Was hier geprueft wird und was nicht
+
+Geprueft wird die Kette, die auf einem Host laeuft: Traefik mit Coolifys
+statischer Konfiguration (als Kommandozeilen-Argumente nachgebildet, kein
+Docker-Provider, kein Docker-Socket), die von der Control Plane **erzeugte**
+`openapps.yaml` im File-Provider, das Deny-Backend, zwei Apps unter Pfaden
+derselben Domain und eine App, die laeuft, aber in keiner Konfiguration steht.
+
+Die `openapps.yaml` ist nicht von Hand geschrieben: `local/konfiguration-
+erzeugen.sh` ruft `buildGatewayConfig()` und `renderGatewayConfig()` aus der
+Control Plane. Der Lauf prueft damit die Konfiguration, die im Betrieb
+entsteht, und nicht eine Nachbildung.
+
+Nicht geprueft: Coolify selbst (keine Instanz), Better Auth, Postgres. Die
+Forward-Auth ist ein Stub (`local/control-plane-stub.py`), der auf Zuruf 200,
+302, 403 oder „zu langsam" antwortet.
+
+## Protokoll
+
+```
+# Nachweis DoD 2 (lokal, ADR 0008) 2026-11-09T16:20:09Z
+# traefik: traefik@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f
+# Router laut erzeugter Konfiguration:
+#      openapps-app-app1
+#      openapps-app-app2
+#      openapps-control-plane
+#      openapps-catch-all
+
+## 1. App-Pfad mit Freigabe -> 200, fuenf X-Auth-Header in der App
+OK    intern.local.test/app1/ (Freigabe)         erwartet=200          bekommen=200          angekommen=[X-Auth-Groups,X-Auth-Issued-At,X-Auth-Signature,X-Auth-User-Email,X-Auth-User-Id]
+
+## 2. Stub antwortet 403 -> 403, App wird nicht erreicht
+OK    app1/deny                                  erwartet=403          bekommen=403          body=stub: keine Freigabe
+
+## 3. Keine Session -> 302 auf den Login
+OK    app1/nosession                             erwartet=302          bekommen=302          location: https://control-plane.local.test/login?next=https://intern.local.test/app1/nosession
+
+## 4. Client schickt X-Auth-Header selbst mit -> erreicht die App nicht
+OK    app1/ mit gefaelschten Headern             erwartet=200          bekommen=200          gefaelschte Werte in der App=0
+
+## 5. Unbekannter Pfad auf derselben Domain -> 403
+OK    intern.local.test/gibtsnicht               erwartet=403          bekommen=403          quelle=control-plane
+## 5b. Unbekannter Pfad, Stub sagt absichtlich 200 -> Deny-Backend muss sperren
+OK    intern.local.test/force-allow-unbekannt    erwartet=403          bekommen=403          quelle=x-openapps-deny: catch-all
+
+## 6. App laeuft, steht aber in keiner Konfiguration -> 403, nicht 200
+OK    ohne-router/ (Stub sagt 200)               erwartet=403          bekommen=403          quelle=x-openapps-deny: catch-all
+
+## 7. Control-Plane-Stub gestoppt -> kein Durchlass, fuer jeden Pfad
+OK    /app1/                                     erwartet=5xx          bekommen=500
+OK    /app2/                                     erwartet=5xx          bekommen=500
+OK    /gibtsnicht                                erwartet=5xx          bekommen=500
+
+## 8. Stub antwortet langsam (>2 s) -> Abbruch erwartet (Spec 2, Zeile 2)
+#    ACHTUNG: Ohne eigenen Entrypoint gibt es kein 2-s-Timeout mehr
+#    (ADR 0008, GATEWAY_TIMEOUT_NOTE). Dieser Fall ist der Nachweis
+#    dafuer, dass die Luecke offen ist, nicht dafuer, dass sie zu ist.
+FEHLT app1/slow                                  erwartet=5xx          bekommen=200          nach 4s (bekannte Luecke)
+
+## 9. Was die Traefik-API zeigt — die Sicht des Startup-Checks
+   Router     openapps-app-app1@file                 status=enabled [openapps-strip-auth-headers@file, openapps-forward-auth@file]
+   Router     openapps-app-app2@file                 status=enabled [openapps-strip-auth-headers@file, openapps-forward-auth@file]
+   Router     openapps-catch-all@file                status=enabled [openapps-strip-auth-headers@file, openapps-forward-auth@file]
+   Router     openapps-control-plane@file            status=enabled [openapps-strip-auth-headers@file, openapps-forward-auth@file]
+   Middleware openapps-forward-auth@file             status=enabled
+   Middleware openapps-strip-auth-headers@file       status=enabled
+
+## Ergebnis: 1 Fehlschlag(e)
+```
+
+## Fall 8 ist ein echter Fehlschlag, kein Testfehler
+
+Spec Woche 1, Abschnitt 2, Zeile „Control Plane antwortet langsam" verlangt
+Abbruch nach 2 s. Die alte Fassung erreichte das mit einem Umweg: Die
+Forward-Auth rief einen internen Traefik-Entrypoint (`authz`), und der Dienst
+dahinter hatte einen `serversTransport` mit 2 s. Entrypoints stehen in Traefiks
+**statischer** Konfiguration; die gehoert nach ADR 0008 Coolify, und wir fassen
+sie nicht an. Damit ist der Umweg weg und mit ihm das Timeout: Traefiks
+`forwardAuth` hat keine Timeout-Option, ihr HTTP-Client hat 30 s fest
+eingebaut.
+
+Gemessen: Ein Stub, der 3,5 s braucht, kommt mit **200** durch. Die Luecke ist
+offen und steht im Code als `GATEWAY_TIMEOUT_NOTE`
+(`apps/control-plane/src/domain/gateway-config.ts`). Sie laesst nichts durch,
+was nicht freigegeben ist — sie verlaengert nur das Fenster, in dem eine
+haengende Control Plane das Gateway blockiert, von 2 s auf 30 s. Entscheidung
+dazu liegt beim CoS.
+
+## Zwei Messungen ausserhalb des Skripts
+
+### A. Der Startup-Check gegen die laufende Instanz
+
+`checkGatewayProtection({ apiUrl: 'http://127.0.0.1:8081', entryPoint: 'https' })`
+gegen den Stapel oben:
+
+```
+{ "state": "ok" }
+```
+
+### B. Was passiert, wenn ein Router seine Middlewares verliert
+
+Der Fall, den ADR 0008 als „ein Loch" nennt. Der Generator kann ihn nicht
+erzeugen (`GuardedRouter`, siehe Bericht), also wurde die Datei **von Hand**
+veraendert: beim Router `openapps-app-app2` die zwei Middleware-Zeilen
+geloescht. Traefik laedt sie mit `watch` sofort neu. Gemessen:
+
+1. Der Aufruf kommt durch, **mit gefaelschten Headern**:
+
+```
+$ curl -k --resolve intern.local.test:8443:127.0.0.1 \
+    -H 'X-Auth-User-Id: admin' -H 'X-Auth-Signature: gefaelscht' \
+    https://intern.local.test:8443/app2/
+200
+{ "app": "app2", "path": "/app2/",
+  "auth_headers": { "X-Auth-Signature": "gefaelscht", "X-Auth-User-Id": "admin" } }
+```
+
+Das ist der Beweis, dass es hier keine zweite Schicht mehr gibt: Vor ADR 0008
+haette die Entrypoint-Kette den Aufruf trotzdem geprueft. Deshalb haengt das
+Default-Deny jetzt am Typ des Routers und nicht an einer Pruefung.
+
+2. Der Startup-Check sieht es:
+
+```
+{
+  "state": "alarm",
+  "problems": [
+    "Router \"openapps-app-app2@file\" traegt die Kette [], erwartet
+     [openapps-strip-auth-headers, openapps-forward-auth] in genau dieser Reihenfolge"
+  ]
+}
+```
+
+3. Der Konfigurations-Lint nach dem Deploy sieht es auch — er vergleicht die
+   Datei auf dem Host mit dem, was der Generator schreiben wuerde:
+
+```
+{
+  "state": "mismatch",
+  "problems": [
+    "…/openapps.yaml weicht in Zeile 25 ab: steht \"      \"tls\": {}\",
+      erwartet \"      \"middlewares\":\"",
+    "… Zeile 26 …", "… Zeile 27 …"
+  ]
+}
+```
+
+Nach dem Zuruecksetzen der Datei: `verify` → `match`, Startup-Check → `ok`.
+
+## Wie der Lauf wiederholt wird
+
+```bash
+cd infra/traefik
+./local/make-certs.sh                 # Wegwerf-Zertifikat fuer *.local.test
+./local/konfiguration-erzeugen.sh     # openapps.yaml mit dem echten Generator
+docker compose up -d
+./local/nachweis.sh                   # neun Faelle, Exit-Code 1 bei Fehlschlag
+docker compose down
+```

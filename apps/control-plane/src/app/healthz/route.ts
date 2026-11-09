@@ -20,7 +20,7 @@ export function GET(): Response {
   // jede Domain, auch den Login, ueber den die Konfiguration repariert wird
   // (Nachweis Fall 7). Begruendung ausfuehrlich bei `runGatewayStartupCheck`.
   const problems = gatewayAlarm();
-  // Dazu die Befunde des Label-Lints nach dem Deploy (eine Zeile pro App).
+  // Dazu die Befunde des Konfigurations-Lints nach dem Deploy (eine Zeile je App).
   // Auch sie bleiben ein 200: Der Grund steht bei `createAlarmSink`.
   const alarms = platformAlarms();
 

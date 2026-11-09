@@ -1,0 +1,99 @@
+# BEISPIEL, nicht zum Ausrollen: erzeugt mit
+#   infra/traefik/local/konfiguration-erzeugen.sh (Argument `beispiel`)
+# fuer zwei erfundene Apps unter intern.example.com. Auf dem Host schreibt
+# die Control Plane diese Datei selbst nach /data/coolify/proxy/dynamic/
+# openapps.yaml. Sie liegt hier, damit man sieht, was der Generator ausgibt,
+# ohne ihn laufen zu lassen.
+#
+# Erzeugt von der openapps Control Plane (ADR 0008). Nicht von Hand aendern:
+# Der Konfigurations-Lint nach jedem Deploy vergleicht diese Datei mit dem,
+# was der Generator in apps/control-plane/src/domain/gateway-config.ts ausgibt,
+# und meldet jede Abweichung als Befund.
+#
+# Jeder Router hier traegt beide Middlewares, in dieser Reihenfolge:
+# erst die eingehenden X-Auth-* loeschen, dann die Forward-Auth. Es gibt
+# keine Stelle mehr, die das global erzwingt.
+"http":
+  "routers":
+    "openapps-app-projektliste":
+      "rule": "Host(`intern.example.com`) && PathPrefix(`/projektliste`)"
+      "entryPoints":
+        - "https"
+      "service": "openapps-app-projektliste"
+      "middlewares":
+        - "openapps-strip-auth-headers"
+        - "openapps-forward-auth"
+      "tls":
+        "certResolver": "letsencrypt"
+    "openapps-app-crm":
+      "rule": "Host(`intern.example.com`) && PathPrefix(`/crm`)"
+      "entryPoints":
+        - "https"
+      "service": "openapps-app-crm"
+      "middlewares":
+        - "openapps-strip-auth-headers"
+        - "openapps-forward-auth"
+      "tls":
+        "certResolver": "letsencrypt"
+    "openapps-control-plane":
+      "rule": "Host(`control-plane.example.com`)"
+      "entryPoints":
+        - "https"
+      "service": "openapps-control-plane"
+      "middlewares":
+        - "openapps-strip-auth-headers"
+        - "openapps-forward-auth"
+      "priority": 2
+      "tls":
+        "certResolver": "letsencrypt"
+    "openapps-catch-all":
+      "rule": "Host(`intern.example.com`)"
+      "entryPoints":
+        - "https"
+      "service": "openapps-deny"
+      "middlewares":
+        - "openapps-strip-auth-headers"
+        - "openapps-forward-auth"
+      "priority": 1
+      "tls": {}
+  "middlewares":
+    "openapps-strip-auth-headers":
+      "headers":
+        "customRequestHeaders":
+          "X-Auth-User-Id": ""
+          "X-Auth-User-Email": ""
+          "X-Auth-Groups": ""
+          "X-Auth-Issued-At": ""
+          "X-Auth-Signature": ""
+    "openapps-forward-auth":
+      "forwardAuth":
+        "address": "http://openapps-control-plane:3000/api/authz/forward"
+        "authResponseHeaders":
+          - "X-Auth-User-Id"
+          - "X-Auth-User-Email"
+          - "X-Auth-Groups"
+          - "X-Auth-Issued-At"
+          - "X-Auth-Signature"
+        "trustForwardHeader": true
+        "forwardBody": false
+  "services":
+    "openapps-deny":
+      "loadBalancer":
+        "servers":
+          - {"url": "http://openapps-deny-backend:8080"}
+        "passHostHeader": false
+    "openapps-app-projektliste":
+      "loadBalancer":
+        "servers":
+          - {"url": "http://openapps-projektliste:3000"}
+        "passHostHeader": true
+    "openapps-app-crm":
+      "loadBalancer":
+        "servers":
+          - {"url": "http://openapps-crm:8080"}
+        "passHostHeader": true
+    "openapps-control-plane":
+      "loadBalancer":
+        "servers":
+          - {"url": "http://openapps-control-plane:3000"}
+        "passHostHeader": true

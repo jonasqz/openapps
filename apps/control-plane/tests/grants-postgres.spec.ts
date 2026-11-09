@@ -22,6 +22,7 @@ import type { DomainContext } from '../src/domain';
 import { createPipeline } from '../src/domain/review-gate';
 import {
   createRecordingBackend,
+  createRecordingGatewayConfigStore,
   createRecordingRepositoryBackend,
 } from '../src/infra/memory/doubles';
 import {
@@ -39,7 +40,7 @@ import {
   TEST_DATABASE_URL,
   type PgFixture,
 } from './pg-helpers';
-import { admin, manifest, testLabelLint, TEST_MASTER_SECRET } from './helpers';
+import { admin, manifest, testGatewaySettings, TEST_MASTER_SECRET } from './helpers';
 
 const reachable = await postgresReachable();
 
@@ -64,7 +65,8 @@ describe.skipIf(!reachable)('Postgres setzt die Schema-Trennung durch', () => {
       clock: systemClock,
       ids: uuidIds,
       backend: createRecordingBackend(),
-      gatewayLint: testLabelLint(),
+      gatewayConfig: createRecordingGatewayConfigStore(),
+      gatewaySettings: testGatewaySettings(),
       repositories: createRecordingRepositoryBackend(),
       reviewGate: createPipeline([]),
       // Der echte Provisioner: er ruft provision_app_schema aus Migration 0006.

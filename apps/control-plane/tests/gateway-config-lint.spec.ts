@@ -1,29 +1,29 @@
 /**
- * Der Label-Lint, vor und nach dem Deploy (Spec `docs/specs/woche-1-forward-auth.md`,
- * Abschnitt 1 Bausteintabelle, Abschnitt 2 Fehlerfalltabelle, Abschnitt 3.3).
+ * Der Konfigurations-Lint, vor und nach dem Deploy (ADR 0008; vorher der
+ * Label-Lint aus Spec Woche 1, Abschnitt 1).
  *
  * Geprueft werden die riskanten Pfade, nicht der gluecklich verlaufende:
  *
- * - **Vor** dem Deploy: was passiert, wenn die Ableitung scheitert oder der
- *   Label-Satz seine Bedeutung verloren hat. Dass ein vollstaendiger Satz
- *   freigibt, steht als ein Fall dabei — mehr Gewicht hat er nicht, denn diese
- *   Pruefung ist zum Teil eine gegen sich selbst (Kommentar in
- *   `steps/gateway-labels.ts`).
- * - **Nach** dem Deploy: der Teil, der messen kann. Hier liegt der Fall, der
- *   im Gateway-Lauf wirklich eingetreten ist (alle Traefik-Labels weg), und
- *   die Unterscheidung „Backend nicht erreichbar" gegen „gelesen und falsch".
+ * - **Vor** dem Deploy: was passiert, wenn die Ableitung scheitert oder die
+ *   erzeugte Konfiguration ihre Bedeutung verloren hat. Dass eine saubere
+ *   Konfiguration freigibt, steht als ein Fall dabei — mehr Gewicht hat er
+ *   nicht, denn diese Pruefung ist zum Teil eine gegen sich selbst (Kommentar
+ *   in `steps/gateway-config.ts`). Dass **kein** Router ohne Middlewares
+ *   entstehen kann, steht in `gateway-config.spec.ts`.
+ * - **Nach** dem Deploy: der Teil, der messen kann. Zwei Richtungen: die Datei
+ *   auf dem Host und die Frage, ob Coolify der App einen eigenen Router
+ *   gegeben hat (ADR 0008 — der gefaehrliche Fall, seit der Schutz nicht mehr
+ *   am Entrypoint haengt).
  */
 
 import { describe, expect, it } from 'vitest';
 import { parseCoolifyLabels } from '../src/adapters/coolify';
-import { createApp, requestDeploy } from '../src/domain';
+import { createApp, ownRouterProblems, requestDeploy } from '../src/domain';
 import { ReviewBlockedError } from '../src/domain/errors';
-import type { GatewayLabelLint, GatewayLabelPlan, GatewayTarget } from '../src/domain/ports';
 import {
   createDefaultPipeline,
   createPipeline,
-  gatewayLabelsStep,
-  GATEWAY_LABELS_STEP,
+  gatewayConfigStep,
 } from '../src/domain/review-gate';
 import type { ReviewInput } from '../src/domain/review-gate/types';
 import type { AppManifest } from '../src/domain/types';
@@ -34,11 +34,11 @@ import {
   emptyManifest,
   manifest,
   seedBootstrapGrants,
-  testLabelLint,
+  testGatewaySettings,
 } from './helpers';
 
 const APP = 'projektliste';
-const DOMAIN = `${APP}.apps.test`;
+const DOMAIN = 'apps.test';
 
 const baseInput: ReviewInput = {
   appId: 'app-1',
@@ -54,33 +54,6 @@ const baseInput: ReviewInput = {
   gateway: { appName: APP, domain: DOMAIN },
 };
 
-/** Ein Lint, dessen Plan an einer Stelle seine Bedeutung verloren hat. */
-function brokenLint(
-  part: 'port' | 'auth' | 'strip' | 'host' | 'chain' | 'throws',
-): GatewayLabelLint {
-  const real = testLabelLint();
-  return {
-    plan(target: GatewayTarget): GatewayLabelPlan {
-      const plan = real.plan(target);
-      switch (part) {
-        case 'port':
-          return { ...plan, servicePort: undefined };
-        case 'auth':
-          return { ...plan, forwardsAuth: false, forwardAuthAddress: undefined };
-        case 'strip':
-          return { ...plan, stripsIdentityHeaders: false };
-        case 'host':
-          return { ...plan, hostRule: 'Host(`fremde.domain.test`)' };
-        case 'chain':
-          return { ...plan, middlewares: [...plan.middlewares, 'fremde-middleware@docker'] };
-        case 'throws':
-          throw new Error('Label-Setter kaputt');
-      }
-    },
-    missing: (actual, target) => real.missing(actual, target),
-  };
-}
-
 function withPortEnv(value: string): AppManifest {
   const base = emptyManifest(APP);
   return {
@@ -91,50 +64,18 @@ function withPortEnv(value: string): AppManifest {
   };
 }
 
-async function findingsOf(input: ReviewInput, lint: GatewayLabelLint = testLabelLint()) {
-  const result = await gatewayLabelsStep(lint).run(input);
-  return result;
+async function findingsOf(input: ReviewInput) {
+  return gatewayConfigStep(testGatewaySettings()).run(input);
 }
 
-describe('Label-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
-  it('gibt den vollstaendigen Satz frei', async () => {
+describe('Konfigurations-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
+  it('gibt eine saubere Konfiguration frei', async () => {
     const result = await findingsOf(baseInput);
 
     expect(result.findings).toEqual([]);
     expect(result.error).toBeUndefined();
     expect(result.skipped).toBeUndefined();
     expect(result.kind).toBe('deterministic');
-  });
-
-  it('blockiert, wenn das Port-Label fehlt', async () => {
-    const result = await findingsOf(baseInput, brokenLint('port'));
-
-    expect(result.findings.map((f) => f.code)).toContain('gateway.missing_port_label');
-    expect(result.findings.every((f) => f.severity === 'blocking')).toBe(true);
-  });
-
-  it('blockiert, wenn die Forward-Auth-Middleware fehlt', async () => {
-    const result = await findingsOf(baseInput, brokenLint('auth'));
-
-    expect(result.findings.map((f) => f.code)).toContain('gateway.missing_forward_auth');
-  });
-
-  it('blockiert, wenn die Strip-Middleware fehlt — sonst schickt der Client seine Identitaet selbst', async () => {
-    const result = await findingsOf(baseInput, brokenLint('strip'));
-
-    expect(result.findings.map((f) => f.code)).toContain('gateway.missing_strip');
-  });
-
-  it('blockiert eine Host-Regel, die nicht die Domain dieser App nennt', async () => {
-    const result = await findingsOf(baseInput, brokenLint('host'));
-
-    expect(result.findings.map((f) => f.code)).toContain('gateway.missing_host_rule');
-  });
-
-  it('blockiert eine fremde Middleware am Router — Spec 2, "Middleware-Reihenfolge vertauscht"', async () => {
-    const result = await findingsOf(baseInput, brokenLint('chain'));
-
-    expect(result.findings.map((f) => f.code)).toContain('gateway.unexpected_middlewares');
   });
 
   it('blockiert einen unbrauchbaren Port aus dem Manifest', async () => {
@@ -161,7 +102,26 @@ describe('Label-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
       gateway: { appName: APP, domain: 'a.test`) || Host(`fremd.test' },
     });
 
-    expect(result.findings.map((f) => f.code)).toEqual(['gateway.unsafe_domain']);
+    // Der Generator weist sie ab, statt sie zu schreiben — der Schritt macht
+    // daraus einen Befund und keinen Fehler.
+    expect(result.findings.map((f) => f.code)).toEqual(['gateway.config_rejected']);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('blockiert einen App-Namen, der als Router-Name nicht traegt', async () => {
+    const result = await findingsOf({
+      ...baseInput,
+      gateway: { appName: 'nicht gueltig!', domain: DOMAIN },
+    });
+
+    expect(result.findings.map((f) => f.code)).toEqual(['gateway.unsafe_app_name']);
+  });
+
+  it('blockiert eine Forward-Auth-Adresse, die keine Adresse ist', async () => {
+    const step = gatewayConfigStep({ ...testGatewaySettings(), forwardAuthAddress: 'nirgendwo' });
+    const result = await step.run(baseInput);
+
+    expect(result.findings.map((f) => f.code)).toEqual(['gateway.config_rejected']);
   });
 
   it('blockiert einen veroeffentlichten Host-Port (Spec 3.3)', async () => {
@@ -174,7 +134,7 @@ describe('Label-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
   });
 
   it('blockiert ein zweites Docker-Netz neben dem Gateway-Netz (Spec 3.3)', async () => {
-    const step = gatewayLabelsStep(testLabelLint(), { gatewayNetwork: 'coolify' });
+    const step = gatewayConfigStep(testGatewaySettings(), { gatewayNetwork: 'coolify' });
     const result = await step.run({
       ...baseInput,
       codeFacts: { ...baseInput.codeFacts, dockerNetworks: ['coolify', 'eigenes-netz'] },
@@ -214,20 +174,8 @@ describe('Label-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
     expect(result.findings.some((f) => f.severity === 'blocking')).toBe(false);
   });
 
-  it('blockiert, wenn der Schritt selbst scheitert — und ueberspringt ihn nicht', async () => {
-    const pipeline = createPipeline([gatewayLabelsStep(brokenLint('throws'))]);
-
-    const result = await pipeline.run(baseInput);
-    const step = result.steps.find((s) => s.step === GATEWAY_LABELS_STEP);
-
-    expect(step?.error).toContain('Label-Setter kaputt');
-    expect(step?.skipped).toBeUndefined();
-    expect(result.decision).toBe('blocked');
-    expect(result.summary).toContain(GATEWAY_LABELS_STEP);
-  });
-
   it('blockiert, wenn gar kein Gateway-Ziel im Review-Eingang steht', async () => {
-    const pipeline = createPipeline([gatewayLabelsStep(testLabelLint())]);
+    const pipeline = createPipeline([gatewayConfigStep(testGatewaySettings())]);
     const { gateway: _ignored, ...withoutTarget } = baseInput;
 
     const result = await pipeline.run(withoutTarget);
@@ -241,22 +189,22 @@ describe('Label-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
     const pipeline = createDefaultPipeline({
       gitleaks: createCleanScanner('gitleaks'),
       semgrep: createCleanScanner('semgrep'),
-      gatewayLint: brokenLint('strip'),
+      gatewaySettings: { ...testGatewaySettings(), denyBackendUrl: 'kein-backend' },
     });
 
     const result = await pipeline.run(baseInput);
 
     expect(result.decision).toBe('blocked');
-    expect(result.blockingFindings.map((f) => f.code)).toContain('gateway.missing_strip');
+    expect(result.blockingFindings.map((f) => f.code)).toContain('gateway.config_rejected');
   });
 
-  it('ein blockierter Deploy ruft das Backend nie', async () => {
+  it('ein blockierter Deploy ruft das Backend nie und schreibt keine Konfiguration', async () => {
     const harness = createHarness({
-      appsDomain: 'apps.test',
+      appsDomain: DOMAIN,
       pipeline: createDefaultPipeline({
         gitleaks: createCleanScanner('gitleaks'),
         semgrep: createCleanScanner('semgrep'),
-        gatewayLint: brokenLint('auth'),
+        gatewaySettings: { ...testGatewaySettings(), forwardAuthAddress: 'nirgendwo' },
       }),
     });
     await seedBootstrapGrants(harness);
@@ -279,12 +227,27 @@ describe('Label-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
     ).rejects.toBeInstanceOf(ReviewBlockedError);
 
     expect(harness.backend.calls).toEqual([]);
+    expect(harness.gatewayConfig.published).toEqual([]);
     const deployments = await harness.ctx.deployments.listByApp(app.id);
     expect(deployments[0]?.status).toBe('blocked');
   });
 });
 
-describe('Label-Lint nach dem Deploy: gemessen, nicht abgeleitet', () => {
+/* -------------------------------------------------------------------------- */
+
+describe('Konfigurations-Lint nach dem Deploy: gemessen, nicht abgeleitet', () => {
+  function cleanHarness(options: Parameters<typeof createHarness>[0] = {}) {
+    return createHarness({
+      appsDomain: DOMAIN,
+      pipeline: createDefaultPipeline({
+        gitleaks: createCleanScanner('gitleaks'),
+        semgrep: createCleanScanner('semgrep'),
+        gatewaySettings: testGatewaySettings(),
+      }),
+      ...options,
+    });
+  }
+
   async function deploy(harness: ReturnType<typeof createHarness>) {
     await seedBootstrapGrants(harness);
     const app = await createApp(harness.ctx, {
@@ -303,23 +266,7 @@ describe('Label-Lint nach dem Deploy: gemessen, nicht abgeleitet', () => {
     return { app, outcome };
   }
 
-  function cleanHarness(
-    gatewayLabels?: Parameters<typeof createHarness>[0] extends undefined
-      ? never
-      : NonNullable<Parameters<typeof createHarness>[0]>['gatewayLabels'],
-  ) {
-    return createHarness({
-      appsDomain: 'apps.test',
-      pipeline: createDefaultPipeline({
-        gitleaks: createCleanScanner('gitleaks'),
-        semgrep: createCleanScanner('semgrep'),
-        gatewayLint: testLabelLint(),
-      }),
-      ...(gatewayLabels === undefined ? {} : { gatewayLabels }),
-    });
-  }
-
-  it('Labels wie erwartet: das Deployment ist sauber und kein Alarm steht offen', async () => {
+  it('alles stimmt: das Deployment ist sauber und kein Alarm steht offen', async () => {
     const harness = cleanHarness();
     const { outcome } = await deploy(harness);
 
@@ -327,54 +274,71 @@ describe('Label-Lint nach dem Deploy: gemessen, nicht abgeleitet', () => {
     expect(outcome.deployment.status).toBe('live');
     expect(harness.alarms.open()).toEqual([]);
 
-    const entry = harness.store.auditEntries.find((e) => e.action === 'gateway_label_lint');
+    const entry = harness.store.auditEntries.find((e) => e.action === 'gateway_config_lint');
     expect(entry?.outcome).toBe('allowed');
     expect(entry?.detail.state).toBe('clean');
   });
 
-  it('eine Middleware fehlt am Container: Befund, Audit-Eintrag, nicht als sauber markiert', async () => {
-    const authAddress = `traefik.http.middlewares.openapps-auth-${APP}.forwardauth.address`;
-    const harness = cleanHarness((set) => {
-      const copy = { ...set };
-      delete copy[authAddress];
-      return copy;
+  it('die Datei auf dem Host weicht ab: Befund, Audit-Eintrag, degraded, Alarm', async () => {
+    const harness = cleanHarness({
+      gatewayVerification: {
+        state: 'mismatch',
+        problems: ['openapps.yaml weicht in Zeile 12 ab'],
+      },
     });
 
     const { outcome } = await deploy(harness);
 
     expect(outcome.gateway.state).toBe('finding');
-    expect(outcome.gateway).toMatchObject({ missing: [authAddress] });
+    expect(outcome.gateway).toMatchObject({ problems: ['openapps.yaml weicht in Zeile 12 ab'] });
     // Der Deploy ist gelaufen und laesst sich nicht ungeschehen machen — aber
     // er gilt nicht als sauber.
     expect(outcome.deployment.status).toBe('degraded');
 
-    const entry = harness.store.auditEntries.find((e) => e.action === 'gateway_label_lint');
+    const entry = harness.store.auditEntries.find((e) => e.action === 'gateway_config_lint');
     expect(entry?.outcome).toBe('error');
-    expect(entry?.reason).toContain(authAddress);
-    expect(entry?.detail.missing).toEqual([authAddress]);
+    expect(entry?.reason).toContain('Zeile 12');
 
     // Und er ist sichtbar, ohne das Audit-Log zu lesen (/healthz).
     expect(harness.alarms.open()).toHaveLength(1);
-    expect(harness.alarms.open()[0]?.kind).toBe('gateway_labels');
+    expect(harness.alarms.open()[0]?.kind).toBe('gateway_config');
     expect(harness.alarms.open()[0]?.subject).toBe(`app:${APP}`);
   });
 
-  it('alle Traefik-Labels weg — der Fall aus dem Gateway-Lauf: Befund', async () => {
-    const harness = cleanHarness({});
+  it('Coolify hat der App eigene Traefik-Labels gegeben: Befund', async () => {
+    const harness = cleanHarness({
+      appGatewayFacts: {
+        labels: { 'traefik.http.routers.fremd.rule': 'Host(`sslip.io`)' },
+      },
+    });
 
     const { outcome } = await deploy(harness);
 
     expect(outcome.gateway.state).toBe('finding');
     if (outcome.gateway.state === 'finding') {
-      // Jedes erwartete Label fehlt, nicht nur eines.
-      expect(outcome.gateway.missing.length).toBeGreaterThan(5);
+      expect(outcome.gateway.problems.join(' ')).toContain('eigene Traefik-Labels');
     }
     expect(outcome.deployment.status).toBe('degraded');
     expect(harness.alarms.open()).toHaveLength(1);
   });
 
+  it('Coolify hat der App eine Domain oder einen Host-Port gegeben: Befund', async () => {
+    const harness = cleanHarness({
+      appGatewayFacts: { portsMappings: '8080:3000', domains: 'http://1.2.3.4.sslip.io' },
+    });
+
+    const { outcome } = await deploy(harness);
+
+    expect(outcome.gateway.state).toBe('finding');
+    if (outcome.gateway.state === 'finding') {
+      expect(outcome.gateway.problems).toHaveLength(2);
+      expect(outcome.gateway.problems.join(' ')).toContain('Host-Port');
+      expect(outcome.gateway.problems.join(' ')).toContain('Domain');
+    }
+  });
+
   it('Backend nicht erreichbar: kein Befund, aber sichtbar', async () => {
-    const harness = cleanHarness('unreachable');
+    const harness = cleanHarness({ appGatewayFacts: 'unreachable' });
 
     const { outcome } = await deploy(harness);
 
@@ -384,20 +348,80 @@ describe('Label-Lint nach dem Deploy: gemessen, nicht abgeleitet', () => {
     expect(outcome.deployment.status).toBe('live');
     expect(harness.alarms.open()).toEqual([]);
 
-    const entry = harness.store.auditEntries.find((e) => e.action === 'gateway_label_lint');
+    const entry = harness.store.auditEntries.find((e) => e.action === 'gateway_config_lint');
     expect(entry?.outcome).toBe('allowed');
     expect(entry?.detail.state).toBe('unreachable');
-    expect(String(entry?.detail.reason)).toContain('nicht erreichbar');
+  });
+
+  it('Datei nicht lesbar: kein Befund', async () => {
+    const harness = cleanHarness({
+      gatewayVerification: { state: 'unreachable', reason: 'openapps.yaml nicht lesbar' },
+    });
+
+    const { outcome } = await deploy(harness);
+
+    expect(outcome.gateway.state).toBe('unreachable');
+    expect(outcome.deployment.status).toBe('live');
+    expect(harness.alarms.open()).toEqual([]);
+  });
+
+  it('Datei nicht schreibbar: der Deploy laeuft nicht an', async () => {
+    const harness = createHarness({
+      appsDomain: DOMAIN,
+      pipeline: createDefaultPipeline({
+        gitleaks: createCleanScanner('gitleaks'),
+        semgrep: createCleanScanner('semgrep'),
+        gatewaySettings: testGatewaySettings(),
+      }),
+      gatewayPublishFailsWith: 'EACCES: /traefik/dynamic ist nicht beschreibbar',
+    });
+
+    await expect(deploy(harness)).rejects.toThrow('EACCES');
+    // Kein Deploy ohne Router: Die App waere sonst im Backend, aber nicht am
+    // Gateway — und ein Redeploy wuerde sie dort finden.
+    expect(harness.backend.calls.map((c) => c.method)).not.toContain('deploy');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('was Coolify der App selbst gegeben hat', () => {
+  const app = { name: APP };
+
+  it('nichts: kein Befund', () => {
+    expect(ownRouterProblems(app, { labels: {}, portsMappings: '', domains: '' })).toEqual([]);
+  });
+
+  it('fremde Labels, die nichts mit Traefik zu tun haben, sind kein Befund', () => {
+    expect(
+      ownRouterProblems(app, {
+        labels: { 'coolify.managed': 'true', 'org.opencontainers.image.title': 'x' },
+        portsMappings: '',
+        domains: '',
+      }),
+    ).toEqual([]);
+  });
+
+  it('eine Traefik-Label in beliebiger Schreibweise ist ein Befund', () => {
+    expect(
+      ownRouterProblems(app, {
+        labels: { ' TRAEFIK.enable': 'true' },
+        portsMappings: '',
+        domains: '',
+      }),
+    ).toHaveLength(1);
+  });
+
+  it('Leerzeichen als ports_mappings ist kein Port', () => {
+    expect(ownRouterProblems(app, { labels: {}, portsMappings: '  ', domains: '' })).toEqual([]);
   });
 });
 
 describe('Labels zurueckgelesen: das Format des Deploy-Backends', () => {
   it('liest key=value je Zeile', () => {
-    expect(
-      parseCoolifyLabels('traefik.enable=true\ntraefik.http.routers.a.rule=Host(`a.test`)'),
-    ).toEqual({
+    expect(parseCoolifyLabels('coolify.managed=true\ntraefik.enable=true')).toEqual({
+      'coolify.managed': 'true',
       'traefik.enable': 'true',
-      'traefik.http.routers.a.rule': 'Host(`a.test`)',
     });
   });
 
@@ -406,12 +430,6 @@ describe('Labels zurueckgelesen: das Format des Deploy-Backends', () => {
     const encoded = Buffer.from(plain, 'utf8').toString('base64');
 
     expect(parseCoolifyLabels(encoded)).toEqual(parseCoolifyLabels(plain));
-  });
-
-  it('behaelt einen leeren Wert — er loescht einen mitgeschickten Header', () => {
-    expect(
-      parseCoolifyLabels('traefik.http.middlewares.s.headers.customrequestheaders.X-Auth-User-Id='),
-    ).toEqual({ 'traefik.http.middlewares.s.headers.customrequestheaders.X-Auth-User-Id': '' });
   });
 
   it('macht aus einem leeren Satz keinen Fehler, sondern einen leeren Satz', () => {

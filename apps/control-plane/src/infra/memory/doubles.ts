@@ -10,13 +10,16 @@ import type {
   BackendStatus,
   CreatedRepository,
   DeploymentBackend,
-  GatewayLabelLint,
-  GatewayLabelReading,
+  AppGatewayFacts,
+  AppGatewayFactsReading,
+  GatewayConfigStore,
+  GatewayConfigVerification,
   NewRepositorySpec,
   PlatformAlarm,
   RepositoryBackend,
   SchemaProvisioner,
 } from '../../domain/ports';
+import type { GatewayDynamicConfig } from '../../domain/gateway-config';
 import type { ScannerOutput, ScannerProcess } from '../../domain/review-gate/types';
 
 export interface RecordingBackend extends DeploymentBackend {
@@ -27,29 +30,20 @@ export interface RecordingBackendOptions {
   readonly deployOk?: boolean;
   readonly rollbackOk?: boolean;
   /**
-   * Der Lint, mit dem das Double die Labels erzeugt, die `ensureGateway`
-   * gesetzt haette. Damit liest `readGatewayLabels` im Normalfall genau das
-   * zurueck, was ein funktionierendes Backend zeigen wuerde — und ein Test,
-   * der einen Befund will, nimmt `gatewayLabels`.
+   * Was `readAppGatewayFacts` liefert. Default ist der gute Fall nach
+   * ADR 0008: keine Labels, kein Host-Port, keine Domain. `'unreachable'`
+   * steht fuer „wir wissen nichts".
    */
-  readonly lint?: GatewayLabelLint;
-  /**
-   * Was `readGatewayLabels` liefert, ungeachtet dessen, was gesetzt wurde:
-   * ein eigener Label-Satz, eine Aenderung des gesetzten Satzes, oder
-   * `'unreachable'` fuer „wir wissen nichts".
-   */
-  readonly gatewayLabels?:
-    | Readonly<Record<string, string>>
-    | 'unreachable'
-    | ((set: Readonly<Record<string, string>>) => Readonly<Record<string, string>>);
+  readonly appGatewayFacts?: Partial<AppGatewayFacts> | 'unreachable';
 }
+
+/** Der gute Fall: Coolify hat der App keinen eigenen Weg nach innen gegeben. */
+export const NO_OWN_ROUTER: AppGatewayFacts = { labels: {}, portsMappings: '', domains: '' };
 
 export function createRecordingBackend(options?: RecordingBackendOptions): RecordingBackend {
   const calls: { method: string; args: readonly unknown[] }[] = [];
   const deployOk = options?.deployOk ?? true;
   const rollbackOk = options?.rollbackOk ?? true;
-  /** Was pro Backend-Referenz zuletzt ans Gateway gegeben wurde. */
-  const labelsByRef = new Map<string, Readonly<Record<string, string>>>();
   const note = (method: string, ...args: unknown[]): void => {
     calls.push({ method, args });
   };
@@ -75,34 +69,13 @@ export function createRecordingBackend(options?: RecordingBackendOptions): Recor
       note('rollback', ref, gitSha);
       return { backendRef: ref, ok: rollbackOk };
     },
-    async setDomain(ref, domain) {
-      note('setDomain', ref, domain);
-    },
-    async ensureGateway(ref, spec) {
-      note('ensureGateway', ref, spec);
-      if (options?.lint !== undefined) {
-        labelsByRef.set(ref, options.lint.plan(spec).labels);
-      }
-    },
-    async readGatewayLabels(ref): Promise<GatewayLabelReading> {
-      note('readGatewayLabels', ref);
-      const override = options?.gatewayLabels;
+    async readAppGatewayFacts(ref): Promise<AppGatewayFactsReading> {
+      note('readAppGatewayFacts', ref);
+      const override = options?.appGatewayFacts;
       if (override === 'unreachable') {
         return { state: 'unreachable', reason: 'Backend im Test absichtlich nicht erreichbar' };
       }
-      const set = labelsByRef.get(ref) ?? {};
-      if (typeof override === 'function') {
-        return { state: 'read', labels: override(set) };
-      }
-      if (override !== undefined) {
-        return { state: 'read', labels: override };
-      }
-      // Kein Lint und kein Vorgabewert: Dann hat dieses Double nie Labels
-      // gesehen und sagt das, statt einen leeren Satz als Messung auszugeben.
-      if (options?.lint === undefined) {
-        return { state: 'unreachable', reason: 'dieses Double kennt keine Labels' };
-      }
-      return { state: 'read', labels: set };
+      return { state: 'read', facts: { ...NO_OWN_ROUTER, ...(override ?? {}) } };
     },
   };
 }
@@ -213,4 +186,59 @@ export function createCleanScanner(shape: 'gitleaks' | 'semgrep'): ScannerProces
 /** Ein Scanner, der scheitert — damit ein Test "faellt zu" belegen kann. */
 export function createBrokenScanner(): ScannerProcess {
   return createFixedScanner({ exitCode: 2, stdout: '', stderr: 'Scanner nicht installiert' });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Die Gateway-Konfiguration                                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface RecordingGatewayConfigStore extends GatewayConfigStore {
+  /** Jede veroeffentlichte Fassung, in der Reihenfolge der Aufrufe. */
+  readonly published: readonly GatewayDynamicConfig[];
+  /** Die letzte veroeffentlichte Fassung, oder `undefined`. */
+  last(): GatewayDynamicConfig | undefined;
+}
+
+export interface RecordingGatewayConfigStoreOptions {
+  /**
+   * Was `verify` sagt. Default: Es stimmt, was veroeffentlicht wurde — dann
+   * prueft der Test die Domaenenlogik und nicht den Vergleich.
+   */
+  readonly verification?: GatewayConfigVerification;
+  /** Soll `publish` scheitern? Fuer den Fall „Datei nicht schreibbar". */
+  readonly publishFailsWith?: string;
+}
+
+/**
+ * Merkt sich die veroeffentlichte Konfiguration, statt sie zu schreiben. Damit
+ * kann ein Test die **ganze** Ausgabe des Generators durchgehen, so wie sie im
+ * Betrieb entsteht.
+ */
+export function createRecordingGatewayConfigStore(
+  options: RecordingGatewayConfigStoreOptions = {},
+): RecordingGatewayConfigStore {
+  const published: GatewayDynamicConfig[] = [];
+  return {
+    published,
+    last: () => published[published.length - 1],
+    async publish(config) {
+      if (options.publishFailsWith !== undefined) {
+        throw new Error(options.publishFailsWith);
+      }
+      published.push(config);
+    },
+    async verify(config): Promise<GatewayConfigVerification> {
+      if (options.verification !== undefined) return options.verification;
+      const last = published[published.length - 1];
+      if (last === undefined) {
+        return { state: 'mismatch', problems: ['es wurde nie eine Konfiguration veroeffentlicht'] };
+      }
+      // Strukturell und nicht als Referenz: `gatewayConfigFor` erzeugt die
+      // Konfiguration vor und nach dem Deploy neu, und zwei gleiche
+      // Konfigurationen sind zwei verschiedene Objekte.
+      return JSON.stringify(last) === JSON.stringify(config)
+        ? { state: 'match' }
+        : { state: 'mismatch', problems: ['die veroeffentlichte Fassung ist eine andere'] };
+    },
+  };
 }

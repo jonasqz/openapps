@@ -7,11 +7,31 @@ export * from './types';
 export * from './errors';
 export * from './ports';
 export * from './naming';
-export { type DomainContext, systemClock, uuidIds } from './context';
+export { type DomainContext, type GatewaySettings, systemClock, uuidIds } from './context';
 export { can, requirePermission, grantMatches, subjectsOf } from './can';
 export { appAuthSecret, type AppSecretInput } from './app-secret';
 export { appIdOf, gatewayHost } from './gateway-identity';
 export { appContainerPort, DEFAULT_APP_PORT } from './app-port';
+export {
+  buildGatewayConfig,
+  gatewayConfigProblems,
+  gatewayRouterNameFor,
+  gatewayRouterNames,
+  routerMiddlewares,
+  canonicalHeaderName,
+  CATCH_ALL_ROUTER,
+  CONTROL_PLANE_ROUTER,
+  CONTROL_PLANE_SERVICE,
+  DENY_SERVICE,
+  FORWARD_AUTH_MIDDLEWARE,
+  GATEWAY_TIMEOUT_NOTE,
+  ROUTER_MIDDLEWARES,
+  STRIP_IDENTITY_MIDDLEWARE,
+  type GatewayApp,
+  type GatewayConfigInput,
+  type GatewayDynamicConfig,
+  type GuardedRouter,
+} from './gateway-config';
 export {
   IDENTITY_HEADERS,
   identityHeaders,
@@ -37,7 +57,9 @@ export {
   rollback,
   listDeployments,
   type DeployOutcome,
-  type GatewayLintReport,
+  type GatewayConfigReport,
+  gatewayConfigFor,
+  ownRouterProblems,
 } from './deployments';
 export { grant, revoke, listGrants, canCallTool } from './grants';
 export * as reviewGate from './review-gate';

@@ -1,7 +1,7 @@
 /**
  * Der `basePath` der App — geprueft **vor** dem Deploy (ADR 0007).
  *
- * Warum ein eigener Schritt und nicht ein Zweig im Label-Lint: Der Label-Lint
+ * Warum ein eigener Schritt und nicht ein Zweig im Konfigurations-Lint: Der
  * beurteilt den Satz, den die Control Plane ans Gateway haengt. Der `basePath`
  * steht auf der anderen Seite — er ist eine Eigenschaft des **Builds der App**
  * und bleibt derselbe, egal ob die Router aus Docker-Labels oder aus einer
@@ -69,7 +69,7 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
   };
 
   // Der Name, aus dem der Pfad entsteht, kommt aus dem Register (dasselbe
-  // Gateway-Ziel wie beim Label-Lint), nicht aus dem Manifest der
+  // Gateway-Ziel wie beim Konfigurations-Lint), nicht aus dem Manifest der
   // Arbeitskopie: sonst koennte eine App sich den Pfad selbst aussuchen.
   const appName = input.gateway?.appName;
   if (appName === undefined) {

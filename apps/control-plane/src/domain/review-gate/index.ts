@@ -7,23 +7,25 @@
 import { createPipeline } from './pipeline';
 import { appBasePathStep } from './steps/app-base-path';
 import { claudeReportStep } from './steps/claude-report';
-import { gatewayLabelsStep } from './steps/gateway-labels';
+import { gatewayConfigStep } from './steps/gateway-config';
 import { gitleaksStep } from './steps/gitleaks';
 import { manifestMatchStep } from './steps/manifest-match';
 import { semgrepStep } from './steps/semgrep';
 import { toolParityStep } from './steps/tool-parity';
 import { uiLintStep, type UiLintRules } from './steps/ui-lint';
-import type { GatewayLabelLint } from '../ports';
+import type { GatewaySettings } from '../context';
 import type { ClaudeReviewer, ReviewPipeline, ScannerProcess } from './types';
 
 export interface GateDependencies {
   readonly gitleaks: ScannerProcess;
   readonly semgrep: ScannerProcess;
   /**
-   * Der Label-Lint. Nicht optional: Ohne ihn gibt es keinen Deploy, der
-   * nachweislich hinter der Forward-Auth landet (Spec Woche 1, Abschnitt 1).
+   * Die Werte, mit denen die Gateway-Konfiguration erzeugt wird. Nicht
+   * optional: Ohne sie gibt es keinen Deploy, der nachweislich hinter der
+   * Forward-Auth landet (ADR 0008 — das Default-Deny liegt jetzt im
+   * Generator).
    */
-  readonly gatewayLint: GatewayLabelLint;
+  readonly gatewaySettings: GatewaySettings;
   /** Das eine Docker-Netz aus Spec 3.3. Default `coolify`. */
   readonly gatewayNetwork?: string;
   /** Kommt vom UI-Agent. Fehlt sie, wird der Schritt uebersprungen. */
@@ -37,8 +39,8 @@ export function createDefaultPipeline(deps: GateDependencies): ReviewPipeline {
     gitleaksStep(deps.gitleaks),
     semgrepStep(deps.semgrep),
     uiLintStep(deps.uiLintRules),
-    gatewayLabelsStep(
-      deps.gatewayLint,
+    gatewayConfigStep(
+      deps.gatewaySettings,
       deps.gatewayNetwork === undefined ? {} : { gatewayNetwork: deps.gatewayNetwork },
     ),
     appBasePathStep(),
@@ -55,11 +57,11 @@ export { gitleaksStep, parseGitleaksReport, GITLEAKS_STEP } from './steps/gitlea
 export { semgrepStep, parseSemgrepReport, SEMGREP_STEP } from './steps/semgrep';
 export { uiLintStep, UI_LINT_STEP, type UiLintRules } from './steps/ui-lint';
 export {
-  gatewayLabelsStep,
-  checkGatewayLabels,
-  GATEWAY_LABELS_STEP,
-  type GatewayLabelsOptions,
-} from './steps/gateway-labels';
+  gatewayConfigStep,
+  checkGatewayConfig,
+  GATEWAY_CONFIG_STEP,
+  type GatewayConfigStepOptions,
+} from './steps/gateway-config';
 export {
   appBasePathStep,
   checkAppBasePath,

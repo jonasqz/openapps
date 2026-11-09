@@ -1,30 +1,30 @@
 /**
- * Label-Lint **vor** dem Deploy (Spec Woche 1, Abschnitt 1 Bausteintabelle,
- * Abschnitt 2 Fehlerfalltabelle, Abschnitt 3.3).
+ * Konfigurations-Lint **vor** dem Deploy (Spec Woche 1, Abschnitt 1
+ * Bausteintabelle, Abschnitt 2 Fehlerfalltabelle, Abschnitt 3.3 — unter
+ * ADR 0008 auf die eigene dynamische Konfiguration gezogen).
  *
- * Was dieser Schritt kann und was nicht — und das ist der wichtigere Teil des
+ * Was dieser Schritt kann und was nicht, und das ist der wichtigere Teil des
  * Kommentars:
  *
- * Er prueft den Label-Satz, den die Control Plane fuer **diesen** Deploy
- * erzeugen wuerde. Dass dieser Satz vollstaendig ist, ist zum Teil eine
- * Pruefung gegen sich selbst: Erzeuger und Lint sitzen in derselben Datei
- * (`adapters/coolify/traefik.ts`). Eine solche Pruefung beweist nichts
- * darueber, was am Container ankommt — das tut erst die Messung **nach** dem
- * Deploy (`domain/deployments.ts`, `readGatewayLabels`).
+ * Er erzeugt die Gateway-Konfiguration, die dieser Deploy bekaeme, und liest
+ * sie. Dass sie traegt, ist zum Teil eine Pruefung gegen sich selbst —
+ * Erzeuger und Lint liegen beide in `domain/gateway-config.ts`. Was wirklich
+ * auf dem Host liegt, messen erst `verify` nach dem Deploy
+ * (`domain/deployments.ts`) und der Startup-Check gegen die Traefik-API
+ * (`infra/gateway-guard.ts`).
  *
  * Was er trotzdem faengt, und nur er:
  *
  *  1. Die Ableitung scheitert schon vorher. Kein Port aus dem Manifest
  *     (`PORT="dreitausend"`), keine Domain, ein App-Name oder eine Domain, die
- *     als Label-Schluessel oder in einer Host-Regel nicht trägt. Das letzte ist
- *     keine Kosmetik: ein Backtick in der Domain beendet die
- *     ``Host(`...`)``-Regel, der Rest der Zeile ist dann Traefik-Syntax aus
- *     dem Manifest einer App.
- *  2. Der Label-Satz hat seine Bedeutung verloren. Kein Port-Label, keine
- *     Forward-Auth, kein Entfernen der mitgeschickten `X-Auth-*`-Header, eine
- *     fremde Middleware vor der Auth (Spec 2, „Middleware-Reihenfolge
- *     vertauscht"). Hier zahlt sich aus, dass der Lint den Satz **liest** und
- *     nicht mit einer Konstante vergleicht.
+ *     in einer Host-Regel nicht traegt. Das letzte ist keine Kosmetik: ein
+ *     Backtick in der Domain beendet die ``Host(`...`)``-Regel, der Rest der
+ *     Zeile ist dann Traefik-Syntax aus dem Manifest einer App.
+ *  2. Die erzeugte Konfiguration hat ihre Bedeutung verloren: ein Router ohne
+ *     die zwei Middlewares, in falscher Reihenfolge, ein Dienst ohne Adresse,
+ *     ein fehlender Catch-all. Der Typ `GuardedRouter` macht den ersten Fall
+ *     unkonstruierbar; dieser Lint faengt ihn auch dann, wenn ihn jemand mit
+ *     einem Cast erzwingt.
  *  3. Die Annahmen aus Spec 3.3, soweit die Arbeitskopie sie beantwortet:
  *     kein veroeffentlichter Host-Port, kein zweites Netz neben dem
  *     Gateway-Netz, und ein Manifest, das Labels, Ports oder Netze selbst
@@ -35,12 +35,17 @@
  */
 
 import { appContainerPort } from '../../app-port';
-import type { GatewayLabelLint, GatewayTarget } from '../../ports';
+import {
+  buildGatewayConfig,
+  gatewayConfigProblems,
+  gatewayRouterNameFor,
+} from '../../gateway-config';
+import type { GatewaySettings } from '../../context';
 import type { Finding, ReviewInput, ReviewStep, StepResult } from '../types';
 
-export const GATEWAY_LABELS_STEP = 'gateway-labels';
+export const GATEWAY_CONFIG_STEP = 'gateway-config';
 
-export interface GatewayLabelsOptions {
+export interface GatewayConfigStepOptions {
   /**
    * Das eine Docker-Netz, in dem App und Gateway zusammen liegen (Spec 3.3).
    * Default `coolify` — der Netzname, den das Deploy-Backend von sich aus
@@ -51,14 +56,8 @@ export interface GatewayLabelsOptions {
 
 const DEFAULT_GATEWAY_NETWORK = 'coolify';
 
-/** Namen, die als Teil eines Traefik-Label-Schluessels tragen. */
+/** Namen, die als Router- und Dienstname tragen. */
 const SAFE_APP_NAME = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
-
-/**
- * Hostname, der in einer ``Host(`...`)``-Regel steht, ohne sie zu verlassen.
- * Keine Backticks, keine Leerzeichen, keine Kommata, keine Klammern.
- */
-const SAFE_DOMAIN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 /**
  * Env-Variablen, mit denen eine App die Infrastruktur selbst konfigurieren
@@ -76,47 +75,47 @@ const RESERVED_ENV_NAMES = [
   'CUSTOM_LABELS',
 ];
 
-export function gatewayLabelsStep(
-  lint: GatewayLabelLint,
-  options: GatewayLabelsOptions = {},
+export function gatewayConfigStep(
+  settings: GatewaySettings,
+  options: GatewayConfigStepOptions = {},
 ): ReviewStep {
   const gatewayNetwork = options.gatewayNetwork ?? DEFAULT_GATEWAY_NETWORK;
 
   return {
-    name: GATEWAY_LABELS_STEP,
+    name: GATEWAY_CONFIG_STEP,
     kind: 'deterministic',
     async run(input: ReviewInput): Promise<StepResult> {
       if (input.gateway === undefined) {
         // Kein Ziel heisst: nichts pruefbar. Ein `skipped` waere hier falsch —
         // es wuerde den Deploy durchlassen, ohne dass der Lint lief.
         return {
-          step: GATEWAY_LABELS_STEP,
+          step: GATEWAY_CONFIG_STEP,
           kind: 'deterministic',
           findings: [],
           error:
-            'kein Gateway-Ziel im Review-Eingang — ohne App-Name und Domain ist der Label-Lint nicht pruefbar',
+            'kein Gateway-Ziel im Review-Eingang — ohne App-Name und Domain ist der Konfigurations-Lint nicht pruefbar',
         };
       }
 
       return {
-        step: GATEWAY_LABELS_STEP,
+        step: GATEWAY_CONFIG_STEP,
         kind: 'deterministic',
-        findings: checkGatewayLabels(input, lint, gatewayNetwork),
+        findings: checkGatewayConfig(input, settings, gatewayNetwork),
       };
     },
   };
 }
 
-export function checkGatewayLabels(
+export function checkGatewayConfig(
   input: ReviewInput,
-  lint: GatewayLabelLint,
+  settings: GatewaySettings,
   gatewayNetwork: string = DEFAULT_GATEWAY_NETWORK,
 ): readonly Finding[] {
   const findings: Finding[] = [];
-  /** Die Ableitung selbst traegt nicht — dann gibt es keinen Satz zu lesen. */
+  /** Die Ableitung selbst traegt nicht — dann gibt es keine Konfiguration. */
   let derivationBroken = false;
   const blocking = (code: string, message: string): void => {
-    findings.push({ step: GATEWAY_LABELS_STEP, severity: 'blocking', code, message });
+    findings.push({ step: GATEWAY_CONFIG_STEP, severity: 'blocking', code, message });
   };
   const brokenDerivation = (code: string, message: string): void => {
     derivationBroken = true;
@@ -135,7 +134,7 @@ export function checkGatewayLabels(
   if (!SAFE_APP_NAME.test(target.appName)) {
     brokenDerivation(
       'gateway.unsafe_app_name',
-      `App-Name "${target.appName}" taugt nicht als Teil eines Label-Schluessels ([a-z0-9-], nicht am Rand)`,
+      `App-Name "${target.appName}" taugt nicht als Router- und Dienstname ([a-z0-9-], nicht am Rand)`,
     );
   }
 
@@ -143,12 +142,7 @@ export function checkGatewayLabels(
   if (domain === '') {
     brokenDerivation(
       'gateway.missing_domain',
-      'die App hat keine Domain — ohne Domain gibt es keinen Router und keine Forward-Auth (Spec 1.2)',
-    );
-  } else if (!SAFE_DOMAIN.test(domain)) {
-    brokenDerivation(
-      'gateway.unsafe_domain',
-      `Domain "${domain}" taugt nicht als Host-Regel: ein Zeichen darin kann die Regel verlassen`,
+      'die App hat keine Domain — ohne die gemeinsame Domain gibt es keinen Router und keine Forward-Auth (ADR 0007)',
     );
   }
 
@@ -162,61 +156,56 @@ export function checkGatewayLabels(
     );
   }
 
-  // Ohne brauchbaren Namen, Domain oder Port gibt es keinen Satz zu
-  // beurteilen. Der Befund steht schon, also hier nur noch zurueck. Befunde
-  // aus dem Manifest und aus der Arbeitskopie halten den Lint nicht auf — sie
-  // sollen zusammen mit den Label-Befunden im Bericht stehen.
+  // Ohne brauchbaren Namen, Domain oder Port gibt es nichts zu erzeugen. Der
+  // Befund steht schon. Befunde aus dem Manifest und aus der Arbeitskopie
+  // halten den Lint nicht auf — sie sollen zusammen im Bericht stehen.
   if (derivationBroken || port === undefined) {
     return findings;
   }
 
-  const resolved: GatewayTarget = { appName: target.appName, domain, port };
-  const plan = lint.plan(resolved);
+  // Die Konfiguration, die dieser Deploy bekaeme. Absichtlich nur mit **dieser**
+  // App: Der Schritt urteilt ueber diesen Deploy, und ein Befund an einer
+  // anderen App wuerde sonst diesen hier blockieren.
+  let problems: readonly string[];
+  try {
+    const config = buildGatewayConfig({
+      ...settings,
+      appsDomain: domain,
+      apps: [{ appName: target.appName, port }],
+    });
+    problems = gatewayConfigProblems(config);
 
-  if (plan.servicePort !== String(port)) {
+    const router = config.http.routers[gatewayRouterNameFor(target.appName)];
+    if (router === undefined) {
+      blocking(
+        'gateway.missing_router',
+        `die erzeugte Konfiguration enthaelt keinen Router fuer "${target.appName}"`,
+      );
+    } else if (!router.rule.includes(`Host(\`${domain}\`)`)) {
+      blocking(
+        'gateway.missing_host_rule',
+        `die Regel des Routers ist "${router.rule}" und nennt die Domain "${domain}" nicht`,
+      );
+    } else if (!router.rule.includes(`PathPrefix(\`/${target.appName}\`)`)) {
+      blocking(
+        'gateway.missing_path_prefix',
+        `die Regel des Routers ist "${router.rule}" und nennt den Pfad "/${target.appName}" nicht — ` +
+          'unter ADR 0007 trennt der Pfad die Apps, nicht der Host',
+      );
+    }
+  } catch (cause) {
+    // Der Generator weist ab, was er nicht sicher schreiben kann (eine Domain
+    // mit einem Backtick, ein Alias mit einem Doppelpunkt). Das ist ein
+    // Befund, kein Fehler des Schrittes.
     blocking(
-      'gateway.missing_port_label',
-      `der Label-Satz traegt den Port "${plan.servicePort ?? '—'}", erwartet "${String(port)}" — ` +
-        'ohne Port-Label raet Traefik aus dem EXPOSE des Images und der Router kommt nicht hoch',
+      'gateway.config_rejected',
+      `die Gateway-Konfiguration liess sich nicht erzeugen: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
+    return findings;
   }
-  if (!plan.forwardsAuth) {
-    blocking(
-      'gateway.missing_forward_auth',
-      'der Label-Satz enthaelt keine Forward-Auth-Middleware am Router dieser App',
-    );
-  } else if (
-    plan.forwardAuthAddress === undefined ||
-    !/^https?:\/\/\S+$/.test(plan.forwardAuthAddress)
-  ) {
-    blocking(
-      'gateway.invalid_forward_auth_address',
-      `die Forward-Auth zeigt auf "${plan.forwardAuthAddress ?? '—'}" — das ist keine Adresse`,
-    );
-  }
-  if (!plan.stripsIdentityHeaders) {
-    blocking(
-      'gateway.missing_strip',
-      'der Label-Satz entfernt die mitgeschickten X-Auth-*-Header nicht vor der Forward-Auth — ' +
-        'ein Client koennte seine eigene Identitaet mitschicken (ADR 0004)',
-    );
-  }
-  if (plan.hostRule === undefined || !plan.hostRule.includes(domain)) {
-    blocking(
-      'gateway.missing_host_rule',
-      `die Host-Regel des Routers ist "${plan.hostRule ?? '—'}" und nennt die Domain "${domain}" nicht`,
-    );
-  }
-  if (plan.middlewares.length !== 2) {
-    // Genau zwei: entfernen, dann pruefen. Eine dritte Middleware am Router
-    // dieser App haette die Control Plane nicht gesetzt — und eine, die vor
-    // der Auth laeuft, ist der Fall „Middleware-Reihenfolge vertauscht" aus
-    // Spec 2.
-    blocking(
-      'gateway.unexpected_middlewares',
-      `der Router traegt die Middleware-Kette [${plan.middlewares.join(', ')}], erwartet genau zwei ` +
-        '(Header entfernen, dann Forward-Auth)',
-    );
+
+  for (const problem of problems) {
+    blocking('gateway.config_problem', problem);
   }
 
   return findings;
@@ -238,7 +227,7 @@ function manifestInfrastructureFindings(input: ReviewInput): readonly Finding[] 
       RESERVED_ENV_NAMES.includes(entry.name);
     if (reserved) {
       findings.push({
-        step: GATEWAY_LABELS_STEP,
+        step: GATEWAY_CONFIG_STEP,
         severity: 'blocking',
         code: 'gateway.manifest_sets_infrastructure',
         message:
@@ -271,7 +260,7 @@ function containerReachabilityFindings(
 
   if (publishedPorts === undefined || dockerNetworks === undefined) {
     findings.push({
-      step: GATEWAY_LABELS_STEP,
+      step: GATEWAY_CONFIG_STEP,
       severity: 'warning',
       code: 'gateway.container_facts_unknown',
       message:
@@ -282,7 +271,7 @@ function containerReachabilityFindings(
 
   for (const port of publishedPorts ?? []) {
     findings.push({
-      step: GATEWAY_LABELS_STEP,
+      step: GATEWAY_CONFIG_STEP,
       severity: 'blocking',
       code: 'gateway.published_port',
       message:
@@ -294,7 +283,7 @@ function containerReachabilityFindings(
   for (const network of dockerNetworks ?? []) {
     if (network !== gatewayNetwork) {
       findings.push({
-        step: GATEWAY_LABELS_STEP,
+        step: GATEWAY_CONFIG_STEP,
         severity: 'blocking',
         code: 'gateway.extra_network',
         message:

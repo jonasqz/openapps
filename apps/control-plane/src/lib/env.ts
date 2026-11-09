@@ -30,9 +30,49 @@ export interface ControlPlaneEnv {
   readonly semgrepBinary: string;
   /**
    * Das eine Docker-Netz, in dem App und Gateway zusammen liegen (Spec Woche 1,
-   * Abschnitt 3.3). Der Label-Lint blockiert jedes weitere Netz.
+   * Abschnitt 3.3). Der Konfigurations-Lint blockiert jedes weitere Netz.
    */
   readonly gatewayNetwork: string;
+
+  /* --- Die eigene dynamische Gateway-Konfiguration (ADR 0008) ------------- */
+
+  /**
+   * Verzeichnis, in das die Control Plane `openapps.yaml` schreibt — im
+   * Container gemountet, auf dem Host `/data/coolify/proxy/dynamic`
+   * (ADR 0008, `proxy.php:791`). Default ist der Pfad, den Coolifys
+   * Proxy-Container selbst benutzt.
+   */
+  readonly gatewayDynamicDir: string;
+  /**
+   * Adresse, die Traefiks Forward-Auth pro Aufruf fragt: die Control Plane im
+   * Gateway-Netz, nicht ihre oeffentliche URL — sonst liefe die Auth-Pruefung
+   * durch die Auth-Pruefung.
+   *
+   * Hier steht **nicht** mehr der interne `authz`-Entrypoint der alten
+   * Fassung: Entrypoints stehen statisch, und die statische Datei gehoert
+   * Coolify. Damit faellt das 2-s-Timeout der Auth-Anfrage weg
+   * (`GATEWAY_TIMEOUT_NOTE` in `domain/gateway-config.ts`).
+   */
+  readonly forwardAuthAddress: string;
+  /** Das Deny-Backend, auf das der Catch-all zeigt (403 auf alles). */
+  readonly denyBackendUrl: string;
+  /**
+   * Entrypoint-Name in Coolifys statischer Konfiguration. Coolify nennt ihn
+   * `https` (nicht `websecure` wie unsere alte eigene Datei) — ein falscher
+   * Name heisst: kein Router kommt hoch.
+   */
+  readonly gatewayEntryPoint: string;
+  /**
+   * Zertifikats-Resolver aus Coolifys statischer Konfiguration. Leer heisst:
+   * TLS ohne Resolver (lokaler Lauf mit eigenem Zertifikat).
+   */
+  readonly gatewayCertResolver: string | null;
+  /**
+   * Adresse der Control Plane im Gateway-Netz, fuer ihren eigenen Router.
+   * Fehlt sie, schreibt der Generator keinen Router fuer die Control Plane —
+   * dann ist der Login ueber unsere Konfiguration nicht erreichbar.
+   */
+  readonly controlPlaneUrl: string | undefined;
 }
 
 export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
@@ -52,6 +92,18 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
     gitleaksBinary: env.GITLEAKS_BINARY ?? 'gitleaks',
     semgrepBinary: env.SEMGREP_BINARY ?? 'semgrep',
     gatewayNetwork: env.GATEWAY_DOCKER_NETWORK ?? 'coolify',
+    gatewayDynamicDir: env.GATEWAY_DYNAMIC_DIR ?? '/traefik/dynamic',
+    forwardAuthAddress:
+      env.FORWARD_AUTH_ADDRESS ?? 'http://openapps-control-plane:3000/api/authz/forward',
+    denyBackendUrl: env.GATEWAY_DENY_BACKEND_URL ?? 'http://openapps-deny-backend:8080',
+    gatewayEntryPoint: env.GATEWAY_ENTRYPOINT ?? 'https',
+    gatewayCertResolver:
+      env.GATEWAY_CERT_RESOLVER === undefined
+        ? 'letsencrypt'
+        : env.GATEWAY_CERT_RESOLVER.trim() === ''
+          ? null
+          : env.GATEWAY_CERT_RESOLVER.trim(),
+    controlPlaneUrl: env.CONTROL_PLANE_SERVICE_URL,
   };
 }
 

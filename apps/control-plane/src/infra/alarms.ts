@@ -2,9 +2,9 @@
  * Laute Befunde, die nichts abbrechen.
  *
  * Dieselbe Entscheidung wie beim Startup-Check in `gateway-guard.ts`, aus
- * demselben Grund: Ein Befund des Label-Lints macht eine App kaputt, nicht
- * offen (Spec 1.2 — der Schutz haengt am Entrypoint, eine App ohne Router
- * landet am Catch-all mit 403). Ein `process.exit` oder ein rotes `/healthz`
+ * demselben Grund: Ein Befund des Konfigurations-Lints macht eine App kaputt,
+ * nicht offen (eine App ohne Router in `openapps.yaml` landet am Catch-all mit
+ * 403). Ein `process.exit` oder ein rotes `/healthz`
  * wuerde den Schaden vergroessern: Stirbt die Control Plane, antwortet die
  * Forward-Auth niemandem mehr und **jede** Domain sperrt, auch der Login, ueber
  * den der Befund behoben wird.

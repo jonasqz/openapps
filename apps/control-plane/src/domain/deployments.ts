@@ -9,9 +9,12 @@ import { audited, record } from './audit';
 import { requireAppPermission } from './apps';
 import { appContainerPort } from './app-port';
 import { appIdOf, gatewayHost } from './gateway-identity';
-import { appPathFor } from './naming';
+import { buildGatewayConfig, gatewayConfigProblems } from './gateway-config';
+import { appPathFor, gatewayAliasFor } from './naming';
 import { ConflictError, NotFoundError, ReviewBlockedError } from './errors';
 import type { DomainContext } from './context';
+import type { GatewayDynamicConfig } from './gateway-config';
+import type { AppGatewayFacts } from './ports';
 import type { CodeFacts, ReviewResult } from './review-gate/types';
 import type { Actor, App, AppManifest, Deployment } from './types';
 
@@ -37,31 +40,31 @@ export interface DeployOutcome {
   readonly deployment: Deployment;
   readonly review: ReviewResult;
   /**
-   * Der Label-Lint **nach** dem Deploy (Spec Woche 1, Abschnitt 1). Steht hier
-   * am Ergebnis, damit ein Aufrufer — HTTP-Route, MCP-Tool — den Befund
+   * Die Pruefung der Gateway-Konfiguration **nach** dem Deploy. Steht hier am
+   * Ergebnis, damit ein Aufrufer — HTTP-Route, MCP-Tool — den Befund
    * weitergeben kann, ohne das Audit-Log zu lesen.
    */
-  readonly gateway: GatewayLintReport;
+  readonly gateway: GatewayConfigReport;
 }
 
 /**
- * Was der Label-Lint nach dem Deploy ergeben hat. Vier Zustaende, und die
- * Unterscheidung ist der Zweck (dasselbe Muster wie
+ * Was die Pruefung der Gateway-Konfiguration **nach** dem Deploy ergeben hat.
+ * Vier Zustaende, und die Unterscheidung ist der Zweck (dasselbe Muster wie
  * `src/infra/gateway-guard.ts`):
  *
- * - `clean` — gelesen, vollstaendig. Das ist eine Messung.
- * - `finding` — gelesen, unvollstaendig. Das ist ein Befund.
- * - `unreachable` — nicht gelesen. Das ist **kein** Befund: Ein Backend, das
- *   nicht antwortet, sagt nichts darueber, wie die App haengt.
+ * - `clean` — gelesen, und die Datei auf dem Host ist die, die wir erzeugt
+ *   haben; das Backend hat der App keinen eigenen Router gegeben. Messung.
+ * - `finding` — gelesen und abweichend. Befund.
+ * - `unreachable` — nicht gelesen. **Kein** Befund: Eine Datei, die sich nicht
+ *   lesen laesst, sagt nichts darueber, wie die App haengt.
  * - `skipped` — es gab nichts zu lesen, weil nicht deployt wurde.
  */
-export type GatewayLintReport =
+export type GatewayConfigReport =
   | { readonly state: 'clean' }
   | {
       readonly state: 'finding';
-      /** Fehlende oder abweichende Label-Schluessel. */
-      readonly missing: readonly string[];
-      readonly reason?: string;
+      /** Was nicht traegt, als Satz je Befund. */
+      readonly problems: readonly string[];
     }
   | { readonly state: 'unreachable'; readonly reason: string }
   | { readonly state: 'skipped'; readonly reason: string };
@@ -109,7 +112,7 @@ export async function requestDeploy(
         uiActions: input.uiActions ?? [],
         codeFacts: input.codeFacts ?? { tables: [], tools: [], envVars: [] },
         // Das Gateway-Ziel dieses Deploys. Der Port steht absichtlich nicht
-        // dabei: Der Label-Lint leitet ihn aus dem Manifest der Arbeitskopie
+        // dabei: Der Konfigurations-Lint leitet ihn aus dem Manifest der Arbeitskopie
         // ab, und ein unbrauchbarer Wert darin ist genau einer der Befunde.
         gateway: { appName: app.name, domain: app.primaryDomain },
       });
@@ -130,23 +133,23 @@ export async function requestDeploy(
       const backendRef = await ensureBackendApp(ctx, app, existing);
       const result = await ctx.backend.deploy({ backendRef, gitSha: input.gitSha });
 
-      // Der zweite Lauf des Label-Lints, und der einzige, der etwas messen
-      // kann: Was steht wirklich an der App, nachdem `ensureGateway` und der
-      // Deploy gelaufen sind (Spec Woche 1, Abschnitt 1: „vor und nach jedem
-      // Deploy")?
-      const gateway: GatewayLintReport = result.ok
-        ? await inspectGatewayLabels(ctx, app, result.backendRef)
+      // Der zweite Lauf des Konfigurations-Lints, und der einzige, der etwas
+      // messen kann: Liegt unsere Datei so auf dem Host, wie wir sie
+      // geschrieben haben, und hat das Backend der App keinen eigenen Router
+      // gegeben (ADR 0008)?
+      const gateway: GatewayConfigReport = result.ok
+        ? await inspectGatewayConfig(ctx, app, result.backendRef)
         : { state: 'skipped', reason: 'der Deploy ist nicht gelaufen' };
 
       deployment = await ctx.deployments.patch(deployment.id, {
         // `degraded` statt `live`: Der Deploy laeuft, aber er gilt nicht als
-        // sauber. Begruendung in Migration 0010 und bei `inspectGatewayLabels`.
+        // sauber. Begruendung in Migration 0010 und bei `inspectGatewayConfig`.
         status: result.ok ? (gateway.state === 'finding' ? 'degraded' : 'live') : 'failed',
         backendRef: result.backendRef,
         ...(result.ok ? { deployedAt: ctx.clock.now() } : {}),
       });
 
-      await reportGatewayLint(ctx, {
+      await reportGatewayConfig(ctx, {
         actor: input.actor,
         app,
         deploymentId: deployment.id,
@@ -170,7 +173,7 @@ export async function requestDeploy(
           deploymentId: deployment.id,
           decision: review.decision,
           blocking: review.blockingFindings.map((f) => f.code),
-          gatewayLabels: gateway.state,
+          gatewayConfig: gateway.state,
         },
       };
     },
@@ -247,67 +250,171 @@ export async function listDeployments(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Label-Lint nach dem Deploy                                                  */
+/* Konfigurations-Lint nach dem Deploy                                         */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Liest die Gateway-Labels der App zurueck und schickt sie durch den Lint.
+ * Was wir dem Gateway sagen wuerden: die erzeugte Konfiguration fuer **alle**
+ * registrierten Apps dieser Instanz.
  *
- * Warum diese Pruefung die wichtigere ist: Vor dem Deploy prueft die Control
- * Plane, was sie selbst ableiten wuerde — zum Teil eine Pruefung gegen sich
- * selbst. Hier wird gemessen. Ein Coolify-Update, das die Labels einer App
- * entfernt (Spec 2, Zeile „Coolify-Update entfernt oder ueberschreibt
- * App-Labels"; im Gateway-Lauf wirklich passiert), faellt nur hier auf.
+ * Warum alle und nicht nur die, die gerade deployt wird: Die Datei ist eine
+ * Datei. Wer sie fuer eine App schreibt, loescht die Router aller anderen.
+ * Also wird sie immer vollstaendig erzeugt — aus dem Register, der einen
+ * Quelle, die weiss, welche Apps es gibt.
  *
- * Was ein Befund **nicht** ist: ein Notfall. Der Schutz haengt am Entrypoint
- * (Spec 1.2), und eine App ohne Router landet am Catch-all mit 403. Die App
- * ist also kaputt, nicht offen. Deshalb wird hier nichts abgebrochen und
- * nichts zurueckgerollt — ein automatischer Rollback waere eine eigene
- * Entscheidung mit eigenen Folgen (er wuerde eine funktionierende Vorversion
- * ueber eine kaputte neue legen, ohne dass jemand den Befund gesehen hat).
+ * Eine registrierte, aber noch nicht deployte App bekommt dabei einen Router,
+ * dessen Dienst noch nicht antwortet: ihr Pfad gibt dann 502 statt 403. Das
+ * ist kein Loch — die Forward-Auth laeuft davor —, aber es ist eine
+ * Entscheidung: Die Alternative waere, pro App nachzusehen, ob sie schon eine
+ * Backend-Referenz hat, und das sind N Abfragen fuer einen 404 statt eines
+ * 502.
  */
-async function inspectGatewayLabels(
+export async function gatewayConfigFor(ctx: DomainContext): Promise<GatewayDynamicConfig> {
+  if (ctx.appsDomain === undefined) {
+    throw new ConflictError(
+      'ohne APPS_DOMAIN gibt es keine gemeinsame Domain und damit keinen Router (ADR 0007)',
+    );
+  }
+  const apps = await ctx.apps.listAll();
+  return buildGatewayConfig({
+    ...ctx.gatewaySettings,
+    appsDomain: ctx.appsDomain,
+    apps: apps.map((app) => ({
+      appName: app.name,
+      port: appContainerPort(app),
+      networkAlias: gatewayAliasFor(app.name),
+    })),
+  });
+}
+
+/**
+ * Schreibt die Gateway-Konfiguration. Es gibt keinen Deploy-Pfad, der das
+ * ueberspringt: Ohne Router in **unserer** Datei ist eine App nicht erreichbar,
+ * und mit einem Router ohne unsere Middlewares waere sie offen — den zweiten
+ * Fall kann der Generator nicht erzeugen (`domain/gateway-config.ts`).
+ *
+ * Vor dem Schreiben laeuft der Lint auf der erzeugten Struktur. Ein Befund
+ * hier ist kein `degraded`, sondern ein Abbruch: Eine Konfiguration, von der
+ * wir wissen, dass sie nicht traegt, wird nicht ausgerollt.
+ */
+async function publishGatewayConfig(ctx: DomainContext): Promise<GatewayDynamicConfig> {
+  const config = await gatewayConfigFor(ctx);
+  const problems = gatewayConfigProblems(config);
+  if (problems.length > 0) {
+    throw new ConflictError(
+      `die erzeugte Gateway-Konfiguration traegt nicht: ${problems.join(' | ')}`,
+    );
+  }
+  await ctx.gatewayConfig.publish(config);
+  return config;
+}
+
+/**
+ * Die Messung nach dem Deploy. Zwei Fragen, und beide kann nur diese Stelle
+ * beantworten:
+ *
+ *  1. Liegt unsere Datei so auf dem Host, wie wir sie geschrieben haben? Das
+ *     faengt den Fall, dass jemand oder etwas sie veraendert hat — und den,
+ *     dass das Schreiben nur scheinbar gelaufen ist.
+ *  2. Hat das Deploy-Backend der App einen **eigenen** Weg nach innen gegeben?
+ *     Unter ADR 0008 ist das die gefaehrliche Richtung: Eine von Coolify
+ *     erzeugte Domain bringt einen Router **ohne** unsere Middlewares mit
+ *     (`ApplicationsController.php:1690`), ein `ports_mappings` macht den
+ *     Container am Gateway vorbei erreichbar.
+ *
+ * Was ein Befund **nicht** ist: ein Notfall mit automatischem Rollback. Der
+ * waere eine eigene Entscheidung mit eigenen Folgen — er legt eine
+ * funktionierende Vorversion ueber eine neue, ohne dass jemand den Befund
+ * gesehen hat. Hier wird gemeldet, nicht gehandelt.
+ */
+async function inspectGatewayConfig(
   ctx: DomainContext,
   app: App,
   backendRef: string,
-): Promise<GatewayLintReport> {
-  if (app.primaryDomain === null) {
-    // Kann hier nicht passieren (ohne Domain gibt es keinen Deploy), steht
-    // aber da, damit der Fall nicht still als `clean` endet.
-    return { state: 'skipped', reason: 'die App hat keine Domain' };
+): Promise<GatewayConfigReport> {
+  const problems: string[] = [];
+
+  let config: GatewayDynamicConfig;
+  try {
+    config = await gatewayConfigFor(ctx);
+  } catch (cause) {
+    // Wir koennen nicht sagen, was richtig waere. Das ist ein Befund und kein
+    // `unreachable`: Die Ursache liegt bei uns.
+    return {
+      state: 'finding',
+      problems: [
+        `Gateway-Konfiguration nicht ableitbar: ${cause instanceof Error ? cause.message : String(cause)}`,
+      ],
+    };
+  }
+
+  let verification;
+  try {
+    verification = await ctx.gatewayConfig.verify(config);
+  } catch (cause) {
+    return { state: 'unreachable', reason: cause instanceof Error ? cause.message : String(cause) };
+  }
+  if (verification.state === 'unreachable') {
+    return { state: 'unreachable', reason: verification.reason };
+  }
+  if (verification.state === 'mismatch') {
+    problems.push(...verification.problems);
   }
 
   let reading;
   try {
-    reading = await ctx.backend.readGatewayLabels(backendRef);
+    reading = await ctx.backend.readAppGatewayFacts(backendRef);
   } catch (cause) {
-    // Ein Fehler beim Lesen ist kein Befund ueber die Labels.
     return { state: 'unreachable', reason: cause instanceof Error ? cause.message : String(cause) };
   }
   if (reading.state === 'unreachable') {
-    return { state: 'unreachable', reason: reading.reason };
+    // Die Datei konnten wir lesen, die App-Seite nicht. Ein halber Befund ist
+    // keiner: Was wir an der Datei gesehen haben, steht trotzdem im Bericht.
+    return problems.length > 0
+      ? { state: 'finding', problems }
+      : { state: 'unreachable', reason: reading.reason };
   }
 
-  let port: number;
-  try {
-    port = appContainerPort(app);
-  } catch (cause) {
-    // Wir haben gelesen, koennen aber nicht sagen, was richtig waere. Das ist
-    // ein Befund und kein `unreachable`: Die Ursache liegt bei uns.
-    return {
-      state: 'finding',
-      missing: [],
-      reason: `Port nicht ableitbar: ${cause instanceof Error ? cause.message : String(cause)}`,
-    };
+  problems.push(...ownRouterProblems(app, reading.facts));
+  return problems.length === 0 ? { state: 'clean' } : { state: 'finding', problems };
+}
+
+/**
+ * Hat das Deploy-Backend der App einen eigenen Weg nach innen gegeben? Unter
+ * ADR 0008 ist die richtige Antwort: nichts. Keine `traefik.*`-Label, kein
+ * Host-Port, keine Domain.
+ */
+export function ownRouterProblems(
+  app: Pick<App, 'name'>,
+  facts: AppGatewayFacts,
+): readonly string[] {
+  const problems: string[] = [];
+
+  const traefikLabels = Object.keys(facts.labels).filter((key) =>
+    key.trim().toLowerCase().startsWith('traefik.'),
+  );
+  if (traefikLabels.length > 0) {
+    problems.push(
+      `das Deploy-Backend fuehrt an "${app.name}" eigene Traefik-Labels [${traefikLabels.join(', ')}] — ` +
+        'ein Router daraus traegt unsere Middlewares nicht (ADR 0008)',
+    );
   }
 
-  const missing = ctx.gatewayLint.missing(reading.labels, {
-    appName: app.name,
-    domain: app.primaryDomain,
-    port,
-  });
+  if (facts.portsMappings.trim() !== '') {
+    problems.push(
+      `die App "${app.name}" veroeffentlicht den Host-Port "${facts.portsMappings.trim()}" — ` +
+        'dann ist der Container am Gateway vorbei erreichbar und die Signatur aus Spec 3.2 ist wertlos',
+    );
+  }
 
-  return missing.length === 0 ? { state: 'clean' } : { state: 'finding', missing };
+  if (facts.domains.trim() !== '') {
+    problems.push(
+      `das Deploy-Backend hat "${app.name}" die Domain "${facts.domains.trim()}" gegeben — ` +
+        'daraus entsteht ein Router ohne unsere Middlewares (ADR 0008, autogenerate_domain)',
+    );
+  }
+
+  return problems;
 }
 
 /**
@@ -316,36 +423,30 @@ async function inspectGatewayLabels(
  * `degraded` — zusammen sind das die drei Stellen, an denen ein Mensch es
  * sieht, ohne danach zu suchen.
  */
-async function reportGatewayLint(
+async function reportGatewayConfig(
   ctx: DomainContext,
   input: {
     actor: Actor;
     app: App;
     deploymentId: string;
-    report: GatewayLintReport;
+    report: GatewayConfigReport;
     correlationId?: string;
   },
 ): Promise<void> {
   const { app, report } = input;
   const subject = `app:${app.name}`;
 
-  const problems =
-    report.state === 'finding'
-      ? [
-          ...(report.reason === undefined ? [] : [report.reason]),
-          ...report.missing.map((key) => `Label fehlt oder weicht ab: ${key}`),
-        ]
-      : [];
+  const problems = report.state === 'finding' ? report.problems : [];
 
   if (report.state === 'finding') {
-    ctx.alarms?.raise({ kind: 'gateway_labels', subject, problems });
+    ctx.alarms?.raise({ kind: 'gateway_config', subject, problems });
   } else if (report.state === 'clean') {
-    ctx.alarms?.clear('gateway_labels', subject);
+    ctx.alarms?.clear('gateway_config', subject);
   }
 
   await record(ctx, {
     actor: input.actor,
-    action: 'gateway_label_lint',
+    action: 'gateway_config_lint',
     resource: { kind: 'app', id: app.id },
     // `error` nur beim Befund. `unreachable` ist kein Befund, steht aber mit
     // Grund im Log — sonst waere „wir wissen nichts" unsichtbar.
@@ -354,7 +455,7 @@ async function reportGatewayLint(
     detail: {
       deploymentId: input.deploymentId,
       state: report.state,
-      ...(report.state === 'finding' ? { missing: report.missing } : {}),
+      ...(report.state === 'finding' ? { problems: report.problems } : {}),
       ...(report.state === 'unreachable' || report.state === 'skipped'
         ? { reason: report.reason }
         : {}),
@@ -364,10 +465,13 @@ async function reportGatewayLint(
 }
 
 /**
- * Beim ersten Deploy entsteht die App im Deploy-Backend — und zwar gleich
- * hinter dem Gateway. Es gibt keinen Zweig, der eine App deployt, ohne
- * `ensureGateway` zu rufen: eine App ohne Forward-Auth waere offen erreichbar
- * (DoD 2).
+ * Beim ersten Deploy entsteht die App im Deploy-Backend — **ohne Domain** und
+ * ohne eigenen Router (ADR 0008). Erreichbar wird sie allein ueber den Router
+ * in unserer dynamischen Konfiguration.
+ *
+ * Es gibt keinen Zweig, der eine App deployt, ohne die Konfiguration zu
+ * schreiben: Ohne sie waere die App nicht erreichbar, und ein Router ohne
+ * Forward-Auth kann aus dem Generator nicht herauskommen (DoD 2).
  */
 async function ensureBackendApp(
   ctx: DomainContext,
@@ -375,7 +479,13 @@ async function ensureBackendApp(
   existing: readonly Deployment[],
 ): Promise<string> {
   const known = existing.find((d) => d.backendRef !== null)?.backendRef;
-  if (known !== undefined && known !== null) return known;
+  if (known !== undefined && known !== null) {
+    // Auch bei einem bekannten Backend wird die Konfiguration neu geschrieben:
+    // Der Port kann sich mit dem Manifest geaendert haben, und die Datei soll
+    // nach jedem Deploy die Wahrheit sein.
+    await publishGatewayConfig(ctx);
+    return known;
+  }
 
   if (app.primaryDomain === null) {
     throw new ConflictError(
@@ -387,18 +497,18 @@ async function ensureBackendApp(
     appName: app.name,
     gitUrl: app.source.git,
     gitRef: app.source.tag,
-    domain: app.primaryDomain,
-  });
-
-  // Reihenfolge: erst Env, dann Gateway, dann (beim Aufrufer) Deploy. Die App
-  // startet nie, ohne ihre Env und ihren Router zu haben.
-  await ctx.backend.setEnv(created.backendRef, appEnvironment(ctx, app, await freshDsn(ctx, app)));
-  await ctx.backend.ensureGateway(created.backendRef, {
-    appName: app.name,
-    domain: app.primaryDomain,
-    // Der Port gehoert zur App, nicht zum Backend: siehe `domain/app-port.ts`.
+    // Der Alias, unter dem unser Dienst die App anspricht — nicht der
+    // Containername, der bei jedem Deploy ein neues Zeitstempel-Suffix
+    // bekommt (ADR 0008).
+    networkAlias: gatewayAliasFor(app.name),
     port: appContainerPort(app),
   });
+
+  // Reihenfolge: erst Env, dann die Gateway-Konfiguration, dann (beim
+  // Aufrufer) der Deploy. Die App startet nie, ohne ihre Env zu haben, und
+  // kein Pfad wird erreichbar, ohne durch die Forward-Auth zu laufen.
+  await ctx.backend.setEnv(created.backendRef, appEnvironment(ctx, app, await freshDsn(ctx, app)));
+  await publishGatewayConfig(ctx);
   return created.backendRef;
 }
 

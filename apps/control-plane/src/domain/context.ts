@@ -12,13 +12,20 @@ import type {
   Clock,
   DeploymentBackend,
   DeploymentRepository,
-  GatewayLabelLint,
+  GatewayConfigStore,
   GrantRepository,
   IdGenerator,
   RepositoryBackend,
   SchemaProvisioner,
 } from './ports';
 import type { ReviewPipeline } from './review-gate/types';
+import type { GatewayConfigInput } from './gateway-config';
+
+/**
+ * Alles, was `buildGatewayConfig` ausser der App-Liste und der Domain braucht.
+ * Die Domain steht als `appsDomain` schon im Kontext.
+ */
+export type GatewaySettings = Omit<GatewayConfigInput, 'apps' | 'appsDomain'>;
 
 export interface DomainContext {
   readonly apps: AppRepository;
@@ -30,11 +37,19 @@ export interface DomainContext {
   readonly ids: IdGenerator;
   readonly backend: DeploymentBackend;
   /**
-   * Der Label-Lint: einmal vor dem Deploy im Review-Gate, einmal danach gegen
-   * die zurueckgelesenen Labels (Spec Woche 1, Abschnitt 1). Er rechnet nur —
-   * das Netz spricht `backend`.
+   * Wohin die eigene dynamische Gateway-Konfiguration geschrieben wird
+   * (ADR 0008). Die Struktur erzeugt die Domaene selbst
+   * (`domain/gateway-config.ts`); dieser Anschluss bringt sie auf den Host und
+   * liest sie zurueck.
    */
-  readonly gatewayLint: GatewayLabelLint;
+  readonly gatewayConfig: GatewayConfigStore;
+  /**
+   * Die Werte, die der Konfigurations-Generator ausser den Apps braucht:
+   * Forward-Auth-Adresse, Deny-Backend, Entrypoint, Zertifikats-Resolver und
+   * die Control Plane selbst. Sie kommen aus der Env und nicht aus der
+   * Datenbank — es sind Eigenschaften der Instanz, nicht einer App.
+   */
+  readonly gatewaySettings: GatewaySettings;
   /** Legt das App-Repo aus dem Starter-Template an (DoD 1). */
   readonly repositories: RepositoryBackend;
   readonly reviewGate: ReviewPipeline;

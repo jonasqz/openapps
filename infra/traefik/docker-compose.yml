@@ -1,17 +1,30 @@
-# Lokaler Stapel fuer den Nachweis zu DoD 2.
+# Lokaler Stapel fuer den Nachweis zu DoD 2 — in der Form nach ADR 0008.
 #
-# Startet Traefik mit **genau** der Konfiguration aus diesem Verzeichnis
-# (`traefik.yml` und `dynamic/` werden unveraendert gemountet), das
-# Deny-Backend, einen Stub der Forward-Auth und zwei Dummy-Apps. Damit laesst
-# sich die Kette pruefen, ohne Coolify, ohne Datenbank, ohne Better Auth.
+# Was sich gegenueber der alten Fassung geaendert hat, und warum das der Kern
+# des Nachweises ist:
+#
+#  - **Keine eigene statische Konfiguration mehr.** Traefik wird mit
+#    Kommandozeilen-Argumenten gestartet, die Coolifys Defaults nachbilden:
+#    Entrypoints `http` und `https`, File-Provider auf `/traefik/dynamic` mit
+#    `watch`, API am eigenen Port. Genau diese Datei fassen wir auf einem Host
+#    nicht an (ADR 0008) — also darf der lokale Lauf sie auch nicht als
+#    unsere ausgeben.
+#  - **Kein Docker-Provider, kein Docker-Socket.** Router entstehen nicht mehr
+#    aus Container-Labels. Keine App hier traegt eine `traefik.*`-Label; wer
+#    einen Router will, muss in `openapps.yaml` stehen.
+#  - **`openapps.yaml` wird vom echten Generator erzeugt**
+#    (`local/konfiguration-erzeugen.sh`), nicht von Hand geschrieben.
+#  - **Die Apps sind unter Pfaden erreichbar, nicht unter Subdomains**
+#    (ADR 0007): `https://intern.local.test/app1`.
 #
 #   ./local/make-certs.sh
+#   ./local/konfiguration-erzeugen.sh
 #   docker compose up -d
 #   ./local/nachweis.sh
 #
 # Produktion ist das hier nicht: `local/` liefert ein selbst signiertes
-# Zertifikat und einen Stub. Was auf einen Host gehoert, sind `traefik.yml`,
-# `dynamic/` und `deny-backend/`.
+# Zertifikat und einen Stub der Forward-Auth. Was auf einen Host gehoert, ist
+# `deny-backend/` — und die Datei, die die Control Plane selbst schreibt.
 
 name: openapps-gateway
 
@@ -19,44 +32,57 @@ services:
   traefik:
     image: traefik:v3.3
     restart: unless-stopped
+    # Diese Argumente bilden Coolifys statische Konfiguration nach
+    # (ADR 0008: `bootstrap/helpers/proxy.php`). Sie sind **nicht** unsere
+    # Konfiguration — sie stehen hier, damit der Nachweis gegen dieselbe Form
+    # laeuft wie der Host.
+    command:
+      - '--entryPoints.http.address=:80'
+      - '--entryPoints.https.address=:443'
+      - '--providers.file.directory=/traefik/dynamic'
+      - '--providers.file.watch=true'
+      - '--api.dashboard=false'
+      - '--api.insecure=true'
+      - '--ping=true'
+      - '--log.level=INFO'
+      # Die Identitaets-Header gehoeren nicht ins Log.
+      - '--accesslog=true'
+      - '--accesslog.fields.headers.defaultMode=drop'
     ports:
       - '${OPENAPPS_HTTPS_PORT:-8443}:443'
       - '${OPENAPPS_HTTP_PORT:-8080}:80'
       # Die Traefik-API nur auf dem Loopback des Hosts. Im Dauerbetrieb kann
-      # dieses Mapping ganz entfallen: die Control Plane erreicht die API im
+      # dieses Mapping entfallen: die Control Plane erreicht die API im
       # Gateway-Netz unter http://traefik:8080.
       - '127.0.0.1:${OPENAPPS_TRAEFIK_API_PORT:-8081}:8080'
     volumes:
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      # Jede dynamische Datei einzeln, nicht das Verzeichnis: ein Mount in ein
+      # Die erzeugte Konfiguration. Auf dem Host ist das der Mount von
+      # /data/coolify/proxy/dynamic, in den die Control Plane schreibt.
+      # Das ganze Verzeichnis, nicht einzelne Dateien: ein Mount **in** ein
       # gemountetes Verzeichnis hinein legt den Mountpoint als leere Datei im
-      # Repo ab — und eine leere `tls.local.yml` im `dynamic/` waere auf einem
-      # Host ein Fehler, der niemandem auffaellt. Kommt eine dynamische Datei
-      # hinzu, gehoert hier eine Zeile dazu.
-      - ./dynamic/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
-      - ./dynamic/catch-all.yml:/etc/traefik/dynamic/catch-all.yml:ro
-      - ./dynamic/control-plane.yml:/etc/traefik/dynamic/control-plane.yml:ro
-      # Nur lokal: das selbst signierte Standard-Zertifikat.
-      - ./local/tls.local.yml:/etc/traefik/dynamic/tls.local.yml:ro
+      # Repo ab. `tls.local.yml` kopiert deshalb
+      # `local/konfiguration-erzeugen.sh` dorthin.
+      - ./local/dynamic:/traefik/dynamic:ro
       - ./local/certs:/etc/traefik/local-certs:ro
-      # Read-only. Traefik liest Labels, es aendert nichts an Containern.
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - openapps-gateway
 
   # Das Deny-Backend. Keine Abhaengigkeit auf irgendetwas: es muss auch dann
-  # noch Nein sagen koennen, wenn alles andere aus ist.
+  # noch Nein sagen koennen, wenn alles andere aus ist. Der Netz-Alias ist der
+  # Name, den `GATEWAY_DENY_BACKEND_URL` nennt.
   deny-backend:
     image: nginx:alpine
     restart: unless-stopped
     volumes:
       - ./deny-backend/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
-      - openapps-gateway
+      openapps-gateway:
+        aliases:
+          - openapps-deny-backend
 
-  # Stub der Control Plane. Heisst absichtlich `control-plane`, damit die
-  # Adresse in `dynamic/middlewares.yml` unveraendert bleibt und der Nachweis
-  # die echte Konfiguration prueft.
+  # Stub der Control Plane. Der Alias ist der, den die Forward-Auth-Adresse in
+  # der erzeugten Konfiguration nennt — damit prueft der Nachweis die echte
+  # Adresse und nicht eine fuer den Test umgebogene.
   control-plane:
     image: python:3.12-alpine
     restart: unless-stopped
@@ -64,17 +90,22 @@ services:
     volumes:
       - ./local/control-plane-stub.py:/srv/stub.py:ro
     environment:
-      STUB_REGISTERED_HOSTS: 'app1.local.test,app2.local.test,nolabels.local.test'
+      STUB_APPS_DOMAIN: 'intern.local.test'
+      STUB_CONTROL_PLANE_HOST: 'control-plane.local.test'
+      # Apps, auf die der Nutzer eine Freigabe hat. `ohne-router` ist
+      # absichtlich dabei: Die Forward-Auth wuerde 200 sagen — ohne Router darf
+      # die App trotzdem nicht erreichbar sein.
+      STUB_ALLOWED_APPS: 'app1,app2,ohne-router'
       STUB_LOGIN_URL: 'https://control-plane.local.test/login'
       STUB_SLOW_SECONDS: '3.5'
     networks:
-      - openapps-gateway
+      openapps-gateway:
+        aliases:
+          - openapps-control-plane
 
-  # --- Dummy-App 1: vollstaendige Labels ----------------------------------
-  # Die Labels sind die Ausgabe von `forwardAuthLabels()` aus
-  # apps/control-plane/src/adapters/coolify/traefik.ts fuer
-  # appName=app1, domain=app1.local.test — plus die Port-Angabe, die dort
-  # fehlt (siehe Bericht/README).
+  # --- Dummy-App 1 --------------------------------------------------------
+  # Keine Labels. Der Router steht in openapps.yaml, der Dienst zeigt auf
+  # diesen Alias — nicht auf den Containernamen (ADR 0008).
   app1:
     image: python:3.12-alpine
     restart: unless-stopped
@@ -85,27 +116,11 @@ services:
       APP_NAME: app1
     # Kein `ports`: die App ist nur ueber das Gateway erreichbar (Spec 3.3).
     networks:
-      - openapps-gateway
-    labels:
-      traefik.enable: 'true'
-      traefik.http.middlewares.openapps-strip-app1.headers.customrequestheaders.X-Auth-User-Id: ''
-      traefik.http.middlewares.openapps-strip-app1.headers.customrequestheaders.X-Auth-User-Email: ''
-      traefik.http.middlewares.openapps-strip-app1.headers.customrequestheaders.X-Auth-Groups: ''
-      traefik.http.middlewares.openapps-strip-app1.headers.customrequestheaders.X-Auth-Issued-At: ''
-      traefik.http.middlewares.openapps-strip-app1.headers.customrequestheaders.X-Auth-Signature: ''
-      traefik.http.middlewares.openapps-auth-app1.forwardauth.address: 'http://control-plane:3000/api/authz/forward'
-      traefik.http.middlewares.openapps-auth-app1.forwardauth.authResponseHeaders: 'X-Auth-User-Id,X-Auth-User-Email,X-Auth-Groups,X-Auth-Issued-At,X-Auth-Signature'
-      traefik.http.middlewares.openapps-auth-app1.forwardauth.trustForwardHeader: 'true'
-      traefik.http.routers.openapps-app1.rule: 'Host(`app1.local.test`)'
-      traefik.http.routers.openapps-app1.entrypoints: 'websecure'
-      traefik.http.routers.openapps-app1.middlewares: 'openapps-strip-app1@docker,openapps-auth-app1@docker'
-      # Lokal ohne `tls.certresolver`: Let's Encrypt kann fuer `.local.test`
-      # kein Zertifikat ausstellen. Auf einem Host setzt der Label-Setter
-      # `traefik.http.routers.openapps-app1.tls.certresolver=letsencrypt`.
-      traefik.http.routers.openapps-app1.tls: 'true'
-      traefik.http.services.openapps-app1.loadbalancer.server.port: '8000'
+      openapps-gateway:
+        aliases:
+          - openapps-app1
 
-  # --- Dummy-App 2: dieselben Labels, andere Domain -----------------------
+  # --- Dummy-App 2: dieselbe App unter einem anderen Pfad -----------------
   app2:
     image: python:3.12-alpine
     restart: unless-stopped
@@ -115,41 +130,29 @@ services:
     environment:
       APP_NAME: app2
     networks:
-      - openapps-gateway
-    labels:
-      traefik.enable: 'true'
-      traefik.http.middlewares.openapps-strip-app2.headers.customrequestheaders.X-Auth-User-Id: ''
-      traefik.http.middlewares.openapps-strip-app2.headers.customrequestheaders.X-Auth-User-Email: ''
-      traefik.http.middlewares.openapps-strip-app2.headers.customrequestheaders.X-Auth-Groups: ''
-      traefik.http.middlewares.openapps-strip-app2.headers.customrequestheaders.X-Auth-Issued-At: ''
-      traefik.http.middlewares.openapps-strip-app2.headers.customrequestheaders.X-Auth-Signature: ''
-      traefik.http.middlewares.openapps-auth-app2.forwardauth.address: 'http://control-plane:3000/api/authz/forward'
-      traefik.http.middlewares.openapps-auth-app2.forwardauth.authResponseHeaders: 'X-Auth-User-Id,X-Auth-User-Email,X-Auth-Groups,X-Auth-Issued-At,X-Auth-Signature'
-      traefik.http.middlewares.openapps-auth-app2.forwardauth.trustForwardHeader: 'true'
-      traefik.http.routers.openapps-app2.rule: 'Host(`app2.local.test`)'
-      traefik.http.routers.openapps-app2.entrypoints: 'websecure'
-      traefik.http.routers.openapps-app2.middlewares: 'openapps-strip-app2@docker,openapps-auth-app2@docker'
-      traefik.http.routers.openapps-app2.tls: 'true'
-      traefik.http.services.openapps-app2.loadbalancer.server.port: '8000'
+      openapps-gateway:
+        aliases:
+          - openapps-app2
 
-  # --- Dummy-App 3: derselbe Dienst, aber ohne Traefik-Labels -------------
-  # Der Coolify-Update-Fall. Die Domain `nolabels.local.test` ist im Stub als
-  # registriert und freigegeben eingetragen — die Forward-Auth wuerde also 200
-  # sagen. Ohne Router darf die App trotzdem nicht erreichbar sein.
-  # Start: docker compose up -d app3-ohne-labels
-  app3-ohne-labels:
+  # --- Dummy-App 3: laeuft, steht aber in keiner Konfiguration ------------
+  # Der Fall, der nach ADR 0008 zaehlt: Eine App, die die Control Plane nicht
+  # in `openapps.yaml` geschrieben hat (noch nicht deployt, von Hand
+  # angelegt, aus einem Backup wieder da). Der Stub gibt ihren Pfad frei —
+  # erreichbar darf sie trotzdem nicht sein.
+  # Start: docker compose up -d app3-ohne-router
+  app3-ohne-router:
     image: python:3.12-alpine
     restart: unless-stopped
     command: ['python3', '/srv/app.py']
     volumes:
       - ./local/dummy-app.py:/srv/app.py:ro
     environment:
-      APP_NAME: app3-ohne-labels
+      APP_NAME: ohne-router
     networks:
-      - openapps-gateway
-    # Hier stehen bewusst keine Labels.
+      openapps-gateway:
+        aliases:
+          - openapps-ohne-router
 
 networks:
   openapps-gateway:
-    # Fester Name: `providers.docker.network` in traefik.yml verweist darauf.
     name: openapps-gateway

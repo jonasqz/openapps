@@ -14,18 +14,37 @@ import { domainContext } from '../../lib/runtime';
 
 export const dynamic = 'force-dynamic';
 
-const COLUMNS: readonly TableColumn<Grant>[] = [
-  { key: 'subject', header: 'Subjekt', cell: (g) => `${g.subject.kind}:${g.subject.id}` },
-  { key: 'verb', header: 'Verb', cell: (g) => g.verb },
-  { key: 'resource', header: 'Ressource', cell: (g) => `${g.resource.kind}:${g.resource.id}` },
-  { key: 'grantedBy', header: 'Vergeben von', cell: (g) => g.grantedBy, hideBelow: 'md' },
-  {
-    key: 'state',
-    header: 'Stand',
-    cell: (g) =>
-      g.revokedAt === null ? 'offen' : `widerrufen am ${g.revokedAt.toISOString().slice(0, 10)}`,
-  },
+/**
+ * Die Seite rendert auf dem Server, `Table` ist eine Client-Komponente: Eine
+ * Spalte nennt deshalb ihr `field` und keine `cell`. Subjekt, Ressource und
+ * Stand sind abgeleitet — sie werden hier ausgerechnet und stehen als Feld in
+ * der Zeile, statt als Funktion über die Grenze zu gehen.
+ */
+interface GrantRow {
+  id: string;
+  subject: string;
+  verb: string;
+  resource: string;
+  grantedBy: string;
+  state: string;
+}
+
+const COLUMNS: readonly TableColumn<GrantRow>[] = [
+  { field: 'subject', header: 'Subjekt' },
+  { field: 'verb', header: 'Verb' },
+  { field: 'resource', header: 'Ressource' },
+  { field: 'grantedBy', header: 'Vergeben von', hideBelow: 'md' },
+  { field: 'state', header: 'Stand' },
 ];
+
+const toRow = (g: Grant): GrantRow => ({
+  id: g.id,
+  subject: `${g.subject.kind}:${g.subject.id}`,
+  verb: g.verb,
+  resource: `${g.resource.kind}:${g.resource.id}`,
+  grantedBy: g.grantedBy,
+  state: g.revokedAt === null ? 'offen' : `widerrufen am ${g.revokedAt.toISOString().slice(0, 10)}`,
+});
 
 export default async function GrantsPage() {
   const requestHeaders = await headers();
@@ -49,8 +68,7 @@ export default async function GrantsPage() {
       <Table
         caption="Wer darf was auf welcher Ressource"
         columns={COLUMNS}
-        rows={grants}
-        rowKey={(grant) => grant.id}
+        rows={grants.map(toRow)}
         {...(failure === undefined
           ? {}
           : { error: { title: 'Freigaben konnten nicht geladen werden', description: failure } })}

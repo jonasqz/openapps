@@ -1,50 +1,64 @@
 /**
- * Startup-Check gegen die Traefik-API: Haengt der Schutz noch am Entrypoint?
+ * Startup-Check gegen die Traefik-API: Laeuft wirklich das, was wir
+ * geschrieben haben?
  *
- * Warum es diesen Check gibt (Spec `docs/specs/woche-1-forward-auth.md`,
- * Abschnitt 2, Zeile „Coolify-Update ueberschreibt die statische
- * Traefik-Konfiguration"): Die Forward-Auth haengt an
- * `entryPoints.websecure.http.middlewares`. Ein Coolify-Update kann diese
- * Datei ersetzen. Dann faellt der Schutz weg, ohne dass irgendwo ein Fehler
- * entsteht — jede App waere offen und niemand wuesste es. Also fragt die
- * Control Plane beim Start die laufende Traefik-Instanz, ob die Konfiguration
- * noch die ist, die `infra/traefik/` beschreibt.
+ * ## Was sich mit ADR 0008 geaendert hat
  *
- * Der Check prueft drei Dinge, und alle drei sind Alarm, kein Hinweis:
+ * Die alte Fassung pruefte die Middleware-Kette am Entrypoint `websecure`.
+ * Diese Kette gibt es nicht mehr: Entrypoints stehen in Traefiks **statischer**
+ * Konfiguration, die gehoert Coolify, und wir fassen sie nicht an (ADR 0008).
+ * Die Forward-Auth haengt jetzt an **jedem einzelnen Router**, den unser
+ * Generator ausgibt.
  *
- *  1. Die Middleware-Kette am `websecure`-Entrypoint ist **genau**
- *     `[strip, forward-auth]`. Fehlt die Forward-Auth, ist der Schutz weg.
- *     Fehlt `strip` oder steht sie hinter der Auth, kann ein Client seine
- *     eigenen `X-Auth-*`-Header mitschicken (ADR 0004) — die Reihenfolge ist
- *     Teil der Sicherheit, nicht Kosmetik.
- *  2. `forwardedHeaders` am Entrypoint ist leer. Steht dort `insecure: true`
- *     oder eine weite `trustedIPs`-Liste, bestimmt der Aufrufer
- *     `X-Forwarded-Host` — und damit die Pfad-Allowlist aus Spec 1.3, die
- *     genau diesem Header vertraut.
- *  3. Der Catch-all-Router `openapps-catch-all@file` existiert und ist
- *     `enabled`. Ohne ihn landet eine Domain ohne eigenen Router nicht beim
- *     Deny-Backend.
+ * Damit prueft dieser Check vier Dinge, und alle vier sind Alarm, kein
+ * Hinweis:
+ *
+ *  1. Unsere zwei Middlewares gibt es in der laufenden Konfiguration und sie
+ *     sind `enabled`. Fehlt eine, zeigt jeder Router auf etwas, das es nicht
+ *     gibt — Traefik schaltet solche Router ab, aber darauf wollen wir uns
+ *     nicht verlassen.
+ *  2. **Jeder** unserer Router traegt genau `[strip, forward-auth]`, in dieser
+ *     Reihenfolge. Nicht eine Liste erwarteter Namen: geprueft wird jeder
+ *     Router, dessen Name mit `openapps-` beginnt — auch einer, den es heute
+ *     noch nicht gibt.
+ *  3. Jeder unserer Router ist `enabled`. Ein Router mit einem Fehler in der
+ *     Regel ist in der API `disabled` und schweigt sonst.
+ *  4. Der Catch-all ist da und `enabled`. Ohne ihn landet ein unbekannter Pfad
+ *     in Traefiks 404 statt im Deny-Backend.
+ *
+ * Dazu, unveraendert aus der alten Fassung und weiter noetig:
+ * `forwardedHeaders` am Entrypoint, an dem unsere Router haengen, ist leer.
+ * Steht dort `insecure: true` oder eine weite `trustedIPs`-Liste, bestimmt der
+ * Aufrufer `X-Forwarded-Host` — und damit die Pfad-Allowlist aus Spec 1.3, die
+ * genau diesem Header vertraut. Dieser Entrypoint gehoert jetzt Coolify; genau
+ * deshalb ist es wichtig, ihn zu messen statt ihn zu setzen.
+ *
+ * Die Unterscheidung bleibt, und sie ist der ganze Zweck: „Ich habe nichts
+ * erfahren" (`unreachable`) ist kein Befund, „die Antwort ist da und falsch"
+ * (`alarm`) ist einer.
  */
 
-/** Entrypoint, an dem der Schutz haengt. */
-export const GUARDED_ENTRYPOINT = 'websecure';
+import {
+  CATCH_ALL_ROUTER,
+  FORWARD_AUTH_MIDDLEWARE,
+  ROUTER_MIDDLEWARES,
+  STRIP_IDENTITY_MIDDLEWARE,
+} from '../domain/gateway-config';
 
-/**
- * Die Kette in genau dieser Reihenfolge — Gegenstueck zu
- * `entryPoints.websecure.http.middlewares` in `infra/traefik/traefik.yml`.
- */
-export const REQUIRED_ENTRYPOINT_MIDDLEWARES: readonly string[] = [
-  'openapps-strip-auth-headers@file',
-  'openapps-forward-auth@file',
+/** Praefix, an dem unsere Router und Middlewares erkennbar sind. */
+export const OWN_PREFIX = 'openapps-';
+
+/** Die zwei Middlewares, die es in der laufenden Konfiguration geben muss. */
+export const REQUIRED_MIDDLEWARES: readonly string[] = [
+  STRIP_IDENTITY_MIDDLEWARE,
+  FORWARD_AUTH_MIDDLEWARE,
 ];
 
-/** Gegenstueck zum Router in `infra/traefik/dynamic/catch-all.yml`. */
-export const REQUIRED_CATCH_ALL_ROUTER = 'openapps-catch-all@file';
+/** Der Catch-all, wie er in unserer Konfiguration heisst. */
+export const REQUIRED_CATCH_ALL_ROUTER = CATCH_ALL_ROUTER;
 
 /**
- * Drei Zustaende, nicht zwei. Der Unterschied ist der ganze Zweck dieser
- * Unterscheidung: „Ich habe nichts erfahren" (`unreachable`) ist kein Befund
- * ueber die Konfiguration, „die Kette ist falsch" (`alarm`) ist einer.
+ * Drei Zustaende, nicht zwei. Siehe Dateikopf, letzter Absatz.
  */
 export type GatewayGuardResult =
   | { readonly state: 'ok' }
@@ -57,10 +71,16 @@ export interface GatewayGuardOptions {
   /** HTTP-Zugang. In den Tests ein Double, im Betrieb `globalThis.fetch`. */
   readonly fetch?: typeof globalThis.fetch;
   readonly timeoutMs?: number;
+  /**
+   * Der Entrypoint, an dem unsere Router haengen — in Coolifys statischer
+   * Konfiguration `https`. Default `GATEWAY_ENTRYPOINT` bzw. `https`.
+   */
+  readonly entryPoint?: string;
 }
 
 const DEFAULT_API_URL = 'http://traefik:8080';
 const DEFAULT_TIMEOUT_MS = 3000;
+const DEFAULT_ENTRYPOINT = 'https';
 
 export function traefikApiUrl(
   env: Readonly<Record<string, string | undefined>> = process.env,
@@ -72,71 +92,147 @@ export function traefikApiUrl(
   );
 }
 
+export function guardedEntryPoint(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  const raw = env.GATEWAY_ENTRYPOINT;
+  return raw === undefined || raw.trim() === '' ? DEFAULT_ENTRYPOINT : raw.trim();
+}
+
+/** Name ohne Provider-Suffix: `openapps-forward-auth@file` → `openapps-forward-auth`. */
+function plainName(value: string): string {
+  return value.split('@')[0] ?? value;
+}
+
 export async function checkGatewayProtection(
   options: GatewayGuardOptions = {},
 ): Promise<GatewayGuardResult> {
   const base = (options.apiUrl ?? traefikApiUrl()).replace(/\/+$/, '');
   const http = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-
-  const entrypoints = await getJson(http, `${base}/api/entrypoints`, timeoutMs);
-  if (!entrypoints.ok) return { state: 'unreachable', reason: entrypoints.reason };
+  const entryPoint = options.entryPoint ?? guardedEntryPoint();
 
   const routers = await getJson(http, `${base}/api/http/routers`, timeoutMs);
   if (!routers.ok) return { state: 'unreachable', reason: routers.reason };
+
+  const middlewares = await getJson(http, `${base}/api/http/middlewares`, timeoutMs);
+  if (!middlewares.ok) return { state: 'unreachable', reason: middlewares.reason };
+
+  const entrypoints = await getJson(http, `${base}/api/entrypoints`, timeoutMs);
+  if (!entrypoints.ok) return { state: 'unreachable', reason: entrypoints.reason };
 
   // Keine Liste heisst: Das ist keine Traefik-API. Dann wissen wir nichts
   // ueber die Konfiguration — also `unreachable` und nicht Alarm. Ein Alarm
   // hier wuerde bei einer falsch gesetzten `TRAEFIK_API_URL` losgehen und
   // damit genau das Signal abstumpfen, das bei einem echten Verlust des
   // Schutzes zaehlt.
-  if (!Array.isArray(entrypoints.value)) {
-    return { state: 'unreachable', reason: '/api/entrypoints liefert keine Liste' };
-  }
   if (!Array.isArray(routers.value)) {
     return { state: 'unreachable', reason: '/api/http/routers liefert keine Liste' };
   }
-
-  const problems: string[] = [];
-  const entrypoint = entrypoints.value
-    .filter(isRecord)
-    .find((entry) => entry.name === GUARDED_ENTRYPOINT);
-
-  if (entrypoint === undefined) {
-    // Hier wissen wir etwas: Die Antwort ist verwertbar und der Entrypoint,
-    // an dem der Schutz haengt, kommt darin nicht vor.
-    problems.push(`Entrypoint "${GUARDED_ENTRYPOINT}" gibt es nicht`);
-  } else {
-    problems.push(...middlewareProblems(entrypoint), ...forwardedHeadersProblems(entrypoint));
+  if (!Array.isArray(middlewares.value)) {
+    return { state: 'unreachable', reason: '/api/http/middlewares liefert keine Liste' };
+  }
+  if (!Array.isArray(entrypoints.value)) {
+    return { state: 'unreachable', reason: '/api/entrypoints liefert keine Liste' };
   }
 
-  problems.push(...catchAllProblems(routers.value));
+  const problems: string[] = [
+    ...middlewareProblems(middlewares.value),
+    ...routerProblems(routers.value),
+    ...entrypointProblems(entrypoints.value, entryPoint),
+  ];
 
   return problems.length === 0 ? { state: 'ok' } : { state: 'alarm', problems };
 }
 
-function middlewareProblems(entrypoint: Record<string, unknown>): readonly string[] {
-  const http = isRecord(entrypoint.http) ? entrypoint.http : undefined;
-  const actual = http === undefined ? undefined : http.middlewares;
-  const chain = Array.isArray(actual) ? actual.map((item) => String(item)) : [];
-
-  if (
-    chain.length === REQUIRED_ENTRYPOINT_MIDDLEWARES.length &&
-    chain.every((name, index) => name === REQUIRED_ENTRYPOINT_MIDDLEWARES[index])
-  ) {
-    return [];
+/** 1. Die zwei Middlewares gibt es, und sie sind `enabled`. */
+function middlewareProblems(middlewares: readonly unknown[]): readonly string[] {
+  const problems: string[] = [];
+  const byName = new Map<string, Record<string, unknown>>();
+  for (const entry of middlewares.filter(isRecord)) {
+    if (typeof entry.name === 'string') byName.set(plainName(entry.name), entry);
   }
-  return [
-    `Middleware-Kette am Entrypoint "${GUARDED_ENTRYPOINT}" ist [${chain.join(', ')}], ` +
-      `erwartet [${REQUIRED_ENTRYPOINT_MIDDLEWARES.join(', ')}] in genau dieser Reihenfolge`,
-  ];
+
+  for (const name of REQUIRED_MIDDLEWARES) {
+    const middleware = byName.get(name);
+    if (middleware === undefined) {
+      problems.push(`Middleware "${name}" fehlt in der laufenden Konfiguration`);
+      continue;
+    }
+    if (middleware.status !== 'enabled') {
+      problems.push(
+        `Middleware "${name}" hat status "${String(middleware.status)}", erwartet "enabled"`,
+      );
+    }
+  }
+  return problems;
 }
 
-function forwardedHeadersProblems(entrypoint: Record<string, unknown>): readonly string[] {
-  const forwarded = entrypoint.forwardedHeaders;
+/**
+ * 2., 3. und 4.: jeder unserer Router. Ueber die **Ausgabe** der API
+ * iteriert, nicht ueber eine Liste erwarteter Namen — ein neuer Router-Typ
+ * wird dadurch von selbst mitgeprueft.
+ */
+function routerProblems(routers: readonly unknown[]): readonly string[] {
+  const problems: string[] = [];
+  const own = routers
+    .filter(isRecord)
+    .filter((entry) => typeof entry.name === 'string' && entry.name.startsWith(OWN_PREFIX));
+
+  if (own.length === 0) {
+    problems.push(
+      `kein einziger Router mit dem Praefix "${OWN_PREFIX}" in der laufenden Konfiguration — ` +
+        'unsere dynamische Datei ist nicht geladen',
+    );
+  }
+
+  for (const router of own) {
+    const name = String(router.name);
+    const chain = Array.isArray(router.middlewares)
+      ? router.middlewares.map((item) => plainName(String(item)))
+      : [];
+
+    if (
+      chain.length !== ROUTER_MIDDLEWARES.length ||
+      chain.some((middleware, index) => middleware !== ROUTER_MIDDLEWARES[index])
+    ) {
+      problems.push(
+        `Router "${name}" traegt die Kette [${chain.join(', ')}], erwartet ` +
+          `[${ROUTER_MIDDLEWARES.join(', ')}] in genau dieser Reihenfolge`,
+      );
+    }
+    if (router.status !== 'enabled') {
+      problems.push(`Router "${name}" hat status "${String(router.status)}", erwartet "enabled"`);
+    }
+  }
+
+  const catchAll = own.find(
+    (router) => plainName(String(router.name)) === REQUIRED_CATCH_ALL_ROUTER,
+  );
+  if (catchAll === undefined) {
+    problems.push(`Catch-all-Router "${REQUIRED_CATCH_ALL_ROUTER}" fehlt`);
+  }
+
+  return problems;
+}
+
+/** `forwardedHeaders` am Entrypoint, an dem unsere Router haengen. */
+function entrypointProblems(
+  entrypoints: readonly unknown[],
+  entryPoint: string,
+): readonly string[] {
+  const entry = entrypoints.filter(isRecord).find((item) => item.name === entryPoint);
+  if (entry === undefined) {
+    // Hier wissen wir etwas: Die Antwort ist verwertbar und der Entrypoint,
+    // an dem unsere Router haengen, kommt darin nicht vor. Dann laeuft keiner
+    // von ihnen.
+    return [`Entrypoint "${entryPoint}" gibt es nicht — unsere Router haengen an keinem Eingang`];
+  }
+
+  const forwarded = entry.forwardedHeaders;
   if (forwarded === undefined || forwarded === null) return [];
   if (!isRecord(forwarded)) {
-    return [`forwardedHeaders am Entrypoint "${GUARDED_ENTRYPOINT}" hat eine unbekannte Form`];
+    return [`forwardedHeaders am Entrypoint "${entryPoint}" hat eine unbekannte Form`];
   }
   const keys = Object.keys(forwarded).filter((key) => {
     const value = forwarded[key];
@@ -145,22 +241,9 @@ function forwardedHeadersProblems(entrypoint: Record<string, unknown>): readonly
   });
   if (keys.length === 0) return [];
   return [
-    `forwardedHeaders am Entrypoint "${GUARDED_ENTRYPOINT}" ist nicht leer (${keys.join(', ')}) — ` +
+    `forwardedHeaders am Entrypoint "${entryPoint}" ist nicht leer (${keys.join(', ')}) — ` +
       'ein Client koennte X-Forwarded-Host setzen und damit die Pfad-Allowlist aus Spec 1.3 erschleichen',
   ];
-}
-
-function catchAllProblems(routers: readonly unknown[]): readonly string[] {
-  const router = routers.filter(isRecord).find((entry) => entry.name === REQUIRED_CATCH_ALL_ROUTER);
-  if (router === undefined) {
-    return [`Catch-all-Router "${REQUIRED_CATCH_ALL_ROUTER}" fehlt`];
-  }
-  if (router.status !== 'enabled') {
-    return [
-      `Catch-all-Router "${REQUIRED_CATCH_ALL_ROUTER}" hat status "${String(router.status)}", erwartet "enabled"`,
-    ];
-  }
-  return [];
 }
 
 type JsonResult =
@@ -226,11 +309,11 @@ export function resetGatewayAlarm(): void {
  * Begruendung: Beides wuerde den Schaden vergroessern, statt ihn zu beheben.
  * Stirbt die Control Plane (oder laesst der Orchestrator sie wegen eines roten
  * Healthchecks neu starten), antwortet die Forward-Auth niemandem mehr — und
- * dann sperrt Traefik **alle** Domains, auch den Login, auch die Oberflaeche,
- * ueber die die Konfiguration wieder ausgerollt wird (Nachweis Fall 7: Control
- * Plane gestoppt → 502 fuer alles). Der gefaehrliche Zustand ist aber genau
- * umgekehrt: Der Schutz fehlt, die Apps sind offen, und jemand muss
- * `infra/traefik/` zurueckrollen. Dazu braucht er eine laufende Control Plane.
+ * dann sperrt Traefik **jeden** Pfad, auch den Login, auch die Oberflaeche,
+ * ueber die die Konfiguration wieder ausgerollt wird (Nachweis: Control Plane
+ * gestoppt → kein Durchlass). Der gefaehrliche Zustand ist aber genau
+ * umgekehrt: Der Schutz fehlt, die Apps sind offen, und jemand muss die
+ * Konfiguration neu schreiben. Dazu braucht er eine laufende Control Plane.
  *
  * Die Unterscheidung zur unerreichbaren API: `unreachable` ist eine Warnung
  * ohne Alarmzustand. Eine API, die nicht antwortet, ist kein Befund darueber,
@@ -255,7 +338,8 @@ export async function runGatewayStartupCheck(
     log.error(
       `ALARM Gateway-Schutz: ${result.problems.join(' | ')} — ` +
         'Apps sind moeglicherweise ohne Forward-Auth erreichbar. ' +
-        'infra/traefik/ neu ausrollen und infra/scripts/check-auth.sh laufen lassen.',
+        'openapps.yaml neu schreiben (Deploy einer App genuegt) und ' +
+        'infra/scripts/check-auth.sh laufen lassen.',
     );
     return result;
   }
@@ -264,11 +348,13 @@ export async function runGatewayStartupCheck(
   if (result.state === 'unreachable') {
     log.warn(
       `WARN Gateway-Schutz nicht pruefbar: ${result.reason} — ` +
-        'kein Befund ueber die Middleware. Nachweis per infra/scripts/check-auth.sh.',
+        'kein Befund ueber die Router. Nachweis per infra/scripts/check-auth.sh.',
     );
     return result;
   }
 
-  log.info('Gateway-Schutz geprueft: Middleware-Kette, forwardedHeaders und Catch-all stehen.');
+  log.info(
+    'Gateway-Schutz geprueft: Middlewares, Catch-all und die Kette jedes eigenen Routers stehen.',
+  );
   return result;
 }

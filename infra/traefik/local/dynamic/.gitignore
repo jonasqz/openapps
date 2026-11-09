@@ -1,0 +1,6 @@
+# Erzeugt von ../konfiguration-erzeugen.sh: die Gateway-Konfiguration des
+# lokalen Laufs (mit dem echten Generator der Control Plane) und die Kopie des
+# Wegwerf-Zertifikats. Beides ist Ergebnis, kein Quelltext — im Repo steht
+# stattdessen ../../dynamic/openapps.example.yaml.
+openapps.yaml
+tls.local.yml

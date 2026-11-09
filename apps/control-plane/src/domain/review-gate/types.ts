@@ -16,7 +16,6 @@
  * Schritt tatsaechlich gelaufen ist.
  */
 
-import type { GatewayLabelLint } from '../ports';
 import type { AppManifest } from '../types';
 
 export type StepKind = 'deterministic' | 'advisory';
@@ -51,7 +50,8 @@ export interface ReviewInput {
   readonly codeFacts: CodeFacts;
   /**
    * Wohin dieser Deploy ans Gateway gehaengt wuerde. Fehlt die Angabe, kann
-   * der Label-Lint nichts pruefen — und blockiert dann, statt durchzulassen.
+   * der Konfigurations-Lint nichts pruefen — und blockiert dann, statt
+   * durchzulassen.
    */
   readonly gateway?: GatewayReviewTarget;
 }
@@ -178,13 +178,6 @@ export interface ScannerOutput {
   readonly stdout: string;
   readonly stderr?: string;
 }
-
-/**
- * Der Label-Lint als Anschluss des Gates. Er liegt in der Adapter-Schicht,
- * weil nur sie weiss, wie ein Label aussieht; was vollstaendig **bedeutet**,
- * beurteilt der Schritt.
- */
-export type { GatewayLabelLint };
 
 /** Der Claude-Report. Advisory, immer. */
 export interface ClaudeReviewer {
