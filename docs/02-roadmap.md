@@ -33,25 +33,35 @@ Stand 2026-11-09. `pnpm check` ist grün: 9 Pakete typegeprüft, 6 gelintet,
 | `apps/platform-mcp` | sechs Tools, App-Tool-Weiterleitung, `how_to_build_app` — 6 Tests |
 | `templates/starter-app` | Manifest, OpenAPI, Migration, Handler, Liste, UI-Linter verdrahtet — 4 Tests |
 | Woche-1-Spec zur Forward-Auth | steht ([`specs/woche-1-forward-auth.md`](specs/woche-1-forward-auth.md)) |
-| Nachweis-Mappe `docs/nachweise/` | Vorlagen stehen, kein Lauf gegen echte Infrastruktur |
-| Prüfskript DoD 2 | steht (`infra/scripts/check-auth.sh`), noch kein Lauf |
-| Traefik-Konfiguration | **offen** — Entrypoint-Middleware, Catch-all-Router, Deny-Backend |
-| Better Auth | **offen** — verdrahtet ist `denyAllSessions`, niemand kommt herein |
+| Nachweis-Mappe `docs/nachweise/` | ein Lauf liegt vor (Gateway, lokal, gegen Stub); die Läufe gegen echte Control Plane und echtes Coolify-Update stehen aus |
+| Prüfskript DoD 2 | steht, prüft auch die Traefik-Konfiguration; noch kein Lauf gegen die Zielinstanz |
+| Traefik-Konfiguration | steht: Entrypoint-Middleware, Catch-all-Router, Deny-Backend, Loopback-Entrypoint fürs 2-s-Timeout — acht Fälle lokal gegen Traefik 3.3.7 geprüft |
+| Startup-Check gegen die Traefik-API | steht; unerreichbare API = WARN, falsche Antwort = ALARM, sichtbar in `/healthz` |
+| Better Auth (Google-SSO) | steht: Domain-Schranke, Gruppen aus der Control Plane, Login-Seite ([ADR 0006](decisions/0006-gruppen-und-domain-schranke.md)) |
 
 ## Was als Nächstes dran ist
 
 In dieser Reihenfolge, weil das Riskanteste zuerst kommt:
 
-1. **Traefik-Entrypoint plus Deny-Backend** (`infra/traefik/`, Spec 1.2). Die
-   App-seitigen Labels stehen, der Default-Deny am Entrypoint fehlt — und der
-   ist der wichtigere Teil von DoD 2.
-2. **Better Auth verdrahten.** Ohne Session ist die Plattform nicht benutzbar;
-   `denyAllSessions` ist der richtige Zwischenzustand, aber eben ein
-   Zwischenzustand.
-3. **Tag 0 entscheiden** ([ADR 0003](decisions/0003-marmelab-platform-fork-oder-neubau.md)).
-4. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
+1. **Label-Lint ins Review-Gate verdrahten.** `missingForwardAuthLabels()`
+   prüft inzwischen auch das Port-Label, wird aber von keinem Schritt
+   aufgerufen. Spec 2 verlangt ihn vor und nach jedem Deploy — bis dahin ist er
+   eine Funktion, die niemand ruft.
+2. **DoD 2 auf der Zielinstanz nachweisen.** Der Gateway-Lauf lief lokal gegen
+   einen Stub. Was fehlt: Lauf mit echter Control Plane, zwei Läufe um ein
+   echtes Coolify-Update herum, und die Sekunden-Schleifen-Messung aus Spec 4.4.
+   Das ist der Nachweis, auf den das ganze Projekt wartet.
+3. **Tag 0 entscheiden**
+   ([ADR 0003](decisions/0003-marmelab-platform-fork-oder-neubau.md)).
+4. **Gruppenpflege als Endpunkt und MCP-Tool** (`grant_group_member`,
+   `revoke_group_member`). „Agents first" verlangt sie, bevor es dafür eine
+   Oberfläche gibt; bis dahin geht Pflege nur per SQL oder Bootstrap-Variable.
 5. **Scanner wirklich laufen lassen** — gitleaks und semgrep als Prozess gegen
    ein Test-Repo mit eingebautem Secret (DoD 4).
+6. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
+7. **Die Control Plane in die App-Shell setzen.** Die Shell aus `@openapps/ui`
+   steht, die Control Plane trägt sie noch nicht — die Login-Seite muss
+   außerhalb liegen, das braucht eine Routengruppe.
 
 ## Bekannte Schulden
 
@@ -59,6 +69,8 @@ In dieser Reihenfolge, weil das Riskanteste zuerst kommt:
 | --- | --- |
 | `platform-mcp` bindet die Domäne der Control Plane als TypeScript-Quelle ein und läuft über `tsx` | Der richtige Schnitt wäre ein eigenes Paket unter `packages/`. Das ist ein Umbau, der nichts an den Kriterien ändert — später, nicht jetzt. |
 | Zwei Wörter für Subjekte (`user` in der Datenbank, `human` im Manifest), übersetzt an einer Stelle | [ADR 0005](decisions/0005-ein-vokabular-fuer-subjekte.md) entscheidet `human`; die Migration fehlt noch. |
-| `better-auth` verlangt `zod` 4, im Repo liegt 3.24 | Nur eine Peer-Warnung, noch kein Fehler. Fällt an, wenn Better Auth verdrahtet wird. |
+| `better-auth` verlangt über `better-call` `zod` 4, im Repo liegt 3.24 | Bleibt eine Peer-Warnung: `better-auth` selbst hängt auf `zod@^3.24`. Dass es trägt, ist belegt — die Postgres-Tests laufen durch die echte Instanz. Ein Update von `better-call` kann es kippen; der kleine Hebel wäre ein Pin. |
+| Forward-Auth läuft pro Aufruf zweimal: einmal am Entrypoint, einmal aus den App-Labels | Gürtel und Hosenträger, bis ein echtes Coolify-Update gemessen ist. Solange nicht bekannt ist, was ein Update mit den Labels tut, ist die zweite Schicht ihr Geld wert. Danach reduzieren. |
+| Der Port einer App kommt aus einer `PORT`-Env-Konvention, nicht aus einem Manifest-Feld | Reicht heute. Ein eigenes Feld würde den Manifest-Abgleich im Review-Gate sauberer machen. |
 | `@openapps/ui` liefert Quellcode, also müssen alle Apps dieselben React-Typen fahren (18) | Bewusst: lesbar für Agents, keine Stale-Build-Fehler. Preis ist die gemeinsame Typversion. |
 | Test-Postgres läuft auf `postgres:16`, nicht 17 | Das Image lag lokal vor und die Nachweise sind dagegen **gelaufen**. Ein verifiziertes Image ist mehr wert als ein neueres, das nur vermutet ist. |
