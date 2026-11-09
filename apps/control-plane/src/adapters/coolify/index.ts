@@ -18,4 +18,4 @@ export function createConfiguredBackend(): DeploymentBackend {
 
 export { createCoolifyBackend } from './client';
 export { coolifyConfigFromEnv, type CoolifyConfig } from './config';
-export { forwardAuthLabels, type ForwardAuthLabelInput } from './traefik';
+export { forwardAuthLabels, missingForwardAuthLabels, type ForwardAuthLabelInput } from './traefik';

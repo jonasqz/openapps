@@ -165,11 +165,20 @@ export interface DeploymentBackend {
   setDomain(backendRef: string, domain: string): Promise<void>;
   /**
    * Stellt die App hinter das Gateway, sodass jeder Aufruf durch die
-   * Forward-Auth laeuft. Die Domaene uebergibt nur Name und Domain — wie das
-   * beim Backend aussieht (Labels, Middleware, Router), weiss der Adapter.
-   * Ohne diesen Schritt gibt es keinen Deploy (DoD 2).
+   * Forward-Auth laeuft. Die Domaene uebergibt Name, Domain und den Port, auf
+   * dem die App lauscht — wie das beim Backend aussieht (Labels, Middleware,
+   * Router, Dienst), weiss der Adapter. Ohne diesen Schritt gibt es keinen
+   * Deploy (DoD 2).
+   *
+   * `port` steht hier, weil das Gateway ohne ihn nur raten kann: Traefik faellt
+   * sonst auf das `EXPOSE` des Images zurueck und bekommt bei keinem oder
+   * mehreren `EXPOSE` keinen Dienst zusammen. Woher der Wert kommt, steht in
+   * `domain/app-port.ts`.
    */
-  ensureGateway(backendRef: string, spec: { appName: string; domain: string }): Promise<void>;
+  ensureGateway(
+    backendRef: string,
+    spec: { appName: string; domain: string; port: number },
+  ): Promise<void>;
 }
 
 /* -------------------------------------------------------------------------- */

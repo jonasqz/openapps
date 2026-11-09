@@ -20,7 +20,19 @@ export interface ForwardAuthLabelInput {
   /** Name der App, genutzt als Router- und Middleware-Name. */
   readonly appName: string;
   readonly domain: string;
-  /** Erreichbare Adresse der Forward-Auth-Route der Control Plane. */
+  /**
+   * Port, auf dem der App-Container lauscht. Kommt aus der Domaene
+   * (`appContainerPort`), nicht von hier: Ohne diesen Wert raet Traefik den
+   * Port aus dem `EXPOSE` des Images und scheitert, wenn es keines oder
+   * mehrere gibt.
+   */
+  readonly port: number;
+  /**
+   * Adresse, die Traefik pro Aufruf fragt. Nicht die oeffentliche URL der
+   * Control Plane, sondern der interne `authz`-Entrypoint von Traefik selbst
+   * (Default in `config.ts`, Gegenstueck in `infra/traefik/traefik.yml`):
+   * `forwardAuth` hat keine Timeout-Option, ein Traefik-Dienst schon.
+   */
   readonly forwardAuthUrl: string;
 }
 
@@ -68,6 +80,15 @@ export function forwardAuthLabels(input: ForwardAuthLabelInput): Readonly<Record
   labels[`traefik.http.routers.${router}.entrypoints`] = 'websecure';
   labels[`traefik.http.routers.${router}.tls.certresolver`] = 'letsencrypt';
   labels[`traefik.http.routers.${router}.middlewares`] = `${strip}@docker,${auth}@docker`;
+
+  // 4. Der Dienst mit dem Port. Ohne `loadbalancer.server.port` nimmt Traefik
+  //    den einen `EXPOSE` des Images — und nur dann, wenn es genau einen gibt.
+  //    Bei einem Image ohne `EXPOSE` kommt der Router nicht hoch (gemessen im
+  //    Gateway-Lauf, docs/nachweise/dod-02-laeufe). Der Router
+  //    zeigt ausdruecklich auf diesen Dienst, damit die Zuordnung nicht an der
+  //    Heuristik "genau ein Dienst am Container" haengt.
+  labels[`traefik.http.services.${router}.loadbalancer.server.port`] = String(input.port);
+  labels[`traefik.http.routers.${router}.service`] = router;
 
   return labels;
 }

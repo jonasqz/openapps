@@ -53,10 +53,15 @@ export default async function LoginPage({
   const error =
     code === undefined
       ? undefined
-      : (MESSAGES[code] ?? 'Die Anmeldung ist fehlgeschlagen. Bitte erneut versuchen.');
+      : (MESSAGES[code] ??
+        // Bewusst ohne "bitte erneut versuchen": Der haeufigste unbekannte
+        // Code ist eine abgelehnte Domain, und da hilft ein zweiter Versuch
+        // nicht. Lieber sagen, wo die Antwort liegt.
+        'Die Anmeldung ist fehlgeschlagen. Prüfe, ob deine Adresse für diese Instanz ' +
+          'freigegeben ist, und wende dich sonst an die Administration.');
 
   return (
-    <section className="mx-auto flex max-w-md flex-col gap-6 py-12">
+    <section className="mx-auto flex max-w-md flex-col gap-6 px-4 py-12">
       <h1 className="text-xl font-semibold">Anmelden</h1>
       <p className="max-w-prose text-sm">
         Die Control Plane verwaltet Apps, Deployments und Freigaben dieser Instanz. Der Zugang läuft

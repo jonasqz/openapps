@@ -11,6 +11,7 @@ export { type DomainContext, systemClock, uuidIds } from './context';
 export { can, requirePermission, grantMatches, subjectsOf } from './can';
 export { appAuthSecret, type AppSecretInput } from './app-secret';
 export { appIdOf, gatewayHost } from './gateway-identity';
+export { appContainerPort, DEFAULT_APP_PORT } from './app-port';
 export {
   IDENTITY_HEADERS,
   identityHeaders,

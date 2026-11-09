@@ -18,7 +18,6 @@ export interface ControlPlaneEnv {
    * nie in eine App — die App bekommt nur ihr abgeleitetes Secret.
    */
   readonly authMasterSecret: string;
-  readonly forwardAuthUrl: string;
   /** Eigene Domain der Control Plane — fuer die oeffentlichen Ausnahmen (Spec 1.3). */
   readonly controlPlaneHost: string;
   readonly appDatabaseHost: string;
@@ -38,7 +37,6 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
     databaseUrl: required(env, 'DATABASE_URL'),
     baseDomain: env.APP_BASE_DOMAIN,
     authMasterSecret,
-    forwardAuthUrl: required(env, 'FORWARD_AUTH_URL'),
     controlPlaneHost: required(env, 'CONTROL_PLANE_HOST').trim().toLowerCase(),
     appDatabaseHost: required(env, 'APP_DATABASE_HOST'),
     gitleaksBinary: env.GITLEAKS_BINARY ?? 'gitleaks',

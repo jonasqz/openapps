@@ -7,6 +7,7 @@
 import { appAuthSecret } from './app-secret';
 import { audited } from './audit';
 import { requireAppPermission } from './apps';
+import { appContainerPort } from './app-port';
 import { appIdOf, gatewayHost } from './gateway-identity';
 import { ConflictError, NotFoundError, ReviewBlockedError } from './errors';
 import type { DomainContext } from './context';
@@ -226,6 +227,8 @@ async function ensureBackendApp(
   await ctx.backend.ensureGateway(created.backendRef, {
     appName: app.name,
     domain: app.primaryDomain,
+    // Der Port gehoert zur App, nicht zum Backend: siehe `domain/app-port.ts`.
+    port: appContainerPort(app),
   });
   return created.backendRef;
 }

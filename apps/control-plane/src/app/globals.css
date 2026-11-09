@@ -1,0 +1,9 @@
+/*
+ * Die Tokens zuerst, dann Tailwind: Die Utilities von Tailwind greifen auf die
+ * CSS-Variablen zu, die `tokens.css` setzt.
+ */
+@import '@openapps/ui/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

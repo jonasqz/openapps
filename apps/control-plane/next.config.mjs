@@ -6,6 +6,9 @@
  */
 const nextConfig = {
   reactStrictMode: true,
+  // `@openapps/ui` wird als TypeScript-Quelle ausgeliefert (wie shadcn/ui),
+  // nicht als gebautes Paket. Ohne diese Zeile kommt rohes TSX im Browser an.
+  transpilePackages: ['@openapps/ui'],
   // `pg` und die Scanner-Prozesse laufen nur im Node-Runtime, nie im Browser.
   serverExternalPackages: ['pg'],
   experimental: {

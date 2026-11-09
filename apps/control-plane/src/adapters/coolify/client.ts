@@ -142,6 +142,7 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
       const labels = forwardAuthLabels({
         appName: spec.appName,
         domain: spec.domain,
+        port: spec.port,
         forwardAuthUrl: config.forwardAuthUrl,
       });
       await call(`/applications/${backendRef}`, {
