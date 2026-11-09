@@ -1,0 +1,4 @@
+# Eine App-Domain pro Zeile. Kopieren nach infra/domains.txt (nicht committet),
+# oder von der Control Plane erzeugen lassen: list_apps liefert die Domains.
+control-plane.intern.example
+projektliste.intern.example
