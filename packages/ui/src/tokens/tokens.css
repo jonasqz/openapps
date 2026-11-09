@@ -1,0 +1,273 @@
+/* GENERIERT aus src/tokens/tokens.ts — nicht von Hand ändern.
+   Neu erzeugen: pnpm --filter @openapps/ui tokens */
+
+/* Hell ist die Voreinstellung. */
+:root {
+  --oa-space-0: 0rem;
+  --oa-space-1: 0.25rem;
+  --oa-space-2: 0.5rem;
+  --oa-space-3: 0.75rem;
+  --oa-space-4: 1rem;
+  --oa-space-5: 1.25rem;
+  --oa-space-6: 1.5rem;
+  --oa-space-8: 2rem;
+  --oa-space-10: 2.5rem;
+  --oa-space-12: 3rem;
+  --oa-space-16: 4rem;
+  --oa-space-20: 5rem;
+  --oa-space-24: 6rem;
+  --oa-space-px: 0.0625rem;
+  --oa-space-0_5: 0.125rem;
+  --oa-space-1_5: 0.375rem;
+  --oa-space-2_5: 0.625rem;
+  --oa-size-nav: 15rem;
+  --oa-size-drawer: 18rem;
+  --oa-size-menu: 16rem;
+  --oa-size-panel: 20rem;
+  --oa-size-scroll: 20rem;
+  --oa-size-field: 12rem;
+  --oa-radius-none: 0rem;
+  --oa-radius-sm: 0.25rem;
+  --oa-radius-md: 0.375rem;
+  --oa-radius-lg: 0.5rem;
+  --oa-radius-xl: 0.75rem;
+  --oa-radius-2xl: 1rem;
+  --oa-radius-full: 9999px;
+  --oa-font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --oa-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --oa-text-xs: 0.75rem;
+  --oa-leading-xs: 1.125rem;
+  --oa-text-sm: 0.875rem;
+  --oa-leading-sm: 1.3125rem;
+  --oa-text-base: 1rem;
+  --oa-leading-base: 1.5rem;
+  --oa-text-lg: 1.125rem;
+  --oa-leading-lg: 1.6875rem;
+  --oa-text-xl: 1.25rem;
+  --oa-leading-xl: 1.75rem;
+  --oa-text-2xl: 1.5rem;
+  --oa-leading-2xl: 2rem;
+  --oa-text-3xl: 1.875rem;
+  --oa-leading-3xl: 2.375rem;
+  --oa-weight-normal: 400;
+  --oa-weight-medium: 500;
+  --oa-weight-semibold: 600;
+  --oa-weight-bold: 700;
+  --oa-screen-sm: 640px;
+  --oa-screen-md: 768px;
+  --oa-screen-lg: 1024px;
+  --oa-screen-xl: 1280px;
+  --oa-z-base: 0;
+  --oa-z-sticky: 10;
+  --oa-z-shell: 20;
+  --oa-z-dropdown: 30;
+  --oa-z-overlay: 40;
+  --oa-z-dialog: 50;
+  --oa-z-toast: 60;
+
+  --oa-color-bg: #ffffff;
+  --oa-color-bg-subtle: #f1f3f6;
+  --oa-color-surface: #f6f7f9;
+  --oa-color-surface-hover: #eceff3;
+  --oa-color-surface-muted: #e6e9ee;
+  --oa-color-border: #d5dae2;
+  --oa-color-border-strong: #767f8e;
+  --oa-color-fg: #11161d;
+  --oa-color-fg-muted: #505a68;
+  --oa-color-fg-subtle: #666e7c;
+  --oa-color-fg-inverted: #ffffff;
+  --oa-color-primary: #1a4fd0;
+  --oa-color-primary-hover: #163fa8;
+  --oa-color-primary-fg: #ffffff;
+  --oa-color-primary-subtle: #e7eeff;
+  --oa-color-primary-subtle-fg: #113a9e;
+  --oa-color-success: #146c35;
+  --oa-color-success-fg: #ffffff;
+  --oa-color-success-subtle: #e6f5ec;
+  --oa-color-success-subtle-fg: #0f5529;
+  --oa-color-warning: #8a5300;
+  --oa-color-warning-fg: #ffffff;
+  --oa-color-warning-subtle: #fdf1dc;
+  --oa-color-warning-subtle-fg: #6d4200;
+  --oa-color-danger: #b3252c;
+  --oa-color-danger-hover: #8f1c22;
+  --oa-color-danger-fg: #ffffff;
+  --oa-color-danger-subtle: #fdeaea;
+  --oa-color-danger-subtle-fg: #8f1c22;
+  --oa-color-focus: #1a4fd0;
+  --oa-color-overlay: rgb(17 22 29 / 0.55);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 2px 0 rgb(17 22 29 / 0.08);
+  --oa-shadow-md: 0 2px 4px -1px rgb(17 22 29 / 0.10), 0 4px 12px -2px rgb(17 22 29 / 0.08);
+  --oa-shadow-lg: 0 8px 24px -4px rgb(17 22 29 / 0.14), 0 2px 6px -2px rgb(17 22 29 / 0.08);
+
+  color-scheme: light;
+}
+
+/* Dunkel, wenn das System es wünscht — es sei denn, hell ist erzwungen. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  --oa-color-bg: #0b0f14;
+  --oa-color-bg-subtle: #070a0e;
+  --oa-color-surface: #141a23;
+  --oa-color-surface-hover: #1b232e;
+  --oa-color-surface-muted: #1f2834;
+  --oa-color-border: #2a3340;
+  --oa-color-border-strong: #697689;
+  --oa-color-fg: #e8edf4;
+  --oa-color-fg-muted: #a0abba;
+  --oa-color-fg-subtle: #8a95a4;
+  --oa-color-fg-inverted: #08142c;
+  --oa-color-primary: #7ea8ff;
+  --oa-color-primary-hover: #a3c0ff;
+  --oa-color-primary-fg: #08142c;
+  --oa-color-primary-subtle: #152543;
+  --oa-color-primary-subtle-fg: #bcd3ff;
+  --oa-color-success: #6fd392;
+  --oa-color-success-fg: #05210f;
+  --oa-color-success-subtle: #0e2b1a;
+  --oa-color-success-subtle-fg: #a8e8bf;
+  --oa-color-warning: #e8b45c;
+  --oa-color-warning-fg: #2a1c00;
+  --oa-color-warning-subtle: #332406;
+  --oa-color-warning-subtle-fg: #f3d49a;
+  --oa-color-danger: #ff9a99;
+  --oa-color-danger-hover: #ffbcbb;
+  --oa-color-danger-fg: #2b0708;
+  --oa-color-danger-subtle: #3a1416;
+  --oa-color-danger-subtle-fg: #ffc4c3;
+  --oa-color-focus: #7ea8ff;
+  --oa-color-overlay: rgb(2 4 8 / 0.7);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.6);
+  --oa-shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.7), 0 4px 12px -2px rgb(0 0 0 / 0.5);
+  --oa-shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.8), 0 2px 6px -2px rgb(0 0 0 / 0.6);
+
+    color-scheme: dark;
+  }
+}
+
+/* Dunkel erzwungen. */
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  --oa-color-bg: #0b0f14;
+  --oa-color-bg-subtle: #070a0e;
+  --oa-color-surface: #141a23;
+  --oa-color-surface-hover: #1b232e;
+  --oa-color-surface-muted: #1f2834;
+  --oa-color-border: #2a3340;
+  --oa-color-border-strong: #697689;
+  --oa-color-fg: #e8edf4;
+  --oa-color-fg-muted: #a0abba;
+  --oa-color-fg-subtle: #8a95a4;
+  --oa-color-fg-inverted: #08142c;
+  --oa-color-primary: #7ea8ff;
+  --oa-color-primary-hover: #a3c0ff;
+  --oa-color-primary-fg: #08142c;
+  --oa-color-primary-subtle: #152543;
+  --oa-color-primary-subtle-fg: #bcd3ff;
+  --oa-color-success: #6fd392;
+  --oa-color-success-fg: #05210f;
+  --oa-color-success-subtle: #0e2b1a;
+  --oa-color-success-subtle-fg: #a8e8bf;
+  --oa-color-warning: #e8b45c;
+  --oa-color-warning-fg: #2a1c00;
+  --oa-color-warning-subtle: #332406;
+  --oa-color-warning-subtle-fg: #f3d49a;
+  --oa-color-danger: #ff9a99;
+  --oa-color-danger-hover: #ffbcbb;
+  --oa-color-danger-fg: #2b0708;
+  --oa-color-danger-subtle: #3a1416;
+  --oa-color-danger-subtle-fg: #ffc4c3;
+  --oa-color-focus: #7ea8ff;
+  --oa-color-overlay: rgb(2 4 8 / 0.7);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.6);
+  --oa-shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.7), 0 4px 12px -2px rgb(0 0 0 / 0.5);
+  --oa-shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.8), 0 2px 6px -2px rgb(0 0 0 / 0.6);
+
+  color-scheme: dark;
+}
+
+/* Hell erzwungen — gewinnt gegen die System-Voreinstellung. */
+:root[data-theme='light'],
+[data-theme='light'] {
+  --oa-color-bg: #ffffff;
+  --oa-color-bg-subtle: #f1f3f6;
+  --oa-color-surface: #f6f7f9;
+  --oa-color-surface-hover: #eceff3;
+  --oa-color-surface-muted: #e6e9ee;
+  --oa-color-border: #d5dae2;
+  --oa-color-border-strong: #767f8e;
+  --oa-color-fg: #11161d;
+  --oa-color-fg-muted: #505a68;
+  --oa-color-fg-subtle: #666e7c;
+  --oa-color-fg-inverted: #ffffff;
+  --oa-color-primary: #1a4fd0;
+  --oa-color-primary-hover: #163fa8;
+  --oa-color-primary-fg: #ffffff;
+  --oa-color-primary-subtle: #e7eeff;
+  --oa-color-primary-subtle-fg: #113a9e;
+  --oa-color-success: #146c35;
+  --oa-color-success-fg: #ffffff;
+  --oa-color-success-subtle: #e6f5ec;
+  --oa-color-success-subtle-fg: #0f5529;
+  --oa-color-warning: #8a5300;
+  --oa-color-warning-fg: #ffffff;
+  --oa-color-warning-subtle: #fdf1dc;
+  --oa-color-warning-subtle-fg: #6d4200;
+  --oa-color-danger: #b3252c;
+  --oa-color-danger-hover: #8f1c22;
+  --oa-color-danger-fg: #ffffff;
+  --oa-color-danger-subtle: #fdeaea;
+  --oa-color-danger-subtle-fg: #8f1c22;
+  --oa-color-focus: #1a4fd0;
+  --oa-color-overlay: rgb(17 22 29 / 0.55);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 2px 0 rgb(17 22 29 / 0.08);
+  --oa-shadow-md: 0 2px 4px -1px rgb(17 22 29 / 0.10), 0 4px 12px -2px rgb(17 22 29 / 0.08);
+  --oa-shadow-lg: 0 8px 24px -4px rgb(17 22 29 / 0.14), 0 2px 6px -2px rgb(17 22 29 / 0.08);
+
+  color-scheme: light;
+}
+
+/* Grundlayer. Keine App setzt Body-Farben selbst. */
+*,
+*::before,
+*::after {
+  border-color: var(--oa-color-border);
+}
+
+html {
+  font-family: var(--oa-font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--oa-color-bg);
+  color: var(--oa-color-fg);
+  font-size: var(--oa-text-base);
+  line-height: var(--oa-leading-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fokus ist immer sichtbar. */
+:focus-visible {
+  outline: 2px solid var(--oa-color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
