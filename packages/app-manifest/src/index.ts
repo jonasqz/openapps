@@ -41,10 +41,6 @@ export {
 
 export { APP_MANIFEST_SCHEMA_ID, appManifestJsonSchema } from './json-schema.js';
 
-export {
-  CatalogSourceError,
-  type CatalogEntry,
-  type CatalogSource,
-} from './catalog-source.js';
+export { CatalogSourceError, type CatalogEntry, type CatalogSource } from './catalog-source.js';
 
 export { LocalCatalogSource, type LocalCatalogSourceOptions } from './local-catalog-source.js';

@@ -190,15 +190,27 @@ describe('getUser — Zeitfenster', () => {
     expect(() => getUser(headers, BASE_OPTIONS)).toThrowError(UntrustedRequestError);
   });
 
-  it('weist eine Zeit in der Zukunft ab', () => {
-    const headers = signedHeaders(claims({ issuedAt: String(NOW_SECONDS + 1) }));
+  it('laesst den Vorlauf durch, den der Default erlaubt (2 s, gegen Uhrendrift)', () => {
+    // ADR 0004: 2 s Vorlauf statt 0, damit eine Gateway-Uhr, die geringfuegig
+    // vorgeht, nicht jeden Aufruf abweist.
+    for (const ahead of [1, 2]) {
+      const headers = signedHeaders(claims({ issuedAt: String(NOW_SECONDS + ahead) }));
+      expect(getUser(headers, BASE_OPTIONS).id).toBe('usr_123');
+    }
+  });
+
+  it('weist eine Zeit ab, die weiter in der Zukunft liegt als der Vorlauf', () => {
+    const headers = signedHeaders(claims({ issuedAt: String(NOW_SECONDS + 3) }));
     expect(() => getUser(headers, BASE_OPTIONS)).toThrowError(UntrustedRequestError);
   });
 
-  it('erlaubt einen Vorlauf, wenn er ausdrücklich zugelassen ist', () => {
-    const headers = signedHeaders(claims({ issuedAt: String(NOW_SECONDS + 2) }));
+  it('nimmt den Vorlauf aus den Optionen, nicht aus dem Default', () => {
+    const headers = signedHeaders(claims({ issuedAt: String(NOW_SECONDS + 4) }));
     expect(() => getUser(headers, BASE_OPTIONS)).toThrowError(UntrustedRequestError);
     expect(getUser(headers, { ...BASE_OPTIONS, futureToleranceSeconds: 5 }).id).toBe('usr_123');
+    expect(() => getUser(headers, { ...BASE_OPTIONS, futureToleranceSeconds: 0 })).toThrowError(
+      UntrustedRequestError,
+    );
   });
 
   it('nimmt das Fenster aus den Optionen, nicht aus der Uhr der Maschine', () => {
@@ -266,9 +278,7 @@ describe('getUser — Konfiguration', () => {
   });
 
   it('prüft die Konfiguration, bevor es die Header ansieht', () => {
-    expect(() => getUser({}, { ...BASE_OPTIONS, secret: '' })).toThrowError(
-      SdkConfigurationError,
-    );
+    expect(() => getUser({}, { ...BASE_OPTIONS, secret: '' })).toThrowError(SdkConfigurationError);
   });
 });
 

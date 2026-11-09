@@ -12,8 +12,7 @@ import { appManifestSchema } from './manifest.js';
  * entsteht beim `build` und ist als `@openapps/app-manifest/app.schema.json`
  * exportiert.
  */
-export const APP_MANIFEST_SCHEMA_ID =
-  'https://openapps.dev/schema/app-manifest/v1/app.schema.json';
+export const APP_MANIFEST_SCHEMA_ID = 'https://openapps.dev/schema/app-manifest/v1/app.schema.json';
 
 export function appManifestJsonSchema(): Record<string, unknown> {
   // Ohne `name` und ohne `$ref`: Das Schema steht an der Wurzel, damit jeder

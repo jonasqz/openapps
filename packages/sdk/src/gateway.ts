@@ -210,9 +210,7 @@ export interface SignatureInput {
  * sonst ist die Prüfung eine Zufallsprüfung.
  */
 export function signatureFor(input: SignatureInput): string {
-  return createHmac('sha256', input.secret)
-    .update(signatureMaterial(input), 'utf8')
-    .digest('hex');
+  return createHmac('sha256', input.secret).update(signatureMaterial(input), 'utf8').digest('hex');
 }
 
 /**
@@ -251,14 +249,7 @@ export function signatureFor(input: SignatureInput): string {
  * gesetzt werden. Keine Normalisierung.
  */
 export function signatureMaterial(input: Omit<SignatureInput, 'secret'>): string {
-  const fields = [
-    input.appId,
-    input.host,
-    input.userId,
-    input.email,
-    input.groups,
-    input.issuedAt,
-  ];
+  const fields = [input.appId, input.host, input.userId, input.email, input.groups, input.issuedAt];
   return (
     `${SIGNATURE_MATERIAL_VERSION}\n` +
     fields.map((value) => `${Buffer.byteLength(value, 'utf8')}:${value}\n`).join('')

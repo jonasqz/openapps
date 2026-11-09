@@ -11,7 +11,10 @@
     },
     "./app.schema.json": "./schema/app.schema.json"
   },
-  "files": ["dist", "schema"],
+  "files": [
+    "dist",
+    "schema"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node dist/bin/write-json-schema.js",
     "typecheck": "tsc -p tsconfig.json",

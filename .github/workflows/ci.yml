@@ -22,6 +22,10 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run lint
       - run: pnpm run test
+      - name: app.schema.json ist nicht veraltet
+        run: |
+          pnpm --filter @openapps/app-manifest run build
+          git diff --exit-code -- packages/app-manifest/schema
 
   secrets:
     runs-on: ubuntu-latest

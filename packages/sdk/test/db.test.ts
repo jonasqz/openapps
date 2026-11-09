@@ -57,9 +57,7 @@ describe('assertAppConnectionString', () => {
 
   it('nagelt die erwartete Rolle fest, wenn sie angegeben ist', () => {
     expect(() => assertAppConnectionString(APP_URL, 'app_projektliste')).not.toThrow();
-    expect(() => assertAppConnectionString(APP_URL, 'app_crm')).toThrowError(
-      SdkConfigurationError,
-    );
+    expect(() => assertAppConnectionString(APP_URL, 'app_crm')).toThrowError(SdkConfigurationError);
   });
 });
 
