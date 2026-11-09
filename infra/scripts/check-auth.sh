@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# Nachweis fuer DoD 2: Keine App-Domain ist ohne Session erreichbar.
+# Nachweis fuer DoD 2: Keine App ist ohne Session erreichbar.
+#
+# Geprueft werden **Adressen**, nicht Domains: Jede App liegt unter einem Pfad
+# auf der gemeinsamen Domain (ADR 0007). Eine Domainliste wuerde pro Lauf nur
+# eine einzige Entscheidung pruefen und ueber die Apps nichts sagen.
 #
 # Laeuft zweimal: vor und nach einem Coolify-Update. Die groesste Annahme des
 # Projekts ist, dass die Traefik-Forward-Auth ein Update ueberlebt — dieses
 # Skript ist die Stelle, an der sie faellt, wenn sie faellt.
 #
-#   infra/scripts/check-auth.sh domains.txt
+#   infra/scripts/check-auth.sh app-urls.txt
 #
-# domains.txt: eine App-Domain pro Zeile, Kommentare mit #.
-# Erwartet wird pro Domain 401, 403 oder eine Weiterleitung auf den Login.
+# app-urls.txt: eine Adresse pro Zeile, Kommentare mit #. Eine Zeile ohne
+# Schema wird als https:// gelesen; `infra/app-urls.txt.example` zeigt, was in
+# die Liste gehoert (Wurzel der Domain, ein Pfad ohne App, je App ihr Pfad und
+# ein tieferer Pfad darunter).
+# Erwartet wird pro Adresse 401, 403 oder eine Weiterleitung auf den Login.
 # Alles andere — auch ein 200, auch ein 502 — ist ein Fehlschlag: ein Dienst,
 # der nicht antwortet, ist kein Beweis dafuer, dass er geschuetzt ist.
 #
@@ -20,10 +27,16 @@
 # (z. B. http://127.0.0.1:8081). Ohne Adresse oder ohne erreichbare API wird
 # dieser Teil **sichtbar** uebersprungen — eine stumme API ist kein Befund
 # darueber, ob die Middleware haengt.
+#
+# Dieser zweite Teil prueft die Middleware am **Entrypoint**. Ob der Schutz
+# dort haengen bleibt oder in eigene Router wandert, ist mit ADR 0007 offen
+# (die Entscheidung haengt daran, ob Coolify eine eigene dynamische
+# Konfiguration zulaesst). Bis sie gefallen ist, bleibt diese Pruefung, wie sie
+# ist: Sie misst, was heute steht.
 
 set -euo pipefail
 
-domains_file="${1:-infra/domains.txt}"
+urls_file="${1:-infra/app-urls.txt}"
 login_host="${OPENAPPS_LOGIN_HOST:-}"
 traefik_api="${TRAEFIK_API_URL:-}"
 failed=0
@@ -76,7 +89,7 @@ print(",".join(sorted(fwd.keys())) if isinstance(fwd, dict) else "unbekannte-for
 # laesst den Exit-Code unberuehrt, wenn nichts geprueft werden konnte.
 check_traefik_config() {
   if [[ -z "$traefik_api" ]]; then
-    printf '%-45s %-6s %s\n' '(Traefik-API)' '-' \
+    printf '%-60s %-6s %s\n' '(Traefik-API)' '-' \
       'UEBERSPRUNGEN: TRAEFIK_API_URL nicht gesetzt — Middleware-Kette und forwardedHeaders ungeprueft'
     return 0
   fi
@@ -85,7 +98,7 @@ check_traefik_config() {
   url="${traefik_api%/}/api/entrypoints"
 
   if ! body="$(curl -sS -f -m 10 "$url" 2>/dev/null)"; then
-    printf '%-45s %-6s %s\n' '(Traefik-API)' '-' \
+    printf '%-60s %-6s %s\n' '(Traefik-API)' '-' \
       "UEBERSPRUNGEN: ${url} nicht erreichbar — Middleware-Kette und forwardedHeaders ungeprueft"
     return 0
   fi
@@ -95,12 +108,12 @@ check_traefik_config() {
   # `… && rc=0 || rc=$?` faengt den Fehlschlag ab, ohne errexit anzufassen.
   parsed="$(parse_websecure "$body")" && rc=0 || rc=$?
   if [[ "$rc" -eq 2 ]]; then
-    printf '%-45s %-6s %s\n' '(Traefik-API)' '-' \
+    printf '%-60s %-6s %s\n' '(Traefik-API)' '-' \
       'UEBERSPRUNGEN: weder jq noch python3 vorhanden — Antwort nicht auswertbar'
     return 0
   fi
   if [[ "$rc" -ne 0 ]]; then
-    printf '%-45s %-6s %s\n' '(Traefik-API)' '-' \
+    printf '%-60s %-6s %s\n' '(Traefik-API)' '-' \
       "UEBERSPRUNGEN: ${url} antwortet nichts Verwertbares — kein Befund ueber die Middleware"
     return 0
   fi
@@ -110,17 +123,17 @@ check_traefik_config() {
   local bad=0
 
   if [[ "$chain" == "$expected_chain" ]]; then
-    printf '%-45s %-6s %s\n' 'websecure.middlewares' 'ok' "$chain"
+    printf '%-60s %-6s %s\n' 'websecure.middlewares' 'ok' "$chain"
   else
-    printf '%-45s %-6s %s\n' 'websecure.middlewares' 'FEHL' \
+    printf '%-60s %-6s %s\n' 'websecure.middlewares' 'FEHL' \
       "FEHLER: [${chain}] statt [${expected_chain}] — Schutz weg oder Reihenfolge vertauscht"
     bad=1
   fi
 
   if [[ -z "$forwarded" ]]; then
-    printf '%-45s %-6s %s\n' 'websecure.forwardedHeaders' 'ok' 'leer (kein Client gilt als Proxy)'
+    printf '%-60s %-6s %s\n' 'websecure.forwardedHeaders' 'ok' 'leer (kein Client gilt als Proxy)'
   else
-    printf '%-45s %-6s %s\n' 'websecure.forwardedHeaders' 'FEHL' \
+    printf '%-60s %-6s %s\n' 'websecure.forwardedHeaders' 'FEHL' \
       "FEHLER: gesetzt (${forwarded}) — X-Forwarded-Host waere vom Client bestimmbar (Spec 1.3)"
     bad=1
   fi
@@ -128,27 +141,32 @@ check_traefik_config() {
   return "$bad"
 }
 
-if [[ ! -f "$domains_file" ]]; then
-  echo "Keine Domainliste: $domains_file" >&2
+if [[ ! -f "$urls_file" ]]; then
+  echo "Keine Adressliste: $urls_file" >&2
   exit 2
 fi
 
-printf '%-45s %-6s %s\n' PRUEFUNG STATUS ERGEBNIS
+printf '%-60s %-6s %s\n' PRUEFUNG STATUS ERGEBNIS
 
 check_traefik_config && config_failed=0 || config_failed=$?
 failed=$((failed + config_failed))
 echo
 
-while IFS= read -r domain; do
-  domain="${domain%%#*}"
-  domain="$(printf '%s' "$domain" | tr -d '[:space:]')"
-  [[ -z "$domain" ]] && continue
+while IFS= read -r line; do
+  line="${line%%#*}"
+  line="$(printf '%s' "$line" | tr -d '[:space:]')"
+  [[ -z "$line" ]] && continue
+  # Eine Zeile ohne Schema ist eine Adresse auf https. Kein Pfad angehaengt:
+  # was in der Liste steht, wird genau so geprueft — ein Pfad ist unter
+  # ADR 0007 Teil der Entscheidung und darf nicht vom Skript erfunden werden.
+  url="$line"
+  [[ "$url" == http://* || "$url" == https://* ]] || url="https://${url}"
   checked=$((checked + 1))
 
   read -r status location < <(
     curl -sS -o /dev/null -m 15 \
       -w '%{http_code} %{redirect_url}\n' \
-      "https://${domain}/" 2>/dev/null || echo '000 -'
+      "$url" 2>/dev/null || echo '000 -'
   )
 
   case "$status" in
@@ -173,18 +191,18 @@ while IFS= read -r domain; do
       ;;
   esac
 
-  printf '%-45s %-6s %s\n' "$domain" "$status" "$verdict"
-done <"$domains_file"
+  printf '%-60s %-6s %s\n' "$url" "$status" "$verdict"
+done <"$urls_file"
 
 echo
 if [[ "$checked" -eq 0 ]]; then
-  echo "Keine Domain geprueft. Das ist kein Nachweis." >&2
+  echo "Keine Adresse geprueft. Das ist kein Nachweis." >&2
   exit 2
 fi
 
 if [[ "$failed" -gt 0 ]]; then
-  echo "${failed} Pruefung(en) durchgefallen (${checked} Domains geprueft). DoD 2 nicht erfuellt." >&2
+  echo "${failed} Pruefung(en) durchgefallen (${checked} Adressen geprueft). DoD 2 nicht erfuellt." >&2
   exit 1
 fi
 
-echo "${checked} Domains geprueft, alle ohne Session abgewiesen."
+echo "${checked} Adressen geprueft, alle ohne Session abgewiesen."

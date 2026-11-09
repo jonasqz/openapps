@@ -34,8 +34,6 @@ export interface AppRepository {
   create(app: NewApp): Promise<App>;
   findById(id: string): Promise<App | null>;
   findByName(name: string): Promise<App | null>;
-  /** Fuer die Forward-Auth: ein Treffer pro Aufruf, kein Durchlaufen der Liste. */
-  findByDomain(domain: string): Promise<App | null>;
   /** Alle nicht archivierten Apps. Die Rechtepruefung passiert in der Domaene. */
   listAll(): Promise<readonly App[]>;
   setDeploymentPointers(

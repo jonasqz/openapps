@@ -9,7 +9,9 @@
  *
  * 1. Host bekannt? Ist es die Control Plane selbst, greift die Pfad-Allowlist
  *    aus Spec 1.3 — sonst entstuende ein Kreis: die Auth-Pruefung braeuchte
- *    eine Auth-Pruefung. Unbekannter Host → 403.
+ *    eine Auth-Pruefung. Sonst sagt das **erste Pfadsegment**, welche App
+ *    gemeint ist (ADR 0007: eine Domain, ein Pfad je App). Kein App-Pfad oder
+ *    eine App, die nicht auf diesem Host liegt → 403.
  * 2. Keine Session → 302 auf den Login.
  * 3. Keine Freigabe auf die App → 403.
  * 4. Sonst 200 mit den fuenf Identitaets-Headern aus Spec 3.1.
@@ -19,7 +21,13 @@
  * oeffnet. Nichts wird gecacht — ein Widerruf wirkt beim naechsten Aufruf.
  */
 
-import { canAccessApp, identityHeadersForApp, recordAudit } from '../../../../domain';
+import {
+  appNameFromPath,
+  canAccessApp,
+  gatewayHost,
+  identityHeadersForApp,
+  recordAudit,
+} from '../../../../domain';
 import { currentUser } from '../../../../lib/actor';
 import { readEnv } from '../../../../lib/env';
 import { domainContext } from '../../../../lib/runtime';
@@ -101,11 +109,12 @@ async function handle(request: Request): Promise<Response> {
         : new Response(null, { status: 200 });
     }
 
-    // Schritt 1b: eine registrierte App-Domain?
-    const app = await findAppByDomain(host);
+    // Schritt 1b: welche App? Unter ADR 0007 tragen alle Apps denselben Host,
+    // also entscheidet der Pfad. Ein Pfad ohne App ist nicht „offen", sondern
+    // unbekannt — auch `/` auf der gemeinsamen Domain.
+    const app = await findAppForPath(pathOnly(path), host);
     if (app === null) {
-      // Eine Domain ohne App ist nicht „offen", sondern unbekannt.
-      return deny(`keine App fuer Domain "${host}"`);
+      return deny(`keine App fuer "${host}${pathOnly(path)}"`);
     }
 
     // Schritt 2: Session.
@@ -173,10 +182,30 @@ function pathOnly(value: string): string {
   return query === -1 ? value : value.slice(0, query);
 }
 
-async function findAppByDomain(host: string): Promise<App | null> {
-  // Ein Index-Treffer pro Aufruf, keine Liste: diese Route laeuft bei jedem
-  // Request auf jede App-Domain.
-  return domainContext().apps.findByDomain(host);
+/**
+ * Die App zu diesem Aufruf: abgeleitet aus dem ersten Pfadsegment, gegen das
+ * Register geprueft.
+ *
+ * Zwei Pruefungen, und die zweite ist die wichtigere: Der Name muss eine
+ * registrierte App treffen (ein Name allein oeffnet nichts), **und** diese App
+ * muss auf diesem Host liegen. Ohne die zweite Pruefung wuerde jeder Host, den
+ * Traefik an die Forward-Auth gibt, jede App freischalten — die Domain waere
+ * dann kein Teil der Entscheidung mehr.
+ *
+ * Ein Index-Treffer pro Aufruf, keine Liste: diese Route laeuft bei jedem
+ * Request auf jede App.
+ */
+async function findAppForPath(path: string, host: string): Promise<App | null> {
+  const name = appNameFromPath(path);
+  if (name === null) return null;
+
+  const app = await domainContext().apps.findByName(name);
+  if (app === null) return null;
+  // Eine archivierte App ist keine App. `findByName` filtert nicht danach —
+  // die Stelle, die entscheidet, muss es tun.
+  if (app.archivedAt !== null) return null;
+  if (app.primaryDomain === null || gatewayHost(app.primaryDomain) !== host) return null;
+  return app;
 }
 
 export const GET = handle;

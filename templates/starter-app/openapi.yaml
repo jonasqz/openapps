@@ -7,7 +7,17 @@ info:
   version: 0.1.0
   description: Vorlage. Beschreibe hier jede Funktion, bevor du einen Screen baust.
 servers:
-  - url: /api
+  # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007),
+  # also ist `/api` allein nicht die Adresse dieser App. `basePath` ist der
+  # Pfad, den die Control Plane pro Deployment in OPENAPPS_APP_BASE_PATH setzt
+  # und den next.config.js als basePath uebernimmt; der Default hier ist der
+  # Pfad dieser App. Benennst du die App um, aendere ihn mit.
+  - url: '{basePath}/api'
+    description: Diese App hinter dem Gateway.
+    variables:
+      basePath:
+        default: /starter-app
+        description: Pfad der App, byte-gleich mit OPENAPPS_APP_BASE_PATH.
 paths:
   /items:
     get:

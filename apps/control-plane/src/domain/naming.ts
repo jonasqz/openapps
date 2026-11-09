@@ -1,7 +1,8 @@
 /**
- * Namen, die die Control Plane vergibt — nicht die App. Schema- und
- * Rollenname werden aus dem App-Namen abgeleitet und nie uebernommen, damit
- * eine App sich nicht in ein fremdes Schema schreiben kann.
+ * Namen, die die Control Plane vergibt — nicht die App. Schema-, Rollenname
+ * und der Pfad der App werden aus dem App-Namen abgeleitet und nie
+ * uebernommen, damit eine App sich nicht in ein fremdes Schema schreiben und
+ * nicht auf einen fremden Pfad legen kann.
  */
 
 import { ValidationError } from './errors';
@@ -25,9 +26,57 @@ export function dbRoleFor(appName: string): string {
   return schemaNameFor(appName);
 }
 
-export function domainFor(appName: string, baseDomain: string): string {
+/**
+ * Der Pfad, unter dem eine App erreichbar ist (ADR 0007): `/<app-name>`.
+ *
+ * Es gibt kein eigenes Feld dafuer. Der Name der App bestimmt den Pfad, so wie
+ * er Schema und Rolle bestimmt — ein zweites Feld koennte vom Namen
+ * auseinanderlaufen, und ein Pfad, der nicht zum `basePath` der App passt,
+ * macht sie kaputt, sobald sie das erste Bild laedt.
+ *
+ * Fuehrender Schraegstrich, kein abschliessender: genau die Form, die Next.js
+ * als `basePath` erwartet und die Traefik als `PathPrefix` nimmt.
+ */
+export function appPathFor(appName: string): string {
   assertAppName(appName);
-  return `${appName}.${baseDomain}`;
+  return `/${appName}`;
+}
+
+/**
+ * Die eine Domain, unter der alle Apps liegen (ADR 0007). Keine Subdomain je
+ * App — die App-Domain **ist** die gemeinsame Domain, getrennt wird ueber den
+ * Pfad.
+ *
+ * Normalisiert wie `gatewayHost` und wie `@openapps/sdk` die Env liest:
+ * getrimmt und kleingeschrieben. Sonst passt keine Signatur, sobald jemand die
+ * Domain mit einem Grossbuchstaben eintraegt.
+ */
+export function appsDomainFor(appsDomain: string): string {
+  const domain = appsDomain.trim().toLowerCase();
+  if (domain === '') {
+    throw new ValidationError('die gemeinsame App-Domain ist leer');
+  }
+  return domain;
+}
+
+/** Die vollstaendige Adresse einer App: `https://<domain>/<app-name>`. */
+export function appUrlFor(appName: string, appsDomain: string): string {
+  return `https://${appsDomainFor(appsDomain)}${appPathFor(appName)}`;
+}
+
+/**
+ * Der App-Name aus einem Pfad — die Umkehrung von `appPathFor`.
+ *
+ * Die Forward-Auth braucht sie: Unter ADR 0007 tragen alle Apps denselben
+ * Host, also sagt der Host nicht mehr, worueber entschieden wird. Das erste
+ * Pfadsegment sagt es. `null` heisst „kein App-Pfad" — und das ist kein
+ * „offen", sondern ein „nein" beim Aufrufer.
+ */
+export function appNameFromPath(path: string): string | null {
+  const withoutQuery = path.split(/[?#]/, 1)[0] ?? '';
+  const first = withoutQuery.split('/').filter((segment) => segment !== '')[0];
+  if (first === undefined) return null;
+  return APP_NAME.test(first) ? first : null;
 }
 
 /** Ressourcen-Id einer Tabelle oder View: `<app-name>.<objekt>`. */

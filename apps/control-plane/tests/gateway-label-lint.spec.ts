@@ -252,7 +252,7 @@ describe('Label-Lint vor dem Deploy: der Schritt im Review-Gate', () => {
 
   it('ein blockierter Deploy ruft das Backend nie', async () => {
     const harness = createHarness({
-      baseDomain: 'apps.test',
+      appsDomain: 'apps.test',
       pipeline: createDefaultPipeline({
         gitleaks: createCleanScanner('gitleaks'),
         semgrep: createCleanScanner('semgrep'),
@@ -309,7 +309,7 @@ describe('Label-Lint nach dem Deploy: gemessen, nicht abgeleitet', () => {
       : NonNullable<Parameters<typeof createHarness>[0]>['gatewayLabels'],
   ) {
     return createHarness({
-      baseDomain: 'apps.test',
+      appsDomain: 'apps.test',
       pipeline: createDefaultPipeline({
         gitleaks: createCleanScanner('gitleaks'),
         semgrep: createCleanScanner('semgrep'),

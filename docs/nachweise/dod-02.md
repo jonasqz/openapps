@@ -3,11 +3,16 @@
 **Kriterium:** Jede App liegt hinter dem gemeinsamen Login. Ohne Login kommt man
 nicht rein, auch nach einem Coolify-Update.
 
+Geprüft wird über **Pfade**, nicht über Domains: Jede App liegt unter
+`https://<eine-domain>/<app>` (ADR 0007). Der Sinn ist derselbe wie vorher, die
+Adressen sind andere — das Skript ruft dieselben Apps unter ihren Pfaden auf.
+
 **Art:** Test im Code. Spec: [`../specs/woche-1-forward-auth.md`](../specs/woche-1-forward-auth.md).
 
 ## Der Nachweis ist
 
-`infra/scripts/check-auth.sh`, zweimal ausgeführt: vor und nach einem echten
+`infra/scripts/check-auth.sh` mit einer Adressliste nach dem Muster von
+`infra/app-urls.txt.example`, zweimal ausgeführt: vor und nach einem echten
 Coolify-Update. Dazu die Schleifen-Messung während des Updates. Die Läufe
 liegen als Textdateien in `dod-02-laeufe/`.
 
@@ -16,9 +21,10 @@ eine echte Instanz.
 
 ## Was der Test beweist
 
-- Keine registrierte App-Domain antwortet ohne Session mit 200, auf keinem der
-  geprüften Pfade.
-- Eine Domain ohne Router bekommt 403 vom Deny-Backend, nicht 404 einer App.
+- Kein registrierter App-Pfad antwortet ohne Session mit 200, weder der
+  Einstieg `/‹app›` noch ein tieferer Pfad darunter.
+- Die Wurzel der gemeinsamen Domain und ein Pfad ohne App bekommen ein Nein,
+  nicht 404 einer App und nicht 200.
 - Mit selbst gesetzten Auth-Headern kommt ein Aufruf nicht durch.
 - Ist die Control Plane aus, sperrt das Gateway statt durchzulassen.
 - Das Verhalten ist nach einem echten Coolify-Update unverändert, für die
@@ -32,6 +38,9 @@ eine echte Instanz.
   das Gateway. Ein veröffentlichter Port oder ein zweites Docker-Netz bleibt
   unsichtbar. Dafür ist der Label-Lint zuständig (Abschnitt 3.3 der Spec), und
   der ist ein eigener Nachweis.
+- **Nicht**, dass die Apps im Browser getrennt sind. Unter einer Domain gilt
+  ein Cookie für alle Apps; das ist der bewusst gezahlte Preis aus ADR 0007 und
+  kein Befund dieses Nachweises.
 - **Nicht**, dass die Freigaben stimmen. Der Test prüft „ohne Session kein
   Zugang“, nicht „mit Session nur die erlaubten Apps“. Das gehört zu DoD 3.
 - **Nicht**, dass das App-Secret nicht geleakt ist. Die Signatur-Prüfung hält
@@ -42,6 +51,6 @@ eine echte Instanz.
 
 ## Protokoll der Läufe
 
-| Datum | Coolify vorher | Coolify nachher | Domains | Lücke während Update | Ergebnis |
+| Datum | Coolify vorher | Coolify nachher | Adressen | Lücke während Update | Ergebnis |
 | --- | --- | --- | --- | --- | --- |
 | | | | | | |

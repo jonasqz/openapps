@@ -3,6 +3,8 @@
  * Geprueft wird die Pruefkette von hinten: erst was sperren muss.
  *
  * - Session, aber keine Freigabe → 403, nicht 200.
+ * - Die App haengt am **Pfad**, nicht an einer Subdomain (ADR 0007): ein Pfad
+ *   ohne App ist 403, auch fuer den Administrator.
  * - Keine Session → 302 auf den Login.
  * - Die oeffentlichen Pfade aus Spec 1.3 bleiben ohne Session erreichbar,
  *   alles andere auf dem Host der Control Plane nicht.
@@ -22,14 +24,16 @@ import { admin, createHarness, manifest, seedBootstrapGrants, type Harness } fro
 import { GET, isPublicControlPlanePath } from '../src/app/api/authz/forward/route';
 
 const CONTROL_PLANE_HOST = 'control-plane.example.com';
-const BASE_DOMAIN = 'apps.example.com';
-const APP_HOST = `projekte.${BASE_DOMAIN}`;
+/** Die eine Domain, unter der alle Apps liegen (ADR 0007). */
+const APPS_DOMAIN = 'apps.example.com';
+/** Der Pfad der App `projekte` — abgeleitet, nicht erfunden. */
+const APP_PATH = '/projekte';
 
 /** Env, die der Endpunkt ueber `readEnv` liest. */
 const ENV: Record<string, string> = {
   DATABASE_URL: 'postgres://unused@localhost:1/none',
   APP_DATABASE_HOST: 'localhost:1/none',
-  APP_BASE_DOMAIN: BASE_DOMAIN,
+  APPS_DOMAIN,
   CONTROL_PLANE_HOST,
   FORWARD_AUTH_URL: `https://${CONTROL_PLANE_HOST}/api/authz/forward`,
   OPENAPPS_AUTH_MASTER_SECRET: 'master-secret-nur-fuer-tests-0123456789',
@@ -80,7 +84,7 @@ describe('Forward-Auth mit Session', () => {
       previousEnv.set(key, process.env[key]);
       process.env[key] = value;
     }
-    harness = createHarness({ baseDomain: BASE_DOMAIN });
+    harness = createHarness({ appsDomain: APPS_DOMAIN });
     await seedBootstrapGrants(harness);
     setDomainContext(harness.ctx);
     setSessionReader(denyAllSessions);
@@ -95,7 +99,11 @@ describe('Forward-Auth mit Session', () => {
     }
   });
 
-  async function appOnHost(): Promise<{ id: string }> {
+  /**
+   * Die App liegt auf der gemeinsamen Domain, erreichbar unter ihrem Pfad.
+   * Keine Subdomain mehr: `primaryDomain` ist die Domain selbst (ADR 0007).
+   */
+  async function appOnPath(): Promise<{ id: string }> {
     await createApp(harness.ctx, {
       actor: admin,
       name: 'projekte',
@@ -104,12 +112,21 @@ describe('Forward-Auth mit Session', () => {
     // `createApp` setzt die Domain erst nach dem Anlegen, also neu lesen.
     const app = await harness.ctx.apps.findByName('projekte');
     if (app === null) throw new Error('App projekte wurde nicht angelegt');
-    expect(app.primaryDomain).toBe(APP_HOST);
+    expect(app.primaryDomain).toBe(APPS_DOMAIN);
     return app;
   }
 
+  /** Ein Aufruf auf die App: gemeinsame Domain, Pfad der App. */
+  function appRequest(options?: { path?: string; cookie?: string }): Request {
+    return requestFor({
+      host: APPS_DOMAIN,
+      path: options?.path ?? APP_PATH,
+      ...(options?.cookie === undefined ? {} : { cookie: options.cookie }),
+    });
+  }
+
   it('gibt 403, wenn ein Nutzer eine Session hat, aber keine Freigabe', async () => {
-    await appOnHost();
+    await appOnPath();
     setSessionReader(
       createBetterAuthSessionReader({
         auth: sessionFor({ id: 'u-lena', email: 'lena@example.com' }),
@@ -117,35 +134,55 @@ describe('Forward-Auth mit Session', () => {
       }),
     );
 
-    const response = await GET(requestFor({ host: APP_HOST, cookie: 'better-auth.session=abc' }));
+    const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
     expect(response.status).toBe(403);
     expect(response.headers.get('x-auth-user-id')).toBeNull();
   });
 
   it('gibt ohne Session 302 auf den Login', async () => {
-    await appOnHost();
-    const response = await GET(requestFor({ host: APP_HOST, path: '/projekte/1' }));
+    await appOnPath();
+    const response = await GET(appRequest({ path: `${APP_PATH}/1` }));
     expect(response.status).toBe(302);
     const location = response.headers.get('location');
     expect(location).toContain('/login');
-    expect(location).toContain(encodeURIComponent(`https://${APP_HOST}/projekte/1`));
+    expect(location).toContain(encodeURIComponent(`https://${APPS_DOMAIN}${APP_PATH}/1`));
   });
 
-  it('gibt 403 fuer eine Domain ohne App, auch mit gueltiger Session', async () => {
+  it('gibt 403 fuer jeden Pfad ohne App, auch mit Freigabe auf alles', async () => {
+    await appOnPath();
     setSessionReader(
       createBetterAuthSessionReader({
         auth: sessionFor({ id: 'u-chef', email: 'chef@example.com' }),
         groups: membershipTable({ 'chef@example.com': ['platform-admins'] }),
       }),
     );
+    // Der Administrator hat `*` auf alle Apps (seedBootstrapGrants). Trotzdem
+    // oeffnet kein Pfad, hinter dem keine App steht — auch die Wurzel der
+    // gemeinsamen Domain nicht. Default-Deny haengt am Pfad, nicht am Nutzer.
+    for (const path of ['/', '/fremd', '/fremd/tief', '/PROJEKTE', '/projekte%2f..', '']) {
+      const response = await GET(appRequest({ path, cookie: 'better-auth.session=abc' }));
+      expect(response.status, path).toBe(403);
+    }
+  });
+
+  it('gibt 403, wenn die App auf einer anderen Domain liegt als der Aufruf', async () => {
+    await appOnPath();
+    setSessionReader(
+      createBetterAuthSessionReader({
+        auth: sessionFor({ id: 'u-chef', email: 'chef@example.com' }),
+        groups: membershipTable({ 'chef@example.com': ['platform-admins'] }),
+      }),
+    );
+    // Derselbe Pfad, fremder Host: Die Domain bleibt Teil der Entscheidung,
+    // obwohl sie fuer alle Apps dieselbe ist.
     const response = await GET(
-      requestFor({ host: `fremd.${BASE_DOMAIN}`, cookie: 'better-auth.session=abc' }),
+      requestFor({ host: 'fremd.example.com', path: APP_PATH, cookie: 'better-auth.session=abc' }),
     );
     expect(response.status).toBe(403);
   });
 
   it('nimmt die Gruppen aus der Datenbank: eine Aenderung wirkt beim naechsten Aufruf', async () => {
-    const app = await appOnHost();
+    const app = await appOnPath();
     const memberships = membershipTable({ 'lena@example.com': [] });
     setSessionReader(
       createBetterAuthSessionReader({
@@ -153,8 +190,7 @@ describe('Forward-Auth mit Session', () => {
         groups: memberships,
       }),
     );
-    const call = (): Promise<Response> =>
-      GET(requestFor({ host: APP_HOST, cookie: 'better-auth.session=abc' }));
+    const call = (): Promise<Response> => GET(appRequest({ cookie: 'better-auth.session=abc' }));
 
     // Die Freigabe haengt an der Gruppe, nicht an der Person.
     const granted = await grant(harness.ctx, {
@@ -248,14 +284,14 @@ describe('Forward-Auth mit Session', () => {
   });
 
   it('verwirft eine Session ohne Identitaet', async () => {
-    await appOnHost();
+    await appOnPath();
     setSessionReader(
       createBetterAuthSessionReader({
         auth: sessionFor({ id: '', email: '' }),
         groups: membershipTable(),
       }),
     );
-    const response = await GET(requestFor({ host: APP_HOST, cookie: 'better-auth.session=abc' }));
+    const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
     expect(response.status).toBe(302);
   });
 });

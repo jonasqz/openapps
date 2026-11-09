@@ -17,6 +17,19 @@
 4. `src/app/api/` — die Route-Handler, genau die Operationen aus der Spec.
 5. `src/app/` — die Screens, erst jetzt. Nur mit `@openapps/ui`.
 
+## Wo dein Pfad herkommt
+
+Die App ist unter `https://<domain>/<app-name>` erreichbar, nicht unter einer
+eigenen Subdomain (ADR 0007). `next.config.js` setzt diesen Pfad als `basePath`
+aus `OPENAPPS_APP_BASE_PATH`; die Control Plane setzt die Variable pro
+Deployment. Lass die Zeile, wie sie ist, und schreibe den Pfad nirgends fest —
+das Review-Gate prueft beides.
+
+Was daran haengt: Jeder absolute Pfad, den du selbst schreibst, umgeht den
+`basePath`. `<img src="/logo.png">` und `fetch('/api/items')` landen auf der
+Plattform, nicht in deiner App. Nimm `next/link` und `next/image` (die rechnen
+den `basePath` ein) und rufe eigene Endpunkte relativ auf.
+
 ## Wo du den Nutzer bekommst
 
 ```ts

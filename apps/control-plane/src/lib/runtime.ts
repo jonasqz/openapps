@@ -67,7 +67,7 @@ export function domainContext(): DomainContext {
     }),
     authMasterSecret: env.authMasterSecret,
     alarms: createAlarmSink(),
-    ...(env.baseDomain === undefined ? {} : { baseDomain: env.baseDomain }),
+    ...(env.appsDomain === undefined ? {} : { appsDomain: env.appsDomain }),
   };
 
   return context;

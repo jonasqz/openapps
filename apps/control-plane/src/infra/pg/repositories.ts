@@ -122,13 +122,6 @@ export function createAppRepository(db: Queryable): AppRepository {
       ]);
       return rows[0] === undefined ? null : toApp(rows[0]);
     },
-    async findByDomain(domain) {
-      const { rows } = await db.query<AppRow>(
-        `SELECT ${APP_COLUMNS} FROM apps WHERE primary_domain = $1 AND archived_at IS NULL`,
-        [domain],
-      );
-      return rows[0] === undefined ? null : toApp(rows[0]);
-    },
     async listAll() {
       const { rows } = await db.query<AppRow>(
         `SELECT ${APP_COLUMNS} FROM apps WHERE archived_at IS NULL ORDER BY name`,

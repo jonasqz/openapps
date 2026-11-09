@@ -5,6 +5,7 @@
  */
 
 import { createPipeline } from './pipeline';
+import { appBasePathStep } from './steps/app-base-path';
 import { claudeReportStep } from './steps/claude-report';
 import { gatewayLabelsStep } from './steps/gateway-labels';
 import { gitleaksStep } from './steps/gitleaks';
@@ -40,6 +41,7 @@ export function createDefaultPipeline(deps: GateDependencies): ReviewPipeline {
       deps.gatewayLint,
       deps.gatewayNetwork === undefined ? {} : { gatewayNetwork: deps.gatewayNetwork },
     ),
+    appBasePathStep(),
     toolParityStep(),
     manifestMatchStep(),
     claudeReportStep(deps.claude),
@@ -58,6 +60,12 @@ export {
   GATEWAY_LABELS_STEP,
   type GatewayLabelsOptions,
 } from './steps/gateway-labels';
+export {
+  appBasePathStep,
+  checkAppBasePath,
+  APP_BASE_PATH_STEP,
+  BASE_PATH_ENV,
+} from './steps/app-base-path';
 export { toolParityStep, checkToolParity, TOOL_PARITY_STEP } from './steps/tool-parity';
 export { manifestMatchStep, checkManifestMatch, MANIFEST_MATCH_STEP } from './steps/manifest-match';
 export { claudeReportStep, CLAUDE_REPORT_STEP } from './steps/claude-report';

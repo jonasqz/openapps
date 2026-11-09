@@ -6,7 +6,7 @@
 import { audited } from './audit';
 import { can, requirePermission } from './can';
 import { ConflictError, NotFoundError, PermissionDeniedError } from './errors';
-import { assertAppName, dbRoleFor, domainFor, schemaNameFor } from './naming';
+import { appsDomainFor, assertAppName, dbRoleFor, schemaNameFor } from './naming';
 import type { DomainContext } from './context';
 import type { Actor, App, AppManifest, ManifestSource, Verb } from './types';
 import { ANY } from './types';
@@ -117,8 +117,11 @@ export async function createApp(ctx: DomainContext, input: CreateAppInput): Prom
       // Eigenes Schema, eigene Rolle — die Grundlage von DoD 3.
       await ctx.provisioner.provision({ schemaName, dbRole });
 
-      if (ctx.baseDomain !== undefined) {
-        await ctx.apps.setPrimaryDomain(app.id, domainFor(name, ctx.baseDomain));
+      // Die Domain ist fuer jede App dieselbe (ADR 0007); erreichbar wird die
+      // App ueber ihren Pfad `appPathFor(name)`. Kein Ableiten einer
+      // Subdomain mehr — es gibt keine.
+      if (ctx.appsDomain !== undefined) {
+        await ctx.apps.setPrimaryDomain(app.id, appsDomainFor(ctx.appsDomain));
       }
 
       return {

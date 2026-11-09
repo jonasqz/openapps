@@ -4,8 +4,8 @@ Was hier liegt, betreibt die Plattform — es ist kein Teil des Produkts.
 
 | Pfad | Was |
 | --- | --- |
-| `scripts/check-auth.sh` | Nachweis für DoD 2: keine App-Domain ohne Session erreichbar, vor und nach jedem Coolify-Update |
-| `domains.txt.example` | Vorlage für die Domainliste, die das Skript prüft |
+| `scripts/check-auth.sh` | Nachweis für DoD 2: kein App-Pfad ohne Session erreichbar, vor und nach jedem Coolify-Update |
+| `app-urls.txt.example` | Vorlage für die Adressliste, die das Skript prüft (eine Domain, ein Pfad je App — ADR 0007) |
 | `traefik/traefik.yml` | Statische Traefik-Konfiguration: Middleware am Entrypoint, Provider, API, Timeouts, TLS |
 | `traefik/dynamic/` | Middlewares, Catch-all-Router und der Weg zur Control Plane — alles, was kein Container ueberschreiben darf |
 | `traefik/deny-backend/` | nginx, das auf jede Anfrage 403 antwortet |
@@ -18,9 +18,9 @@ Die Auth läuft über Traefik-Labels, die Coolify verwaltet. Ein Coolify-Update
 kann sie ändern oder entfernen — dann sind Apps ungeschützt erreichbar. Deshalb:
 
 ```bash
-infra/scripts/check-auth.sh infra/domains.txt   # vor dem Update
+infra/scripts/check-auth.sh infra/app-urls.txt   # vor dem Update
 # Coolify aktualisieren
-infra/scripts/check-auth.sh infra/domains.txt   # danach, gleiche Liste
+infra/scripts/check-auth.sh infra/app-urls.txt   # danach, gleiche Liste
 ```
 
 Ein Lauf ohne Fehlschlag ist der Nachweis. Ein Dienst, der nicht antwortet,
@@ -70,15 +70,21 @@ signiertes Standard-Zertifikat und ein Router-Label ohne `tls.certresolver`
 hinzu, weil Let's Encrypt fuer `.local.test` nichts ausstellt.
 
 `local/nachweis.sh` prueft die Kette, `scripts/check-auth.sh` prueft eine Liste
-echter Domains. Das eine ersetzt das andere nicht.
+echter Adressen. Das eine ersetzt das andere nicht.
+
+Die Dateien unter `traefik/` stammen aus dem Subdomain-Aufbau und sind mit
+ADR 0007 **offen**: Wo die Router fuer die App-Pfade stehen — aus Docker-Labels
+oder aus einer eigenen dynamischen Konfiguration — haengt daran, ob Coolify ein
+solches Verzeichnis anbietet, das ein Update ueberlebt. Bis das belegt ist,
+bleibt hier alles, wie es ist.
 
 ## Nach einem Coolify-Update
 
 ```bash
-infra/scripts/check-auth.sh infra/domains.txt     # erst messen, nicht reparieren
+infra/scripts/check-auth.sh infra/app-urls.txt    # erst messen, nicht reparieren
 ```
 
-Schlaegt der Lauf an oder antwortet eine App-Domain mit 200, dann in dieser
+Schlaegt der Lauf an oder antwortet ein App-Pfad mit 200, dann in dieser
 Reihenfolge:
 
 1. `curl http://<traefik>:8080/api/entrypoints` und nachsehen, ob der Eintrag

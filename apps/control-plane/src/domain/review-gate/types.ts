@@ -68,6 +68,31 @@ export interface GatewayReviewTarget {
   readonly domain: string | null;
 }
 
+/**
+ * Der `basePath`, den die Arbeitskopie setzt (ADR 0007). Erhoben wird er aus
+ * der Build-Konfiguration der App (`next.config.js` im Starter-Template).
+ */
+export interface BasePathFact {
+  /**
+   * Der Wert, der **ohne** Env in der Build-Konfiguration steht: der feste
+   * Pfad, oder der Rueckfallwert hinter der Env-Variable. `null` heisst: kein
+   * `basePath` in der Konfiguration.
+   *
+   * Der Wert allein entscheidet nicht — `fromEnv` entscheidet mit: Kommt der
+   * Pfad aus `OPENAPPS_APP_BASE_PATH`, setzt ihn die Control Plane, und der
+   * Rueckfallwert gilt nur lokal.
+   */
+  readonly value: string | null;
+  /**
+   * Die Env-Variable, aus der der Wert kommt. `null` heisst: fest im Code.
+   * Erwartet wird `OPENAPPS_APP_BASE_PATH`, die Variable, die die Control
+   * Plane pro Deployment setzt.
+   */
+  readonly fromEnv: string | null;
+  /** Datei, in der es steht — fuer den Befund im Bericht. */
+  readonly source?: string;
+}
+
 export interface CodeFacts {
   readonly tables: readonly string[];
   readonly tools: readonly string[];
@@ -90,6 +115,13 @@ export interface CodeFacts {
    * `undefined` „nicht erhoben".
    */
   readonly dockerNetworks?: readonly string[];
+  /**
+   * Der `basePath` aus der Build-Konfiguration der Arbeitskopie. Wie bei
+   * `publishedPorts` ist `undefined` „nicht erhoben" und **nicht** „keiner":
+   * Der Unterschied steht im Befund `base_path.unknown`, und ein fehlender
+   * basePath ist ein eigener, blockierender Befund (`base_path.missing`).
+   */
+  readonly basePath?: BasePathFact;
 }
 
 export interface StepResult {

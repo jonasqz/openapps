@@ -63,7 +63,12 @@
     {
       "name": "OPENAPPS_APP_HOST",
       "secret": false,
-      "description": "Eigene App-Domain im Signatur-Material, getrimmt und kleingeschrieben."
+      "description": "Die gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben. Fuer alle Apps dieselbe (ADR 0007)."
+    },
+    {
+      "name": "OPENAPPS_APP_BASE_PATH",
+      "secret": false,
+      "description": "Pfad dieser App auf der gemeinsamen Domain: /<app-name>. next.config.js setzt ihn als basePath; die Control Plane setzt ihn pro Deployment (ADR 0007)."
     }
   ],
   "egress": []

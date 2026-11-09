@@ -55,7 +55,7 @@ export const TEST_MASTER_SECRET = 'test-master-secret-nur-fuer-tests-0123456789'
 export function createHarness(options?: {
   steps?: readonly ReviewStep[];
   pipeline?: ReviewPipeline;
-  baseDomain?: string;
+  appsDomain?: string;
   repositoryFailsWith?: string;
   /** Was das Backend nach dem Deploy zurueckliest. Default: der echte Satz. */
   gatewayLabels?: RecordingBackendOptions['gatewayLabels'];
@@ -87,7 +87,7 @@ export function createHarness(options?: {
     provisioner,
     authMasterSecret: TEST_MASTER_SECRET,
     alarms,
-    ...(options?.baseDomain === undefined ? {} : { baseDomain: options.baseDomain }),
+    ...(options?.appsDomain === undefined ? {} : { appsDomain: options.appsDomain }),
   };
 
   return { ctx, store, backend, provisioner, repositories, alarms };

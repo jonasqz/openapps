@@ -85,9 +85,6 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
     async findByName(name) {
       return [...apps.values()].find((a) => a.name === name) ?? null;
     },
-    async findByDomain(domain) {
-      return [...apps.values()].find((a) => a.primaryDomain === domain) ?? null;
-    },
     async listAll() {
       return [...apps.values()].filter((a) => a.archivedAt === null);
     },

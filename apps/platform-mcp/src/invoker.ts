@@ -7,7 +7,7 @@
  * nur ueber `@openapps/sdk` — und das SDK prueft die Signatur.
  */
 
-import { identityHeadersForApp } from '@openapps/control-plane/domain';
+import { appUrlFor, identityHeadersForApp } from '@openapps/control-plane/domain';
 import type { AppToolInvoker } from './app-tools';
 
 export interface HttpInvokerOptions {
@@ -39,7 +39,14 @@ export function createHttpInvoker(options: HttpInvokerOptions): AppToolInvoker {
         masterSecret: options.authMasterSecret,
       });
 
-      const response = await fetch(`https://${app.primaryDomain}/api/tools/${toolName}`, {
+      // Die Adresse der App ist Domain **und** Pfad (ADR 0007): alle Apps
+      // liegen auf derselben Domain, erst der Pfad trennt sie. Ohne ihn ginge
+      // der Aufruf an die Wurzel der gemeinsamen Domain — also an die
+      // Plattform, nicht an die App. Abgeleitet wird er dort, wo auch der
+      // Router und `OPENAPPS_APP_BASE_PATH` herkommen: `appUrlFor`.
+      const url = `${appUrlFor(app.name, app.primaryDomain)}/api/tools/${toolName}`;
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: { ...headers, 'content-type': 'application/json' },
         body: JSON.stringify(args),

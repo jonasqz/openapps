@@ -40,10 +40,12 @@ export interface DomainContext {
   readonly reviewGate: ReviewPipeline;
   readonly provisioner: SchemaProvisioner;
   /**
-   * Basis-Domain fuer App-Domains: `<app-name>.<baseDomain>`. Ohne Angabe
+   * Die **eine** Domain, unter der alle Apps liegen (ADR 0007). Jede App
+   * bekommt diese Domain als `primaryDomain`; getrennt werden die Apps ueber
+   * ihren Pfad `appPathFor(name)`, nicht ueber eine Subdomain. Ohne Angabe
    * vergibt die Control Plane keine Domain und der Deploy bleibt intern.
    */
-  readonly baseDomain?: string;
+  readonly appsDomain?: string;
   /**
    * Master-Secret, aus dem pro App das `OPENAPPS_AUTH_SECRET` abgeleitet wird
    * (siehe `src/lib/app-secret.ts`). Es verlaesst die Control Plane nie.

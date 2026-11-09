@@ -11,7 +11,12 @@ const MIN_MASTER_SECRET_LENGTH = 32;
 
 export interface ControlPlaneEnv {
   readonly databaseUrl: string;
-  readonly baseDomain: string | undefined;
+  /**
+   * Die eine Domain, unter der alle Apps liegen (ADR 0007). Fruehere Fassungen
+   * hatten hier `APP_BASE_DOMAIN`, eine Basis fuer `<app>.<basis>`; unter
+   * ADR 0007 gibt es keine App-Subdomain mehr, also auch keine Basis.
+   */
+  readonly appsDomain: string | undefined;
   /**
    * Master-Secret, aus dem pro App `OPENAPPS_AUTH_SECRET` abgeleitet wird
    * (ADR 0004: ein Secret pro App, nicht ein geteiltes fuer alle). Es geht
@@ -40,7 +45,7 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
 
   return {
     databaseUrl: required(env, 'DATABASE_URL'),
-    baseDomain: env.APP_BASE_DOMAIN,
+    appsDomain: env.APPS_DOMAIN,
     authMasterSecret,
     controlPlaneHost: required(env, 'CONTROL_PLANE_HOST').trim().toLowerCase(),
     appDatabaseHost: required(env, 'APP_DATABASE_HOST'),

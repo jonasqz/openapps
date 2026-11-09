@@ -42,6 +42,7 @@ export {
 export { grant, revoke, listGrants, canCallTool } from './grants';
 export * as reviewGate from './review-gate';
 export type {
+  BasePathFact,
   CodeFacts,
   Finding,
   ReviewInput,

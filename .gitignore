@@ -15,4 +15,4 @@ coverage/
 .vercel
 playwright-report/
 test-results/
-infra/domains.txt
+infra/app-urls.txt

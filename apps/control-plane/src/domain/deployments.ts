@@ -9,6 +9,7 @@ import { audited, record } from './audit';
 import { requireAppPermission } from './apps';
 import { appContainerPort } from './app-port';
 import { appIdOf, gatewayHost } from './gateway-identity';
+import { appPathFor } from './naming';
 import { ConflictError, NotFoundError, ReviewBlockedError } from './errors';
 import type { DomainContext } from './context';
 import type { CodeFacts, ReviewResult } from './review-gate/types';
@@ -422,7 +423,8 @@ async function freshDsn(ctx: DomainContext, app: App): Promise<string> {
  * `OPENAPPS_APP_ID` und `OPENAPPS_APP_HOST` muessen **byte-gleich** dem sein,
  * was die Forward-Auth ins Signatur-Material schreibt (ADR 0004). Deshalb
  * stammen beide Werte aus denselben Funktionen wie dort: `app.name` und
- * `gatewayHost()`.
+ * `gatewayHost()`. `OPENAPPS_APP_BASE_PATH` kommt aus derselben einen Quelle
+ * wie der Pfad des Routers: `appPathFor()`.
  */
 function appEnvironment(
   ctx: DomainContext,
@@ -437,6 +439,12 @@ function appEnvironment(
     DATABASE_SCHEMA: app.schemaName,
     OPENAPPS_APP_ID: appIdOf(app),
     OPENAPPS_APP_HOST: gatewayHost(app.primaryDomain),
+    // Der Pfad, unter dem diese App liegt (ADR 0007). Die App setzt ihn als
+    // `basePath` ihres Frameworks — ohne ihn zeigen ihre Verweise, Bilder und
+    // JavaScript-Dateien ins Leere. Abgeleitet wird er nur in
+    // `domain/naming.ts`, damit Router, Env und Review-Gate denselben Wert
+    // sehen.
+    OPENAPPS_APP_BASE_PATH: appPathFor(app.name),
     OPENAPPS_AUTH_SECRET: appAuthSecret({
       masterSecret: ctx.authMasterSecret,
       appId: appIdOf(app),

@@ -1,0 +1,29 @@
+# Eine Adresse pro Zeile: das, was ohne Session abgewiesen werden muss.
+#
+# Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007),
+# nicht auf einer eigenen Subdomain. Eine Domainliste reicht dafuer nicht:
+# `https://intern.example` und `https://intern.example/projektliste` sind zwei
+# verschiedene Entscheidungen des Gateways, und nur die zweite sagt etwas
+# ueber die App.
+#
+# Kopieren nach infra/app-urls.txt (nicht committet), oder von der Control
+# Plane erzeugen lassen: list_apps liefert Name und Domain, der Pfad ist
+# /<name>.
+#
+# Eine Zeile ohne Schema wird als https:// gelesen.
+
+# Die Control Plane selbst: ohne Session eine Weiterleitung auf den Login.
+https://control-plane.intern.example/
+
+# Die Wurzel der gemeinsamen Domain. Dahinter liegt keine App — erwartet wird
+# ein Nein, kein 404 einer App und kein 200.
+https://intern.example/
+
+# Ein Pfad, hinter dem keine App liegt. Derselbe Fall, aber er faellt nur auf,
+# wenn er in der Liste steht.
+https://intern.example/gibt-es-nicht
+
+# Je App ihr Pfad. Beides pruefen: der Einstieg und ein tieferer Pfad, denn
+# ein Router, der nur das erste Segment schuetzt, faellt nur hier auf.
+https://intern.example/projektliste
+https://intern.example/projektliste/1

@@ -82,7 +82,7 @@ describe('Rollback', () => {
 
 async function setup() {
   const harness = createHarness({
-    baseDomain: 'apps.test',
+    appsDomain: 'apps.test',
     pipeline: createDefaultPipeline({
       gatewayLint: testLabelLint(),
       gitleaks: createCleanScanner('gitleaks'),

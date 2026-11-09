@@ -124,6 +124,7 @@ describe('Review-Gate: deterministische Scanner', () => {
       'semgrep',
       'ui-lint',
       'gateway-labels',
+      'app-base-path',
       'tool-parity',
       'manifest-match',
       'claude-report',
@@ -298,7 +299,7 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
 
   it('deployt, wenn das Gate freigibt, und setzt die Deployment-Zeiger', async () => {
     const harness = createHarness({
-      baseDomain: 'apps.test',
+      appsDomain: 'apps.test',
       pipeline: createDefaultPipeline({
         gatewayLint: testLabelLint(),
         gitleaks: createCleanScanner('gitleaks'),
@@ -348,6 +349,7 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
       'DATABASE_SCHEMA',
       'OPENAPPS_APP_ID',
       'OPENAPPS_APP_HOST',
+      'OPENAPPS_APP_BASE_PATH',
       'OPENAPPS_AUTH_SECRET',
     ]);
   });
