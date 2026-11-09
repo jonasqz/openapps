@@ -1,8 +1,8 @@
 # @openapps/platform-mcp
 
-Der MCP-Server der Plattform. Er bietet die sechs Tools des Briefs an, liefert
-`AGENTS.md` als Prompt aus und leitet die Tools der Apps weiter — jeweils nur
-an Aufrufer, die eine Freigabe haben.
+Der MCP-Server der Plattform. Er bietet die sechs Tools des Briefs plus
+Nachsehen und Gruppenpflege an, liefert `AGENTS.md` als Prompt aus und leitet
+die Tools der Apps weiter — jeweils nur an Aufrufer, die eine Freigabe haben.
 
 ## Die Tools
 
@@ -15,6 +15,21 @@ an Aufrufer, die eine Freigabe haben.
 | `grant`          | eine Freigabe vergeben                                                                  |
 | `revoke`         | eine Freigabe widerrufen                                                                |
 | `list_grants`    | Freigaben nachsehen                                                                     |
+
+Gruppenpflege (Migration 0009 und 0011 — eine Gruppe ist Subjekt **und**
+Ressource):
+
+| Tool                  | Was es tut                                                | Braucht                |
+| --------------------- | --------------------------------------------------------- | ---------------------- |
+| `list_groups`         | Gruppen auflisten, auf die der Aufrufer `read` hat        | `read` auf die Gruppe  |
+| `create_group`        | eine Gruppe anlegen, leer                                 | `write` auf `group:*`  |
+| `list_group_members`  | Mitglieder einer Gruppe                                   | `read` auf die Gruppe  |
+| `grant_group_member`  | eine E-Mail-Adresse aufnehmen, idempotent                 | `write` auf die Gruppe |
+| `revoke_group_member` | eine E-Mail-Adresse entfernen, wirkt beim nächsten Aufruf | `write` auf die Gruppe |
+
+`write` auf `group:*` fürs Anlegen und nicht auf den neuen Namen: Vor dem
+Anlegen gibt es den Namen nicht, eine Freigabe darauf könnte sich jeder selbst
+ausstellen, der irgendeine Gruppe pflegt.
 
 Dazu kommen die App-Tools, benannt als `<app-name>.<tool>`. Angemeldet werden
 nur die freigegebenen; aufgerufen werden dürfen auch nur die — der Aufruf prüft
@@ -29,7 +44,7 @@ gelesen. Damit haben Agents über MCP dieselben Regeln wie Agents in Claude Code
 ## Aufbau
 
 ```
-src/tools.ts       die sechs Tools als Daten: Name, Schema, Handler
+src/tools.ts       die Plattform-Tools als Daten: Name, Schema, Handler
 src/app-tools.ts   Sichtbarkeit und Aufruf der App-Tools
 src/identity.ts    ein OAuth-Client pro Agent
 src/invoker.ts     Weiterleitung an die App, durch das Gateway

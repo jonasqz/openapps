@@ -35,6 +35,15 @@ async function requireAuthorityOver(
   resource: ResourceRef,
   verb: Verb,
 ): Promise<void> {
+  // Eine Gruppe gehoert zu keiner App (Migration 0011). Wer sie aendern darf,
+  // darf auch Rechte auf sie weitergeben — dieselbe Regel wie oben, nur ohne
+  // den Umweg ueber eine besitzende App. Ohne diesen Zweig landete
+  // `group:marketing` in `parseObjectResourceId` und waere ein Formatfehler.
+  if (resource.kind === 'group') {
+    await requirePermission(ctx, actor, verb, resource);
+    return;
+  }
+
   if (resource.kind === 'app') {
     if (resource.id === '*') {
       await requirePermission(ctx, actor, verb, resource);

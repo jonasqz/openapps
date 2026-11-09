@@ -98,6 +98,7 @@ export function createHarness(options?: {
     apps: store.apps,
     deployments: store.deployments,
     grants: store.grants,
+    groups: store.groups,
     audit: store.audit,
     agents: store.agents,
     clock: systemClock,
@@ -128,6 +129,21 @@ export async function seedBootstrapGrants(harness: Harness): Promise<void> {
       grantedBy: 'system:bootstrap',
     });
   }
+  // Migration 0012: dieselbe Gruppe darf Gruppen lesen und pflegen. Kein
+  // `execute` — eine Gruppe wird nicht ausgefuehrt.
+  for (const verb of ['read', 'write'] as const) {
+    await harness.store.grants.insert({
+      subject: { kind: 'group', id: 'platform-admins' },
+      verb,
+      resource: { kind: 'group', id: '*' },
+      grantedBy: 'system:bootstrap',
+    });
+  }
+  // Migration 0009 legt diese Gruppe als Zeile an, leer.
+  await harness.store.groups.create({
+    name: 'platform-admins',
+    description: 'Plattform-Administration. Wildcard-Grant aus Migration 0006.',
+  });
 }
 
 /**

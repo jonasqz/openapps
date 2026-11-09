@@ -1,0 +1,22 @@
+-- 0011_group_resource_kind.sql — Gruppen werden eine Ressource im Rechtemodell.
+--
+-- Bisher gab es Gruppen nur als **Subjekt** (`grant_subject_kind = 'group'`,
+-- Migration 0003): Eine Freigabe konnte an eine Gruppe gehen. Wer eine Gruppe
+-- pflegen darf, stand nirgends — Mitgliedschaften gingen nur per SQL oder
+-- ueber AUTH_BOOTSTRAP_ADMINS. Damit war Grundsatz 1 aus CLAUDE.md verletzt
+-- (keine Aktion ohne API und MCP-Tool) und Grundsatz 4 halb: Das Rechtemodell
+-- beschrieb nicht, wer ueber Gruppen entscheidet.
+--
+-- Mit dieser Zeile ist eine Gruppe auch eine Ressource. `read` auf
+-- `group:<name>` heisst: Mitglieder sehen. `write` heisst: Mitglieder
+-- aufnehmen und entfernen. `group:*` gilt fuer alle Gruppen und erlaubt
+-- zusaetzlich, neue anzulegen — eine neue Gruppe hat noch keinen Namen, auf
+-- den eine Freigabe zeigen koennte.
+--
+-- **Warum zwei Dateien fuer eine Aenderung** (CLAUDE.md: eine Migration pro
+-- Aenderung): Postgres laesst einen neuen Enum-Wert nicht in derselben
+-- Transaktion benutzen, in der er entsteht ("unsafe use of new value of enum
+-- type"). Der Laeufer gibt jeder Datei genau eine Transaktion. Der Wert
+-- entsteht deshalb hier, die Freigaben darauf stehen in 0012.
+
+ALTER TYPE grant_resource_kind ADD VALUE IF NOT EXISTS 'group';

@@ -14,6 +14,7 @@ import type {
   DeploymentRepository,
   GatewayConfigStore,
   GrantRepository,
+  GroupRepository,
   IdGenerator,
   RepositoryBackend,
   SchemaProvisioner,
@@ -31,6 +32,12 @@ export interface DomainContext {
   readonly apps: AppRepository;
   readonly deployments: DeploymentRepository;
   readonly grants: GrantRepository;
+  /**
+   * Gruppen und Mitgliedschaften. Sie liegen hier und nicht im SSO-Token:
+   * Google liefert ohne Workspace-Admin-SDK keine Gruppen, und eine Freigabe
+   * aus einem Token waere nicht widerrufbar (Migration 0009).
+   */
+  readonly groups: GroupRepository;
   readonly audit: AuditRepository;
   readonly agents: AgentIdentityRepository;
   readonly clock: Clock;

@@ -62,6 +62,13 @@ export {
   ownRouterProblems,
 } from './deployments';
 export { grant, revoke, listGrants, canCallTool } from './grants';
+export {
+  listGroups,
+  listGroupMembers,
+  createGroup,
+  addGroupMember,
+  removeGroupMember,
+} from './groups';
 export * as reviewGate from './review-gate';
 export type {
   BasePathFact,

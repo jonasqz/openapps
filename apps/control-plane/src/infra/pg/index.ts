@@ -6,6 +6,10 @@ export {
   createAuditRepository,
   createAgentIdentityRepository,
 } from './repositories';
-export { createGroupMembershipRepository, type GroupMembershipRepository } from './groups';
+export {
+  createGroupRepository,
+  createGroupMembershipRepository,
+  type GroupMembershipRepository,
+} from './groups';
 export { createPgProvisioner, type PgProvisionerOptions } from './provisioner';
 export { migrate } from './migrate';

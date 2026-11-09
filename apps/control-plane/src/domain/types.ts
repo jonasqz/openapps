@@ -22,7 +22,12 @@ export interface Actor extends SubjectRef {
 
 export type Verb = 'read' | 'write' | 'execute';
 
-export type ResourceKind = 'app' | 'table' | 'view' | 'tool';
+/**
+ * `group` ist seit Migration 0011 dabei: Eine Gruppe ist Subjekt **und**
+ * Ressource. `read` auf `group:<name>` heisst Mitglieder sehen, `write`
+ * Mitglieder pflegen, `write` auf `group:*` zusaetzlich neue Gruppen anlegen.
+ */
+export type ResourceKind = 'app' | 'table' | 'view' | 'tool' | 'group';
 
 export interface ResourceRef {
   readonly kind: ResourceKind;
@@ -41,6 +46,24 @@ export interface Grant {
   readonly grantedAt: Date;
   readonly revokedAt: Date | null;
   readonly revokedBy: string | null;
+}
+
+/** Eine Gruppe, wie Migration 0009 sie fuehrt. */
+export interface Group {
+  readonly name: string;
+  readonly description: string;
+  readonly createdAt: Date;
+}
+
+/**
+ * Eine Mitgliedschaft. Ueber die **E-Mail**, nicht ueber eine Nutzer-Id: Die
+ * Nutzer-Zeile entsteht erst beim ersten Login, eine Mitgliedschaft muss
+ * vorher vergeben werden koennen (Begruendung in Migration 0009).
+ */
+export interface GroupMember {
+  readonly email: string;
+  readonly addedBy: string;
+  readonly addedAt: Date;
 }
 
 export type DeploymentStatus =

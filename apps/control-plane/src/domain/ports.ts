@@ -12,6 +12,8 @@ import type {
   Deployment,
   DeploymentStatus,
   Grant,
+  Group,
+  GroupMember,
   ManifestSource,
   ResourceRef,
   ReviewDecision,
@@ -99,6 +101,26 @@ export interface GrantRepository {
   listForResource(resource: ResourceRef): Promise<readonly Grant[]>;
   /** Alle Freigaben, neueste zuerst — inklusive widerrufener (Audit-Sicht). */
   listAll(limit: number): Promise<readonly Grant[]>;
+}
+
+/**
+ * Gruppen und ihre Mitglieder (Migration 0009). **Kein Cache**, auf keiner
+ * Ebene: `groupsFor` laeuft bei jedem Forward-Auth-Aufruf, und ein Widerruf,
+ * der erst nach einer Frist wirkt, ist kein Widerruf (DoD 3).
+ */
+export interface GroupRepository {
+  /** Wirft `ConflictError`, wenn es die Gruppe schon gibt. */
+  create(group: { name: string; description: string }): Promise<Group>;
+  findByName(name: string): Promise<Group | null>;
+  /** Alle Gruppen, alphabetisch. Die Rechtepruefung passiert in der Domaene. */
+  listAll(): Promise<readonly Group[]>;
+  /** Mitglieder einer Gruppe, alphabetisch nach E-Mail. */
+  listMembers(group: string): Promise<readonly GroupMember[]>;
+  /** Gruppen dieser Adresse, alphabetisch. Unbekannt heisst leer, nicht Fehler. */
+  groupsFor(email: string): Promise<readonly string[]>;
+  /** Idempotent: zweimal dieselbe Mitgliedschaft ist keine Aenderung. */
+  ensureMembership(group: string, email: string, addedBy: string): Promise<void>;
+  removeMembership(group: string, email: string): Promise<void>;
 }
 
 export interface AuditRepository {

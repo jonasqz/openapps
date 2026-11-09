@@ -13,8 +13,8 @@ Dies ist der App-Layer neben Coolify. `AGENTS.md` richtet sich an Agents, die
 3. **Apps enthalten keinen Auth- und keinen Rechte-Code.** Das Gateway prüft
    jeden Aufruf, die Datenbank-Rolle begrenzt jeden Zugriff.
 4. **Ein Rechtemodell.** Wer (Mensch, Gruppe, App, Agent) darf was (lesen,
-   schreiben, ausführen) auf welcher Ressource (App, Tabelle/View, Tool).
-   Freigaben liegen zentral in der Control Plane, nirgends sonst.
+   schreiben, ausführen) auf welcher Ressource (App, Tabelle/View, Tool,
+   Gruppe). Freigaben liegen zentral in der Control Plane, nirgends sonst.
 5. **Default-Deny.** Neue Routen, Tools und Tabellen sind gesperrt, bis eine
    Freigabe sie öffnet.
 6. **Keine Secrets im Code.** Nur über Env. `gitleaks` blockiert den Rest.

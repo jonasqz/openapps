@@ -11,6 +11,7 @@ import { createDefaultPipeline } from '../domain/review-gate';
 import {
   createAgentIdentityRepository,
   createGroupMembershipRepository,
+  createGroupRepository,
   createAppRepository,
   createAuditRepository,
   createDeploymentRepository,
@@ -57,6 +58,7 @@ export function domainContext(): DomainContext {
     apps: createAppRepository(pool),
     deployments: createDeploymentRepository(pool),
     grants: createGrantRepository(pool),
+    groups: createGroupRepository(pool),
     audit: createAuditRepository(pool),
     agents: createAgentIdentityRepository(pool),
     clock: systemClock,

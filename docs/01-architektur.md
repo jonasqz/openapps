@@ -46,14 +46,15 @@ Browser fällt weg (ADR 0007).
 ## Ein Rechtemodell für alle
 
 Wer (Mensch, Gruppe, App, Agent) darf was (lesen, schreiben, ausführen) auf
-welcher Ressource (App, Tabelle/View, Tool). Freigaben liegen zentral in der
-Control Plane. In v1 genutzt für:
+welcher Ressource (App, Tabelle/View, Tool, Gruppe). Freigaben liegen zentral
+in der Control Plane. In v1 genutzt für:
 
 | Richtung | Beispiel | Durchgesetzt von |
 | --- | --- | --- |
 | Mensch → App | Gruppe „Team“ darf Projektliste unter `/projektliste` öffnen | Forward-Auth an jedem Router unserer dynamischen Konfiguration, pro Aufruf gegen die Control Plane |
 | App → App | CRM liest `projects.v_active` | Postgres-Grant auf View, gesetzt von der Control Plane |
 | Agent → Tool | Agent darf `projects.list` aufrufen, nicht `projects.delete` | Plattform-MCP prüft vor jedem Aufruf, protokolliert jeden |
+| Mensch/Agent → Gruppe | Teamleitung pflegt `marketing`, nicht `finanzen` | Control Plane prüft `write` auf `group:marketing`; Mitgliedschaft wird bei jedem Aufruf gelesen, nicht gecacht |
 
 Default-Deny überall: Was nicht freigegeben ist, ist gesperrt. Widerruf wirkt
 sofort — bei Postgres durch `REVOKE`, beim MCP durch Prüfung pro Aufruf (kein

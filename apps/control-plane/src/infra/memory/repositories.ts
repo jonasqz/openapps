@@ -17,6 +17,7 @@ import type {
   DeploymentRepository,
   GrantLookup,
   GrantRepository,
+  GroupRepository,
   NewAgentIdentity,
   NewApp,
   NewDeployment,
@@ -28,6 +29,8 @@ import type {
   AuditEntry,
   Deployment,
   Grant,
+  Group,
+  GroupMember,
   ResourceRef,
   SubjectRef,
 } from '../../domain/types';
@@ -36,6 +39,7 @@ export interface MemoryStore {
   readonly apps: AppRepository;
   readonly deployments: DeploymentRepository;
   readonly grants: GrantRepository;
+  readonly groups: GroupRepository;
   readonly audit: AuditRepository;
   readonly agents: AgentIdentityRepository;
   /** Direkter Blick in das Audit-Log, fuer Tests. */
@@ -52,6 +56,11 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
   const grants = new Map<string, Grant>();
   const auditEntries: AuditEntry[] = [];
   const agents = new Map<string, AgentIdentity>();
+  const groups = new Map<string, Group>();
+  // Gruppe -> E-Mail -> Mitgliedschaft. Die aeussere Map traegt denselben
+  // Schluessel wie `groups`, die innere ist nach E-Mail eindeutig — genau der
+  // Primaerschluessel aus Migration 0009.
+  const members = new Map<string, Map<string, GroupMember>>();
   const agentSecrets = new Map<string, string>();
 
   const appRepo: AppRepository = {
@@ -251,10 +260,64 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
     },
   };
 
+  /**
+   * Dieselbe Semantik wie in SQL, an den Stellen, die zaehlen: E-Mails
+   * kleingeschrieben (Migration 0009 erzwingt das per CHECK), Mitgliedschaft
+   * idempotent, Listen sortiert. Lief das hier anders, wuerden die Tests der
+   * Domaene etwas anderes pruefen als den Betrieb.
+   */
+  const groupRepo: GroupRepository = {
+    async create(input: { name: string; description: string }): Promise<Group> {
+      if (groups.has(input.name)) throw new ConflictError(`Gruppe "${input.name}" gibt es schon`);
+      const group: Group = {
+        name: input.name,
+        description: input.description,
+        createdAt: now(),
+      };
+      groups.set(group.name, group);
+      members.set(group.name, new Map());
+      return group;
+    },
+    async findByName(name) {
+      return groups.get(name) ?? null;
+    },
+    async listAll() {
+      return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+    },
+    async listMembers(group) {
+      return [...(members.get(group)?.values() ?? [])].sort((a, b) =>
+        a.email.localeCompare(b.email),
+      );
+    },
+    async groupsFor(email) {
+      const normalized = email.trim().toLowerCase();
+      if (normalized === '') return [];
+      return [...members.entries()]
+        .filter(([, byEmail]) => byEmail.has(normalized))
+        .map(([group]) => group)
+        .sort((a, b) => a.localeCompare(b));
+    },
+    async ensureMembership(group, email, addedBy) {
+      // Fremdschluessel wie in SQL: eine Mitgliedschaft in einer Gruppe, die
+      // es nicht gibt, ist ein Fehler und kein stilles Anlegen.
+      if (!groups.has(group)) throw new NotFoundError(`Gruppe "${group}" gibt es nicht`);
+      const byEmail = members.get(group) ?? new Map<string, GroupMember>();
+      const normalized = email.trim().toLowerCase();
+      if (!byEmail.has(normalized)) {
+        byEmail.set(normalized, { email: normalized, addedBy, addedAt: now() });
+      }
+      members.set(group, byEmail);
+    },
+    async removeMembership(group, email) {
+      members.get(group)?.delete(email.trim().toLowerCase());
+    },
+  };
+
   return {
     apps: appRepo,
     deployments: deploymentRepo,
     grants: grantRepo,
+    groups: groupRepo,
     audit: auditRepo,
     agents: agentRepo,
     auditEntries,

@@ -31,6 +31,7 @@ import {
   createAuditRepository,
   createDeploymentRepository,
   createGrantRepository,
+  createGroupRepository,
   createPgProvisioner,
 } from '../src/infra/pg';
 import {
@@ -60,6 +61,7 @@ describe.skipIf(!reachable)('Postgres setzt die Schema-Trennung durch', () => {
       apps: createAppRepository(db.pool),
       deployments: createDeploymentRepository(db.pool),
       grants: createGrantRepository(db.pool),
+      groups: createGroupRepository(db.pool),
       audit: createAuditRepository(db.pool),
       agents: createAgentIdentityRepository(db.pool),
       clock: systemClock,

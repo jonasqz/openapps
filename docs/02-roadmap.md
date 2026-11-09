@@ -23,7 +23,7 @@ ein Setup auf frischer Coolify-Instanz. Die Schwellen stehen in
 Stand 2026-11-09, nach dem Umbau auf ADR 0007 und 0008.
 
 **`pnpm check` ist grün.** Gemessen am 2026-11-09: 9 Pakete typegeprüft, 6
-gelintet, 30 Testdateien, 462 Tests bestanden, 2 übersprungen, 9 als `todo`.
+gelintet, 33 Testdateien, 484 Tests bestanden, 2 übersprungen, 9 als `todo`.
 Das sagt nichts über die Zielinstanz — jeder dieser Tests läuft ohne Coolify
 und ohne Traefik.
 
@@ -33,8 +33,8 @@ und ohne Traefik.
 | `packages/app-manifest` | Schema, Validierung, Katalog-Quellen, generiertes JSON-Schema — 15 Tests |
 | `packages/sdk` | Gateway-Signal (HMAC) und schema-gebundener DB-Client — 54 Tests |
 | `packages/ui` | Tokens, 15 Komponenten, 5 Muster, App-Shell, 5 Linter-Regeln — 189 Tests, gerendert geprüft |
-| `apps/control-plane` | Domäne, Rechtemodell, Review-Gate, Rollback, Forward-Auth-Route — 194 Tests, davon 4 gegen echtes Postgres |
-| `apps/platform-mcp` | sechs Tools, App-Tool-Weiterleitung, `how_to_build_app` — 6 Tests |
+| `apps/control-plane` | Domäne, Rechtemodell, Review-Gate, Rollback, Forward-Auth-Route, Gruppenpflege — 211 Tests, davon drei Dateien gegen echtes Postgres |
+| `apps/platform-mcp` | sechs Tools, `list_grants` und fünf für Gruppen (zwölf gesamt), App-Tool-Weiterleitung, `how_to_build_app` — 11 Tests |
 | `templates/starter-app` | Manifest, OpenAPI, Migration, Handler, Liste, UI-Linter verdrahtet — 4 Tests |
 | Woche-1-Spec zur Forward-Auth | steht in Fassung 2, nach ADR 0007 und 0008 ([`specs/woche-1-forward-auth.md`](specs/woche-1-forward-auth.md)) |
 | Nachweis-Mappe `docs/nachweise/` | zwei lokale Läufe liegen vor: der alte Aufbau (acht Fälle OK) und der heutige (neun Fälle, einer gefallen). Beide gegen einen Stub, keiner gegen echte Control Plane oder echtes Coolify-Update |
@@ -45,6 +45,7 @@ und ohne Traefik.
 | Review-Gate-Schritt `gateway-config` | verdrahtet: vor dem Deploy die erzeugbare Konfiguration plus Manifest und Arbeitskopie, nach dem Deploy die Negativ-Messung am Backend (Befund ⇒ `degraded`) |
 | Eigene statische Traefik-Konfiguration | **entfallen.** Entrypoints und der Resolver `letsencrypt` gehören Coolify; es gibt kein `traefik.yml` und keine Entrypoint-Middleware von uns mehr |
 | Startup-Check gegen die Traefik-API | steht, auf Router umgestellt: jeder Router mit dem Präfix `openapps-` trägt die Kette in dieser Reihenfolge und ist `enabled`, Catch-all vorhanden, `forwardedHeaders` am Entrypoint leer. Unerreichbare API = WARN, falsche Antwort = ALARM, sichtbar in `/healthz` |
+| Gruppenpflege | steht: `group` ist eine Ressourcenart (Migration 0011/0012), fünf Endpunkte und fünf MCP-Tools, Rechte je Gruppe oder per `group:*` |
 | Better Auth (Google-SSO) | steht: Domain-Schranke, Gruppen aus der Control Plane, Login-Seite ([ADR 0006](decisions/0006-gruppen-und-domain-schranke.md)) |
 
 ## Was als Nächstes dran ist
@@ -60,18 +61,15 @@ In dieser Reihenfolge, weil das Riskanteste zuerst kommt:
    Dienstdefinition der Control Plane — ohne ihn scheitert der erste Deploy.
 2. **Tag 0 entscheiden**
    ([ADR 0003](decisions/0003-marmelab-platform-fork-oder-neubau.md)).
-3. **Gruppenpflege als Endpunkt und MCP-Tool** (`grant_group_member`,
-   `revoke_group_member`). „Agents first“ verlangt sie, bevor es dafür eine
-   Oberfläche gibt; bis dahin geht Pflege nur per SQL oder Bootstrap-Variable.
-4. **Scanner wirklich laufen lassen** — gitleaks und semgrep als Prozess gegen
+3. **Scanner wirklich laufen lassen** — gitleaks und semgrep als Prozess gegen
    ein Test-Repo mit eingebautem Secret (DoD 4).
-5. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
-6. **Die Control Plane in die App-Shell setzen.** Die Shell aus `@openapps/ui`
+4. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
+5. **Die Control Plane in die App-Shell setzen.** Die Shell aus `@openapps/ui`
    steht, die Control Plane trägt sie noch nicht — die Login-Seite muss
    außerhalb liegen, das braucht eine Routengruppe.
-7. **Einen Fakten-Sammler für Spec 3.3.** Ohne ihn sind „kein veröffentlichter
+6. **Einen Fakten-Sammler für Spec 3.3.** Ohne ihn sind „kein veröffentlichter
    Host-Port“ und „kein zweites Netz“ pro Deploy ein Hinweis, keine Sperre.
-8. **`degraded` sichtbar machen.** Der Status existiert in Datenbank und
+7. **`degraded` sichtbar machen.** Der Status existiert in Datenbank und
    Outcome, aber keine Liste und kein MCP-Tool zeigt ihn eigens an — ein
    Zustand, den niemand sieht, wirkt wie keiner.
 
