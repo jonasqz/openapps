@@ -35,6 +35,7 @@ Stand 2026-11-09. `pnpm check` ist grün: 9 Pakete typegeprüft, 6 gelintet,
 | Woche-1-Spec zur Forward-Auth | steht ([`specs/woche-1-forward-auth.md`](specs/woche-1-forward-auth.md)) |
 | Nachweis-Mappe `docs/nachweise/` | ein Lauf liegt vor (Gateway, lokal, gegen Stub); die Läufe gegen echte Control Plane und echtes Coolify-Update stehen aus |
 | Prüfskript DoD 2 | steht, prüft auch die Traefik-Konfiguration; noch kein Lauf gegen die Zielinstanz |
+| Label-Lint | verdrahtet: Schritt `gateway-labels` vor dem Deploy, Messung der echten Labels danach (Befund ⇒ `degraded`) |
 | Traefik-Konfiguration | steht: Entrypoint-Middleware, Catch-all-Router, Deny-Backend, Loopback-Entrypoint fürs 2-s-Timeout — acht Fälle lokal gegen Traefik 3.3.7 geprüft |
 | Startup-Check gegen die Traefik-API | steht; unerreichbare API = WARN, falsche Antwort = ALARM, sichtbar in `/healthz` |
 | Better Auth (Google-SSO) | steht: Domain-Schranke, Gruppen aus der Control Plane, Login-Seite ([ADR 0006](decisions/0006-gruppen-und-domain-schranke.md)) |
@@ -43,25 +44,26 @@ Stand 2026-11-09. `pnpm check` ist grün: 9 Pakete typegeprüft, 6 gelintet,
 
 In dieser Reihenfolge, weil das Riskanteste zuerst kommt:
 
-1. **Label-Lint ins Review-Gate verdrahten.** `missingForwardAuthLabels()`
-   prüft inzwischen auch das Port-Label, wird aber von keinem Schritt
-   aufgerufen. Spec 2 verlangt ihn vor und nach jedem Deploy — bis dahin ist er
-   eine Funktion, die niemand ruft.
-2. **DoD 2 auf der Zielinstanz nachweisen.** Der Gateway-Lauf lief lokal gegen
+1. **DoD 2 auf der Zielinstanz nachweisen.** Der Gateway-Lauf lief lokal gegen
    einen Stub. Was fehlt: Lauf mit echter Control Plane, zwei Läufe um ein
    echtes Coolify-Update herum, und die Sekunden-Schleifen-Messung aus Spec 4.4.
    Das ist der Nachweis, auf den das ganze Projekt wartet.
-3. **Tag 0 entscheiden**
+2. **Tag 0 entscheiden**
    ([ADR 0003](decisions/0003-marmelab-platform-fork-oder-neubau.md)).
-4. **Gruppenpflege als Endpunkt und MCP-Tool** (`grant_group_member`,
+3. **Gruppenpflege als Endpunkt und MCP-Tool** (`grant_group_member`,
    `revoke_group_member`). „Agents first" verlangt sie, bevor es dafür eine
    Oberfläche gibt; bis dahin geht Pflege nur per SQL oder Bootstrap-Variable.
-5. **Scanner wirklich laufen lassen** — gitleaks und semgrep als Prozess gegen
+4. **Scanner wirklich laufen lassen** — gitleaks und semgrep als Prozess gegen
    ein Test-Repo mit eingebautem Secret (DoD 4).
-6. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
-7. **Die Control Plane in die App-Shell setzen.** Die Shell aus `@openapps/ui`
+5. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
+6. **Die Control Plane in die App-Shell setzen.** Die Shell aus `@openapps/ui`
    steht, die Control Plane trägt sie noch nicht — die Login-Seite muss
    außerhalb liegen, das braucht eine Routengruppe.
+7. **Einen Fakten-Sammler für Spec 3.3.** Ohne ihn sind „kein veröffentlichter
+   Host-Port" und „kein zweites Netz" pro Deploy ein Hinweis, keine Sperre.
+8. **`degraded` sichtbar machen.** Der Status existiert in Datenbank und
+   Outcome, aber keine Liste und kein MCP-Tool zeigt ihn eigens an — ein
+   Zustand, den niemand sieht, wirkt wie keiner.
 
 ## Bekannte Schulden
 
@@ -72,5 +74,7 @@ In dieser Reihenfolge, weil das Riskanteste zuerst kommt:
 | `better-auth` verlangt über `better-call` `zod` 4, im Repo liegt 3.24 | Bleibt eine Peer-Warnung: `better-auth` selbst hängt auf `zod@^3.24`. Dass es trägt, ist belegt — die Postgres-Tests laufen durch die echte Instanz. Ein Update von `better-call` kann es kippen; der kleine Hebel wäre ein Pin. |
 | Forward-Auth läuft pro Aufruf zweimal: einmal am Entrypoint, einmal aus den App-Labels | Gürtel und Hosenträger, bis ein echtes Coolify-Update gemessen ist. Solange nicht bekannt ist, was ein Update mit den Labels tut, ist die zweite Schicht ihr Geld wert. Danach reduzieren. |
 | Der Port einer App kommt aus einer `PORT`-Env-Konvention, nicht aus einem Manifest-Feld | Reicht heute. Ein eigenes Feld würde den Manifest-Abgleich im Review-Gate sauberer machen. |
+| Der Lint nach dem Deploy liest Coolifys geführte Labels, nicht `docker inspect` | Es fällt auf, wenn ein Update den Satz entfernt — aber es ist nicht der Container selbst. Der echte Beweis wäre zusätzlich die Traefik-API gegen die App-Domain. |
+| Ändert eine App ihren Port, wird `ensureGateway` nicht erneut gerufen | Der Lint nach dem Deploy meldet es als Befund, statt dass es still falsch bleibt. Saubere Lösung wäre ein erneuter Aufruf bei Portänderung. |
 | `@openapps/ui` liefert Quellcode, also müssen alle Apps dieselben React-Typen fahren (18) | Bewusst: lesbar für Agents, keine Stale-Build-Fehler. Preis ist die gemeinsame Typversion. |
 | Test-Postgres läuft auf `postgres:16`, nicht 17 | Das Image lag lokal vor und die Nachweise sind dagegen **gelaufen**. Ein verifiziertes Image ist mehr wert als ein neueres, das nur vermutet ist. |
