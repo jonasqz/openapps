@@ -35,9 +35,7 @@ export async function readAgentsMd(options?: {
     } catch {
       const parent = path.dirname(dir);
       if (parent === dir) {
-        throw new Error(
-          'AGENTS.md nicht gefunden. Setze AGENTS_MD_PATH auf den Pfad der Datei.',
-        );
+        throw new Error('AGENTS.md nicht gefunden. Setze AGENTS_MD_PATH auf den Pfad der Datei.');
       }
       dir = parent;
     }

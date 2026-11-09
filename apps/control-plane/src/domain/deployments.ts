@@ -4,8 +4,10 @@
  * `pass` an das Backend uebergeben. Es gibt keinen Pfad, der das Gate umgeht.
  */
 
+import { appAuthSecret } from './app-secret';
 import { audited } from './audit';
 import { requireAppPermission } from './apps';
+import { appIdOf, gatewayHost } from './gateway-identity';
 import { ConflictError, NotFoundError, ReviewBlockedError } from './errors';
 import type { DomainContext } from './context';
 import type { CodeFacts, ReviewResult } from './review-gate/types';
@@ -210,23 +212,66 @@ async function ensureBackendApp(
       `App "${app.name}" hat keine Domain. Ohne Domain gibt es keinen Router und keine Forward-Auth.`,
     );
   }
-  if (app.source.kind !== 'git') {
-    throw new ConflictError(
-      `Quelle "${app.source.kind}" kann nicht deployt werden; in v1 nur Git-Quellen.`,
-    );
-  }
 
   const created = await ctx.backend.createApp({
     appName: app.name,
-    gitUrl: app.source.url,
-    gitRef: app.source.ref ?? 'main',
+    gitUrl: app.source.git,
+    gitRef: app.source.tag,
     domain: app.primaryDomain,
   });
+
+  // Reihenfolge: erst Env, dann Gateway, dann (beim Aufrufer) Deploy. Die App
+  // startet nie, ohne ihre Env und ihren Router zu haben.
+  await ctx.backend.setEnv(created.backendRef, appEnvironment(ctx, app, await freshDsn(ctx, app)));
   await ctx.backend.ensureGateway(created.backendRef, {
     appName: app.name,
     domain: app.primaryDomain,
   });
   return created.backendRef;
+}
+
+/**
+ * Die DSN der App. Sie wird beim Anlegen des Backend-Containers neu gezogen,
+ * weil das Passwort der App-Rolle nirgends gespeichert wird (Migration 0006
+ * setzt es beim Aufruf). Das ist nur hier unschaedlich: Die App laeuft noch
+ * nicht, also unterbricht die Neuvergabe keine offene Verbindung.
+ */
+async function freshDsn(ctx: DomainContext, app: App): Promise<string> {
+  const { dsn } = await ctx.provisioner.provision({
+    schemaName: app.schemaName,
+    dbRole: app.dbRole,
+  });
+  return dsn;
+}
+
+/**
+ * Die Env, die jede App bekommt. Mehr setzt die Control Plane nicht: was die
+ * App darueber hinaus braucht, deklariert sie im Manifest.
+ *
+ * `OPENAPPS_APP_ID` und `OPENAPPS_APP_HOST` muessen **byte-gleich** dem sein,
+ * was die Forward-Auth ins Signatur-Material schreibt (ADR 0004). Deshalb
+ * stammen beide Werte aus denselben Funktionen wie dort: `app.name` und
+ * `gatewayHost()`.
+ */
+function appEnvironment(
+  ctx: DomainContext,
+  app: App,
+  dsn: string,
+): Readonly<Record<string, string>> {
+  if (app.primaryDomain === null) {
+    throw new ConflictError(`App "${app.name}" hat keine Domain`);
+  }
+  return {
+    DATABASE_URL: dsn,
+    DATABASE_SCHEMA: app.schemaName,
+    OPENAPPS_APP_ID: appIdOf(app),
+    OPENAPPS_APP_HOST: gatewayHost(app.primaryDomain),
+    OPENAPPS_AUTH_SECRET: appAuthSecret({
+      masterSecret: ctx.authMasterSecret,
+      appId: appIdOf(app),
+      generation: app.authSecretGeneration,
+    }),
+  };
 }
 
 async function resolveApp(ctx: DomainContext, appIdOrName: string): Promise<App> {

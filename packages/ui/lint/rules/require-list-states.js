@@ -10,6 +10,37 @@ const LIST_COMPONENTS = new Set(['Table', 'ListPattern']);
 /** Komponenten, die beide Zustände bereits mitbringen. */
 const COMPLETE_PATTERNS = new Set(['ListPattern']);
 
+/**
+ * Komponenten, die beide Zustände tragen KÖNNEN, aber nur, wenn sie sie
+ * mitbekommen. `Table` hat `empty` und `error` als Props und rendert dann
+ * selbst `EmptyState` und `ErrorState` — wer beide setzt, hat die Zustände, und
+ * ein zusätzlicher Import wäre unbenutzt. Fehlt eine der beiden Props, ist es
+ * eine Liste ohne Zustand und die Regel greift wie vorher.
+ */
+const SELF_SUFFICIENT_WITH_PROPS = new Map([['Table', ['empty', 'error']]]);
+
+/** Trägt dieses Element alle Props, die es selbst genügen lassen? */
+function carriesOwnStates(node, name) {
+  const required = SELF_SUFFICIENT_WITH_PROPS.get(name);
+  if (required === undefined) return false;
+  const present = new Set();
+  for (const attribute of node.attributes) {
+    if (attribute.type !== 'JSXAttribute') continue;
+    if (attribute.name.type !== 'JSXIdentifier') continue;
+    // Ein gesetztes `empty={undefined}` zählt nicht: dann gibt es keinen Zustand.
+    if (attribute.value === null) continue;
+    if (
+      attribute.value.type === 'JSXExpressionContainer' &&
+      attribute.value.expression.type === 'Identifier' &&
+      attribute.value.expression.name === 'undefined'
+    ) {
+      continue;
+    }
+    present.add(attribute.name.name);
+  }
+  return required.every((prop) => present.has(prop));
+}
+
 /** JSX-Elemente, deren Kinder eine Datenliste sind. */
 const LIST_ELEMENTS = new Set(['ul', 'ol', 'tbody', 'table']);
 
@@ -37,7 +68,9 @@ const ERROR_IMPORTS = new Set(['ErrorState']);
  * erforderlich)". Der Linter prüft den Import, nicht das Verhalten zur
  * Laufzeit — mehr ist statisch nicht zu belegen, und das steht so im Guide.
  *
- * `ListPattern` zählt als beides, weil es beide Zustände in sich trägt.
+ * `ListPattern` zählt als beides, weil es beide Zustände in sich trägt. Eine
+ * `<Table>` mit `empty` und `error` ebenso — sie rendert beide selbst, und ein
+ * zusätzlicher Import wäre toter Code.
  */
 export const requireListStates = {
   meta: {
@@ -81,7 +114,9 @@ export const requireListStates = {
 
       JSXOpeningElement(node) {
         const name = node.name.type === 'JSXIdentifier' ? node.name.name : '';
-        if (LIST_COMPONENTS.has(name)) noteList(node);
+        if (!LIST_COMPONENTS.has(name)) return;
+        if (carriesOwnStates(node, name)) return;
+        noteList(node);
       },
 
       'JSXExpressionContainer > CallExpression'(node) {

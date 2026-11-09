@@ -25,7 +25,7 @@ export function toolParityStep(): ReviewStep {
 }
 
 export function checkToolParity(input: ReviewInput): readonly Finding[] {
-  const manifestTools = new Set((input.manifest.tools ?? []).map((t) => t.name));
+  const manifestTools = new Set(input.manifest.offeredTools.map((t) => t.name));
   const codeTools = new Set(input.codeFacts.tools);
   const findings: Finding[] = [];
 

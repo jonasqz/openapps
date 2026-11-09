@@ -46,6 +46,11 @@
       "description": "Verbindung auf das eigene Schema, mit der App-Rolle. Setzt die Control Plane."
     },
     {
+      "name": "DATABASE_SCHEMA",
+      "secret": false,
+      "description": "Eigenes Schema der App. Das SDK setzt daraus den search_path; eine DSN mit options= wird abgewiesen."
+    },
+    {
       "name": "OPENAPPS_AUTH_SECRET",
       "secret": true,
       "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prueft. Setzt die Control Plane pro Deployment."

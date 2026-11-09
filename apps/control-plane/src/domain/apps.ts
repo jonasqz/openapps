@@ -8,7 +8,7 @@ import { can, requirePermission } from './can';
 import { ConflictError, NotFoundError, PermissionDeniedError } from './errors';
 import { assertAppName, dbRoleFor, domainFor, schemaNameFor } from './naming';
 import type { DomainContext } from './context';
-import type { Actor, App, AppManifest, CatalogSource, Verb } from './types';
+import type { Actor, App, AppManifest, ManifestSource, Verb } from './types';
 import { ANY } from './types';
 
 /**
@@ -44,13 +44,27 @@ export interface CreateAppInput {
   readonly name: string;
   readonly displayName?: string;
   readonly manifest: AppManifest;
-  readonly source: CatalogSource;
+  /**
+   * Ein **bestehendes** Repo. Ohne Angabe legt die Control Plane eines aus dem
+   * Starter-Template an (der Normalweg, DoD 1). Mit Angabe wird keines
+   * angelegt — das ist der Weg fuer eine App, deren Repo schon existiert
+   * (spaeter: Installation aus dem Katalog).
+   */
+  readonly source?: ManifestSource;
   readonly correlationId?: string;
 }
 
 /**
- * Legt die App im Register an und richtet ihr Schema samt eigener DB-Rolle ein.
- * Das Repo selbst entsteht nicht hier — es kommt aus `source`.
+ * Legt die App an: erst das Repo, dann das Register, dann Schema und DB-Rolle.
+ *
+ * Die Reihenfolge ist kein Zufall. Das Repo entsteht **vor** der Registrierung,
+ * damit ein gescheiterter Anbieter keine App im Register hinterlaesst, die auf
+ * ein Repo zeigt, das es nicht gibt. Scheitert das Anlegen, ist nichts
+ * passiert.
+ *
+ * Die Quelle setzt die Control Plane, nicht der Aufrufer: was im uebergebenen
+ * Manifest unter `source` stand, wird durch das tatsaechlich angelegte Repo
+ * ersetzt. Eine App soll nicht bestimmen koennen, woraus sie gebaut wird.
  *
  * Nach dem Anlegen gibt es noch kein Deployment: live wird die App erst durch
  * `requestDeploy`, und sichtbar erst durch eine Freigabe.
@@ -77,13 +91,24 @@ export async function createApp(ctx: DomainContext, input: CreateAppInput): Prom
 
       const schemaName = schemaNameFor(name);
       const dbRole = dbRoleFor(name);
+      const displayName = input.displayName ?? input.manifest.displayName;
+
+      // Erst das Repo. Scheitert es, wird nichts registriert.
+      const source =
+        input.source ??
+        (await createRepository(ctx, {
+          appName: name,
+          description: input.manifest.description,
+          requestedBy: `${actor.kind}:${actor.id}`,
+        }));
 
       const app = await ctx.apps.create({
         name,
-        displayName: input.displayName ?? input.manifest.displayName ?? name,
-        category: input.manifest.category ?? null,
-        manifest: input.manifest,
-        source: input.source,
+        displayName,
+        category: input.manifest.category,
+        // Das Manifest fuehrt dieselbe Quelle wie das Register: eine Wahrheit.
+        manifest: { ...input.manifest, source },
+        source,
         schemaName,
         dbRole,
         createdBy: `${actor.kind}:${actor.id}`,
@@ -96,7 +121,17 @@ export async function createApp(ctx: DomainContext, input: CreateAppInput): Prom
         await ctx.apps.setPrimaryDomain(app.id, domainFor(name, ctx.baseDomain));
       }
 
-      return { value: app, detail: { appId: app.id, schemaName, dbRole } };
+      return {
+        value: app,
+        detail: {
+          appId: app.id,
+          schemaName,
+          dbRole,
+          git: source.git,
+          tag: source.tag,
+          repoCreated: input.source === undefined,
+        },
+      };
     },
   );
 }
@@ -129,9 +164,16 @@ export async function listApps(
   return visible;
 }
 
+async function createRepository(
+  ctx: DomainContext,
+  spec: { appName: string; description: string; requestedBy: string },
+): Promise<ManifestSource> {
+  const created = await ctx.repositories.createFromTemplate(spec);
+  return { git: created.gitUrl, tag: created.tag };
+}
+
 export async function getApp(ctx: DomainContext, actor: Actor, appIdOrName: string): Promise<App> {
-  const app =
-    (await ctx.apps.findById(appIdOrName)) ?? (await ctx.apps.findByName(appIdOrName));
+  const app = (await ctx.apps.findById(appIdOrName)) ?? (await ctx.apps.findByName(appIdOrName));
   if (app === null) throw new NotFoundError(`App "${appIdOrName}" gibt es nicht`);
   await requireAppPermission(ctx, actor, 'read', app);
   return app;

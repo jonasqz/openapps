@@ -1,0 +1,7 @@
+# Prettier sucht diese Datei im Arbeitsverzeichnis des Skripts, nicht an der
+# Wurzel — deshalb liegt sie hier noch einmal.
+node_modules/
+.next/
+dist/
+.turbo/
+coverage/

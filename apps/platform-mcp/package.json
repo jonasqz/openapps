@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.12.1",
+    "@openapps/app-manifest": "workspace:*",
     "@openapps/control-plane": "workspace:*",
     "zod": "3.24.1"
   },

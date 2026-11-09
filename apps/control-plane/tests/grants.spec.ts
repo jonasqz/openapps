@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { can, createApp, grant, listApps, revoke } from '../src/domain';
 import { PermissionDeniedError } from '../src/domain/errors';
-import { admin, createHarness, gitSource, manifest, seedBootstrapGrants } from './helpers';
+import { admin, createHarness, manifest, seedBootstrapGrants } from './helpers';
 import type { Actor } from '../src/domain/types';
 
 const teamMember: Actor = { kind: 'user', id: 'u-lena', groups: ['team'] };
@@ -25,7 +25,6 @@ describe('Rechtemodell: Mensch auf App', () => {
       actor: admin,
       name: 'projektliste',
       manifest: manifest('projektliste'),
-      source: gitSource('projektliste'),
     });
 
     // 1. blockiert
@@ -59,7 +58,6 @@ describe('Rechtemodell: Mensch auf App', () => {
       actor: admin,
       name: 'kanban',
       manifest: manifest('kanban'),
-      source: gitSource('kanban'),
     });
 
     await grant(ctx, {
@@ -80,7 +78,6 @@ describe('Rechtemodell: Mensch auf App', () => {
       actor: admin,
       name: 'crm',
       manifest: manifest('crm'),
-      source: gitSource('crm'),
     });
 
     await expect(
@@ -103,13 +100,11 @@ describe('Rechtemodell: App auf Tabelle einer anderen App', () => {
       actor: admin,
       name: 'projects',
       manifest: manifest('projects'),
-      source: gitSource('projects'),
     });
     await createApp(ctx, {
       actor: admin,
       name: 'crm',
       manifest: manifest('crm'),
-      source: gitSource('crm'),
     });
 
     // Jede App hat eigenes Schema und eigene Rolle.
@@ -151,7 +146,6 @@ describe('Audit-Log', () => {
       actor: admin,
       name: 'notizen',
       manifest: manifest('notizen'),
-      source: gitSource('notizen'),
     });
 
     await expect(
@@ -159,7 +153,6 @@ describe('Audit-Log', () => {
         actor: { kind: 'user', id: 'u-fremd' },
         name: 'heimlich',
         manifest: manifest('heimlich'),
-        source: gitSource('heimlich'),
       }),
     ).rejects.toBeInstanceOf(PermissionDeniedError);
 
@@ -169,15 +162,9 @@ describe('Audit-Log', () => {
   });
 });
 
-describe('gegen eine echte Datenbank', () => {
-  // Diese Faelle lassen sich nur mit laufendem Postgres belegen. Sie gehoeren
-  // zu DoD 3 und bleiben offen, bis eine Testinstanz steht.
-  it.todo('App-Rolle A bekommt bei SELECT auf das Schema von B einen Fehler von Postgres');
-  it.todo('nach grantSelect liest A die freigegebene View und nur sie');
-  it.todo('nach revokeSelect scheitert derselbe SELECT sofort, ohne neuen Verbindungsaufbau');
-  it.todo('keine App-Rolle hat rolsuper oder rolbypassrls (Abfrage auf pg_roles)');
-  it.todo('ein search_path-Trick aus der App heraus erreicht kein fremdes Schema');
-});
+// Die Haelfte dieses Kriteriums, die Postgres belegen muss, steht in
+// `grants-postgres.spec.ts` — als echte Tests gegen die Instanz aus
+// `docker-compose.yml`, nicht als `it.todo`.
 
 async function setup() {
   const harness = createHarness();

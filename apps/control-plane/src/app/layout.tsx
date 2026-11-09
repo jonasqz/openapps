@@ -4,7 +4,7 @@
  */
 
 import type { ReactNode } from 'react';
-import '@openapps/ui/styles.css';
+import '@openapps/ui/tokens.css';
 
 export const metadata = {
   title: 'openapps Control Plane',

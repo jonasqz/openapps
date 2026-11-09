@@ -1,0 +1,48 @@
+# Test-Postgres für die Nachweise zu DoD 3.
+#
+# Nur für Tests. Der Betrieb läuft auf dem Postgres der Coolify-Instanz; diese
+# Datei existiert, damit „Postgres verweigert App A den Zugriff auf Schema B"
+# nachweisbar ist und nicht nur behauptet.
+#
+#   docker compose -f apps/control-plane/docker-compose.yml up -d
+#   pnpm --filter @openapps/control-plane test
+#   docker compose -f apps/control-plane/docker-compose.yml down -v
+#
+# Ist die Instanz nicht erreichbar, überspringen die Tests sich selbst
+# (`describe.skipIf`) — sie scheitern nicht. Ein fehlender Container ist kein
+# fehlgeschlagener Nachweis, sondern ein fehlender.
+
+name: openapps-control-plane-test
+
+services:
+  postgres:
+    # Postgres 16, weil die Nachweise dagegen gelaufen sind. Fuer die Pruefungen
+    # hier (Rollen, Schemata, GRANT/REVOKE, search_path) verhaelt sich 17
+    # gleich; wer wechselt, laesst `grants-postgres.spec.ts` einmal laufen.
+    image: postgres:16
+    # Port 55432, damit eine lokal laufende Postgres-Instanz auf 5432
+    # unberührt bleibt.
+    ports:
+      - '55432:5432'
+    environment:
+      # Testwerte, bewusst im Repo: diese Instanz hält keine echten Daten und
+      # ist nur über localhost erreichbar.
+      POSTGRES_USER: openapps_owner
+      POSTGRES_PASSWORD: openapps_test
+      POSTGRES_DB: openapps_test
+    # tmpfs statt Volume: jeder Lauf beginnt leer, und nichts bleibt liegen.
+    tmpfs:
+      - /var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - synchronous_commit=off
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U openapps_owner -d openapps_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30

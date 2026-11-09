@@ -3,11 +3,17 @@
  * nur mit Speicher im Prozess und Doubles für Postgres und Deploy-Backend.
  */
 
-import { systemClock, uuidIds, type Actor, type DomainContext } from '@openapps/control-plane/domain';
+import {
+  systemClock,
+  uuidIds,
+  type Actor,
+  type DomainContext,
+} from '@openapps/control-plane/domain';
 import { createPipeline } from '@openapps/control-plane/review-gate';
 import {
   createRecordingBackend,
   createRecordingProvisioner,
+  createRecordingRepositoryBackend,
 } from '@openapps/control-plane/infra/memory/doubles';
 import { createMemoryStore, type MemoryStore } from '@openapps/control-plane/infra/memory';
 import type { AppToolInvoker } from '../src/app-tools';
@@ -28,11 +34,15 @@ export function createHarness(): Harness {
     clock: systemClock,
     ids: uuidIds,
     backend: createRecordingBackend(),
+    repositories: createRecordingRepositoryBackend(),
     reviewGate: createPipeline([]),
     provisioner: createRecordingProvisioner(),
+    authMasterSecret: TEST_MASTER_SECRET,
   };
   return { ctx, store };
 }
+
+export const TEST_MASTER_SECRET = 'test-master-secret-nur-fuer-tests-0123456789';
 
 export const admin: Actor = { kind: 'user', id: 'u-admin', groups: ['platform-admins'] };
 

@@ -18,7 +18,10 @@ export interface PgProvisionerOptions {
   readonly appDsnTemplate: (input: { role: string; password: string; schema: string }) => string;
 }
 
-export function createPgProvisioner(db: Queryable, options: PgProvisionerOptions): SchemaProvisioner {
+export function createPgProvisioner(
+  db: Queryable,
+  options: PgProvisionerOptions,
+): SchemaProvisioner {
   return {
     async provision({ schemaName, dbRole }) {
       assertIdentifier(schemaName);

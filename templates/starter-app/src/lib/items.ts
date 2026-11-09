@@ -1,5 +1,5 @@
-import { db } from '@openapps/sdk';
 import { z } from 'zod';
+import { query } from './db.js';
 
 export const ItemInput = z.object({
   title: z.string().trim().min(1).max(200),
@@ -12,7 +12,7 @@ export interface Item {
   createdAt: string;
 }
 
-interface ItemRow {
+interface ItemRow extends Record<string, unknown> {
   id: string;
   title: string;
   created_at: Date;
@@ -26,23 +26,24 @@ const toItem = (row: ItemRow): Item => ({
 
 /** Liest Einträge aus dem eigenen Schema. `q` filtert als Freitext. */
 export async function listItems(q?: string): Promise<Item[]> {
-  const rows = q
-    ? await db.query<ItemRow>(
-        'select id, title, created_at from items where title ilike $1 order by created_at desc limit 200',
-        [`%${q}%`],
-      )
-    : await db.query<ItemRow>(
-        'select id, title, created_at from items order by created_at desc limit 200',
-      );
+  const rows =
+    q === undefined || q === ''
+      ? await query<ItemRow>(
+          'select id, title, created_at from items order by created_at desc limit 200',
+        )
+      : await query<ItemRow>(
+          'select id, title, created_at from items where title ilike $1 order by created_at desc limit 200',
+          [`%${q}%`],
+        );
   return rows.map(toItem);
 }
 
 export async function createItem(input: ItemInput): Promise<Item> {
-  const rows = await db.query<ItemRow>(
+  const rows = await query<ItemRow>(
     'insert into items (title) values ($1) returning id, title, created_at',
     [input.title],
   );
   const row = rows[0];
-  if (!row) throw new Error('insert returned no row');
+  if (row === undefined) throw new Error('insert returned no row');
   return toItem(row);
 }

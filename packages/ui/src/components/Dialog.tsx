@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useId, useRef } from 'react';
 import type { JSX, ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';

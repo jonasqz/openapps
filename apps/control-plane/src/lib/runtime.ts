@@ -5,6 +5,7 @@
  */
 
 import { createConfiguredBackend } from '../adapters/coolify';
+import { createConfiguredRepositoryBackend } from '../adapters/github';
 import { systemClock, uuidIds, type DomainContext } from '../domain';
 import { createDefaultPipeline } from '../domain/review-gate';
 import {
@@ -36,6 +37,7 @@ export function domainContext(): DomainContext {
     clock: systemClock,
     ids: uuidIds,
     backend: createConfiguredBackend(),
+    repositories: createConfiguredRepositoryBackend(),
     reviewGate: createDefaultPipeline({
       gitleaks: gitleaksScanner(env.gitleaksBinary),
       semgrep: semgrepScanner(env.semgrepBinary),
@@ -44,9 +46,13 @@ export function domainContext(): DomainContext {
       // Claude-Report wird nachgezogen; das Gate bleibt ohne ihn gueltig.
     }),
     provisioner: createPgProvisioner(pool, {
-      appDsnTemplate: ({ role, password, schema }) =>
-        `postgres://${role}:${password}@${env.appDatabaseHost}?options=-csearch_path%3D${schema}`,
+      // Keine `options=`- und keine `search_path`-Angabe in der URL: das SDK
+      // weist eine solche DSN ab (`assertAppConnectionString`) und setzt den
+      // search_path selbst aus `DATABASE_SCHEMA`.
+      appDsnTemplate: ({ role, password }) =>
+        `postgres://${role}:${encodeURIComponent(password)}@${env.appDatabaseHost}`,
     }),
+    authMasterSecret: env.authMasterSecret,
     ...(env.baseDomain === undefined ? {} : { baseDomain: env.baseDomain }),
   };
 

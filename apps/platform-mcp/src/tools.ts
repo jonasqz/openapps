@@ -17,6 +17,7 @@
  *    alles, was vor der Domaene scheitert.
  */
 
+import { appManifestSchema, manifestSourceSchema } from '@openapps/app-manifest';
 import { z } from 'zod';
 import {
   createApp,
@@ -60,31 +61,12 @@ const subjectKind = z.enum(['user', 'group', 'app', 'agent']);
 const verb = z.enum(['read', 'write', 'execute']);
 const resourceKind = z.enum(['app', 'table', 'view', 'tool']);
 
-const catalogSource = z.union([
-  z.object({ kind: z.literal('git'), url: z.string(), ref: z.string().optional() }),
-  z.object({ kind: z.literal('local'), path: z.string() }),
-  z.object({
-    kind: z.literal('catalog'),
-    catalog: z.string(),
-    id: z.string(),
-    version: z.string().optional(),
-  }),
-]);
-
 /**
- * Das Manifest wird hier nur grob geprueft. Die maßgebliche Pruefung macht
- * `@openapps/app-manifest` — eine zweite Wahrheit waere eine zu viel.
+ * Das Manifest wird mit dem maßgeblichen Schema geprueft, nicht mit einem
+ * zweiten: `appManifestSchema` aus `@openapps/app-manifest`. Eine zweite
+ * Wahrheit waere eine zu viel — und der Agent bekommt bei einem Fehler genau
+ * die Meldung, die auch das Review-Gate geben wuerde.
  */
-const manifestSchema = z.object({
-  name: z.string(),
-  displayName: z.string().optional(),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  version: z.string(),
-  tables: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
-  tools: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
-  env: z.array(z.string()).optional(),
-});
 
 const codeFactsSchema = z.object({
   tables: z.array(z.string()),
@@ -96,19 +78,23 @@ export const createAppTool = defineTool({
   name: 'create_app',
   title: 'App anlegen',
   description:
-    'Legt eine App im Register an und richtet ihr eigenes Schema samt eigener DB-Rolle ein. Danach ist die App weder deployt noch fuer jemanden sichtbar — dafuer braucht sie request_deploy und grant.',
+    'Legt ein Repo aus dem Starter-Template an, registriert die App und richtet ihr eigenes Schema samt eigener DB-Rolle ein. Danach ist die App weder deployt noch fuer jemanden sichtbar — dafuer braucht sie request_deploy und grant. Scheitert das Anlegen des Repos, wird nichts registriert.',
   schema: z.object({
     name: z.string(),
     displayName: z.string().optional(),
-    manifest: manifestSchema,
-    source: catalogSource,
+    manifest: appManifestSchema,
+    /**
+     * Nur fuer ein **bestehendes** Repo. Ohne Angabe legt die Control Plane
+     * eines aus dem Starter-Template an — das ist der Normalweg (DoD 1).
+     */
+    source: manifestSourceSchema.optional(),
   }),
   async handler({ ctx, actor, correlationId }, input) {
     const app = await createApp(ctx, {
       actor,
       name: input.name,
       manifest: input.manifest,
-      source: input.source,
+      ...(input.source === undefined ? {} : { source: input.source }),
       ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
       ...(correlationId === undefined ? {} : { correlationId }),
     });
@@ -141,7 +127,7 @@ export const requestDeployTool = defineTool({
     version: z.string(),
     gitSha: z.string(),
     repoDir: z.string(),
-    manifest: manifestSchema.optional(),
+    manifest: appManifestSchema.optional(),
     uiActions: z.array(z.string()).optional(),
     codeFacts: codeFactsSchema.optional(),
   }),

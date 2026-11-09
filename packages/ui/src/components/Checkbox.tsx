@@ -1,3 +1,5 @@
+'use client';
+
 import { forwardRef } from 'react';
 import type { InputHTMLAttributes, JSX } from 'react';
 import { cn } from '../lib/cn.ts';

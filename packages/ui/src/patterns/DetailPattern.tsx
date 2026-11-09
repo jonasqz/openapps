@@ -1,3 +1,5 @@
+'use client';
+
 import type { JSX, ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';
 import { Card, CardBody, CardHeader } from '../components/Card.tsx';

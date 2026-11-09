@@ -24,7 +24,7 @@ import {
   createCleanScanner,
   createFixedScanner,
 } from '../src/infra/memory/doubles';
-import { admin, createHarness, gitSource, manifest, seedBootstrapGrants } from './helpers';
+import { admin, createHarness, emptyManifest, manifest, seedBootstrapGrants } from './helpers';
 
 /** Ein gitleaks-Bericht, wie er bei einem eingebauten Secret aussieht. */
 const GITLEAKS_SECRET_REPORT = JSON.stringify([
@@ -42,7 +42,7 @@ const reviewInput: ReviewInput = {
   version: '1.0.0',
   gitSha: 'abcdef1',
   repoDir: '/tmp/does-not-matter',
-  manifest: { name: 'demo', version: '1.0.0', tables: [], tools: [], env: [] },
+  manifest: emptyManifest('demo'),
   uiActions: [],
   codeFacts: { tables: [], tools: [], envVars: [] },
 };
@@ -256,7 +256,6 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
       actor: admin,
       name: 'mit-secret',
       manifest: manifest('mit-secret'),
-      source: gitSource('mit-secret'),
     });
 
     await expect(
@@ -292,7 +291,6 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
       actor: admin,
       name: 'sauber',
       manifest: manifest('sauber'),
-      source: gitSource('sauber'),
     });
 
     const outcome = await requestDeploy(harness.ctx, {
@@ -311,11 +309,23 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
     const stored = await harness.ctx.apps.findById(app.id);
     expect(stored?.currentDeploymentId).toBe(outcome.deployment.id);
 
-    // Die App wurde im Backend angelegt und dabei hinter das Gateway gestellt.
+    // Die App wurde im Backend angelegt, bekam ihre Env und wurde hinter das
+    // Gateway gestellt — in dieser Reihenfolge, und erst danach deployt.
     expect(harness.backend.calls.map((c) => c.method)).toEqual([
       'createApp',
+      'setEnv',
       'ensureGateway',
       'deploy',
+    ]);
+
+    // Die Env traegt genau das, womit @openapps/sdk rechnet (ADR 0004).
+    const envKeys = harness.backend.calls.find((c) => c.method === 'setEnv')?.args[1];
+    expect(envKeys).toEqual([
+      'DATABASE_URL',
+      'DATABASE_SCHEMA',
+      'OPENAPPS_APP_ID',
+      'OPENAPPS_APP_HOST',
+      'OPENAPPS_AUTH_SECRET',
     ]);
   });
 });

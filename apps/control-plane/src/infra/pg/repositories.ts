@@ -26,10 +26,10 @@ import type {
   App,
   AppManifest,
   AuditEntry,
-  CatalogSource,
   Deployment,
   DeploymentStatus,
   Grant,
+  ManifestSource,
   ResourceKind,
   ResourceRef,
   ReviewDecision,
@@ -45,8 +45,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const APP_COLUMNS = `
   id, name, display_name, category, manifest, source, schema_name, db_role,
-  primary_domain, current_deployment_id, previous_deployment_id, archived_at,
-  created_by, created_at`;
+  primary_domain, auth_secret_generation, current_deployment_id,
+  previous_deployment_id, archived_at, created_by, created_at`;
 
 interface AppRow extends Record<string, unknown> {
   id: string;
@@ -54,10 +54,11 @@ interface AppRow extends Record<string, unknown> {
   display_name: string;
   category: string | null;
   manifest: AppManifest;
-  source: CatalogSource;
+  source: ManifestSource;
   schema_name: string;
   db_role: string;
   primary_domain: string | null;
+  auth_secret_generation: number;
   current_deployment_id: string | null;
   previous_deployment_id: string | null;
   archived_at: Date | null;
@@ -76,6 +77,7 @@ function toApp(row: AppRow): App {
     schemaName: row.schema_name,
     dbRole: row.db_role,
     primaryDomain: row.primary_domain,
+    authSecretGeneration: row.auth_secret_generation,
     currentDeploymentId: row.current_deployment_id,
     previousDeploymentId: row.previous_deployment_id,
     archivedAt: row.archived_at,
@@ -109,17 +111,15 @@ export function createAppRepository(db: Queryable): AppRepository {
       // nicht zur Datenbank geschickt, damit Postgres nicht auf dem Cast
       // abbricht.
       if (!UUID.test(id)) return null;
-      const { rows } = await db.query<AppRow>(
-        `SELECT ${APP_COLUMNS} FROM apps WHERE id = $1`,
-        [id],
-      );
+      const { rows } = await db.query<AppRow>(`SELECT ${APP_COLUMNS} FROM apps WHERE id = $1`, [
+        id,
+      ]);
       return rows[0] === undefined ? null : toApp(rows[0]);
     },
     async findByName(name) {
-      const { rows } = await db.query<AppRow>(
-        `SELECT ${APP_COLUMNS} FROM apps WHERE name = $1`,
-        [name],
-      );
+      const { rows } = await db.query<AppRow>(`SELECT ${APP_COLUMNS} FROM apps WHERE name = $1`, [
+        name,
+      ]);
       return rows[0] === undefined ? null : toApp(rows[0]);
     },
     async findByDomain(domain) {
@@ -340,13 +340,7 @@ export function createGrantRepository(db: Queryable): GrantRepository {
             AND subject_kind = $1 AND subject_id = $2
             AND verb = $3
             AND resource_kind = $4 AND resource_id = $5`,
-        [
-          match.subject.kind,
-          match.subject.id,
-          match.verb,
-          match.resource.kind,
-          match.resource.id,
-        ],
+        [match.subject.kind, match.subject.id, match.verb, match.resource.kind, match.resource.id],
       );
       return rows[0] === undefined ? null : toGrant(rows[0]);
     },

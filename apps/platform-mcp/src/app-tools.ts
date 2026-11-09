@@ -36,12 +36,15 @@ export interface AppToolInvoker {
 }
 
 /** Welche App-Tools darf dieser Aufrufer sehen? */
-export async function listAppTools(ctx: DomainContext, actor: Actor): Promise<readonly AppToolRef[]> {
+export async function listAppTools(
+  ctx: DomainContext,
+  actor: Actor,
+): Promise<readonly AppToolRef[]> {
   const apps = await ctx.apps.listAll();
   const visible: AppToolRef[] = [];
 
   for (const app of apps) {
-    for (const tool of app.manifest.tools ?? []) {
+    for (const tool of app.manifest.offeredTools) {
       const resourceId = `${app.name}.${tool.name}`;
       if (await can(ctx, actor, 'execute', { kind: 'tool', id: resourceId })) {
         visible.push({
@@ -108,7 +111,7 @@ export async function callAppTool(
 
       // Das Tool muss auch im Manifest stehen. Sonst waere eine alte Freigabe
       // ein Zugang zu etwas, das die App nicht mehr anbietet.
-      const declared = (app.manifest.tools ?? []).some((t) => t.name === toolName);
+      const declared = app.manifest.offeredTools.some((t) => t.name === toolName);
       if (!declared) {
         throw new PermissionDeniedError(`App "${appName}" bietet kein Tool "${toolName}"`);
       }

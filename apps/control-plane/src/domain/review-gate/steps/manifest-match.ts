@@ -28,9 +28,11 @@ export function manifestMatchStep(): ReviewStep {
 
 export function checkManifestMatch(input: ReviewInput): readonly Finding[] {
   const findings: Finding[] = [];
-  const manifestTables = new Set((input.manifest.tables ?? []).map((t) => t.name));
-  const manifestTools = new Set((input.manifest.tools ?? []).map((t) => t.name));
-  const manifestEnv = new Set(input.manifest.env ?? []);
+  const manifestTables = new Set(input.manifest.requiredTables.map((t) => t.name));
+  const manifestTools = new Set(input.manifest.offeredTools.map((t) => t.name));
+  // Im Manifest ist eine Env-Variable ein Objekt (Name, secret, Beschreibung);
+  // aus dem Code kommt nur der Name.
+  const manifestEnv = new Set(input.manifest.env.map((e) => e.name));
 
   for (const table of input.codeFacts.tables) {
     if (!manifestTables.has(table)) {

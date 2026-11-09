@@ -1,3 +1,5 @@
+import type { AppManifest, ManifestSource } from '@openapps/app-manifest';
+
 /**
  * Die Sprache des Rechtemodells. Diese Datei ist die Quelle der Wahrheit fuer
  * Subjekte, Verben und Ressourcen — HTTP, MCP und SQL benutzen dieselben Woerter.
@@ -75,10 +77,13 @@ export interface App {
   readonly displayName: string;
   readonly category: string | null;
   readonly manifest: AppManifest;
-  readonly source: CatalogSource;
+  /** Git-URL und Tag, aus denen diese App gebaut wird. */
+  readonly source: ManifestSource;
   readonly schemaName: string;
   readonly dbRole: string;
   readonly primaryDomain: string | null;
+  /** Generation des abgeleiteten Gateway-Secrets (Migration 0007). */
+  readonly authSecretGeneration: number;
   readonly currentDeploymentId: string | null;
   readonly previousDeploymentId: string | null;
   readonly archivedAt: Date | null;
@@ -112,62 +117,28 @@ export interface AgentIdentity {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Annahme ueber @openapps/app-manifest                                        */
+/* Manifest und Quelle — maßgeblich ist @openapps/app-manifest                 */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Erwartete Form von `app.json` aus `@openapps/app-manifest`. Die Typen stehen
- * hier strukturell, damit diese App unabhaengig vom Stand des Pakets
- * typechecken kann. Sobald `@openapps/app-manifest` liegt, wird diese Datei zu
- * einem Re-Export:
+ * Das Schema von `app.json` liegt in `@openapps/app-manifest` und nirgends
+ * sonst. Hier stehen nur Re-Exporte, damit die Domaene eine Form benutzt und
+ * nicht eine zweite beschreibt.
  *
- *   export type { AppManifest, CatalogSource } from '@openapps/app-manifest';
- *
- * Es gibt genau diese eine Stelle, die getauscht werden muss.
+ * **Nicht** uebernommen werden die Rechte-Typen des Pakets (`SubjectKind`,
+ * `Verb`, `ResourceKind`, `ResourceRef`). Grund: das Paket nennt den Menschen
+ * `human`, das Rechtemodell dieser Datenbank nennt ihn `user` (Migration
+ * 0003, nicht mehr aenderbar). Die Uebersetzung steht in `manifest-grants.ts`
+ * — eine Stelle, benannt, mit Test. Dass es sie ueberhaupt braucht, ist eine
+ * offene Entscheidung fuer den CoS.
  */
-export interface ManifestTable {
-  readonly name: string;
-  readonly description?: string | undefined;
-}
-
-export interface ManifestTool {
-  readonly name: string;
-  readonly description?: string | undefined;
-  /** Verb, das der Aufruf des Tools auf der App braucht. */
-  readonly verb?: Verb | undefined;
-}
-
-export interface ManifestPermissionRequest {
-  readonly resourceKind: ResourceKind;
-  readonly resourceId: string;
-  readonly verb: Verb;
-  readonly reason?: string | undefined;
-}
-
-/**
- * Optionale Felder stehen absichtlich als `?: T | undefined`: so passt ein
- * Objekt, das aus einem Schema-Parser kommt (und `undefined` ausdruecklich
- * mitfuehrt), auch unter `exactOptionalPropertyTypes` hierher.
- */
-export interface AppManifest {
-  readonly name: string;
-  readonly displayName?: string | undefined;
-  readonly description?: string | undefined;
-  readonly category?: string | undefined;
-  readonly version: string;
-  readonly tables?: readonly ManifestTable[] | undefined;
-  readonly tools?: readonly ManifestTool[] | undefined;
-  readonly permissions?: readonly ManifestPermissionRequest[] | undefined;
-  readonly env?: readonly string[] | undefined;
-  readonly source?: CatalogSource | undefined;
-}
-
-export type CatalogSource =
-  | { readonly kind: 'git'; readonly url: string; readonly ref?: string | undefined }
-  | { readonly kind: 'local'; readonly path: string }
-  | {
-      readonly kind: 'catalog';
-      readonly catalog: string;
-      readonly id: string;
-      readonly version?: string | undefined;
-    };
+export type {
+  AppManifest,
+  AppManifestInput,
+  EgressTarget,
+  EnvVar,
+  ManifestSource,
+  OfferedTool,
+  RequestedGrant,
+  RequiredTable,
+} from '@openapps/app-manifest';

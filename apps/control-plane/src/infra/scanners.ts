@@ -20,7 +20,12 @@ export interface CommandScannerOptions {
 export function createCommandScanner(options: CommandScannerOptions): ScannerProcess {
   return {
     async run({ repoDir }): Promise<ScannerOutput> {
-      return runCommand(options.command, options.args(repoDir), repoDir, options.timeoutMs ?? 120_000);
+      return runCommand(
+        options.command,
+        options.args(repoDir),
+        repoDir,
+        options.timeoutMs ?? 120_000,
+      );
     },
   };
 }
@@ -29,7 +34,16 @@ export function createCommandScanner(options: CommandScannerOptions): ScannerPro
 export function gitleaksScanner(binary = 'gitleaks'): ScannerProcess {
   return createCommandScanner({
     command: binary,
-    args: (repoDir) => ['detect', '--no-banner', '--report-format', 'json', '--report-path', '-', '--source', repoDir],
+    args: (repoDir) => [
+      'detect',
+      '--no-banner',
+      '--report-format',
+      'json',
+      '--report-path',
+      '-',
+      '--source',
+      repoDir,
+    ],
   });
 }
 

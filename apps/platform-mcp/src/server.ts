@@ -33,9 +33,11 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
     server.registerTool(
       tool.name,
       {
-        title: tool.title,
         description: tool.description,
         inputSchema: rawShapeOf(tool),
+        // Der Titel gehoert in diesem SDK unter `annotations`, nicht an die
+        // Wurzel der Konfiguration.
+        annotations: { title: tool.title },
       },
       async (args: unknown) => toContent(await runTool(tool, call, args)),
     );
@@ -47,9 +49,10 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
     server.registerTool(
       appTool.resourceId,
       {
-        title: `${appTool.appName}: ${appTool.toolName}`,
-        description: appTool.description ?? `Tool "${appTool.toolName}" der App "${appTool.appName}"`,
+        description:
+          appTool.description ?? `Tool "${appTool.toolName}" der App "${appTool.appName}"`,
         inputSchema: {},
+        annotations: { title: `${appTool.appName}: ${appTool.toolName}` },
       },
       async (args: unknown) => {
         try {
@@ -76,16 +79,12 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
     );
   }
 
-  server.registerPrompt(
-    HOW_TO_BUILD_APP,
-    { title: 'App fuer die Plattform bauen', description: HOW_TO_BUILD_APP_DESCRIPTION },
-    async () => {
-      const text = await readAgentsMd();
-      return {
-        messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }],
-      };
-    },
-  );
+  server.prompt(HOW_TO_BUILD_APP, HOW_TO_BUILD_APP_DESCRIPTION, async () => {
+    const text = await readAgentsMd();
+    return {
+      messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }],
+    };
+  });
 
   return server;
 }

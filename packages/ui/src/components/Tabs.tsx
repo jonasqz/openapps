@@ -1,3 +1,5 @@
+'use client';
+
 import { useCallback, useId, useRef, useState } from 'react';
 import type { JSX, KeyboardEvent, ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';

@@ -10,7 +10,6 @@
     "./review-gate": "./src/domain/review-gate/index.ts",
     "./infra/memory": "./src/infra/memory/repositories.ts",
     "./infra/memory/doubles": "./src/infra/memory/doubles.ts",
-    "./gateway": "./src/lib/gateway.ts",
     "./infra/pg": "./src/infra/pg/index.ts",
     "./infra/scanners": "./src/infra/scanners.ts",
     "./adapters/coolify": "./src/adapters/coolify/index.ts",
@@ -21,24 +20,25 @@
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
-    "lint": "prettier --check \"**/*.{ts,tsx,sql,json,md}\"",
+    "lint": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "test": "vitest run",
     "migrate": "tsx src/infra/pg/migrate.ts"
   },
   "dependencies": {
     "@openapps/app-manifest": "workspace:*",
+    "@openapps/sdk": "workspace:*",
     "@openapps/ui": "workspace:*",
     "better-auth": "1.2.7",
     "next": "15.1.6",
     "pg": "8.13.1",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@types/node": "22.10.5",
     "@types/pg": "8.11.10",
-    "@types/react": "19.0.7",
-    "@types/react-dom": "19.0.3",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
     "prettier": "3.4.2",
     "tsx": "4.19.2",
     "typescript": "5.7.2",

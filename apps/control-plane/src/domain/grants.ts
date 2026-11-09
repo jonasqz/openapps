@@ -40,8 +40,7 @@ async function requireAuthorityOver(
       await requirePermission(ctx, actor, verb, resource);
       return;
     }
-    const app =
-      (await ctx.apps.findById(resource.id)) ?? (await ctx.apps.findByName(resource.id));
+    const app = (await ctx.apps.findById(resource.id)) ?? (await ctx.apps.findByName(resource.id));
     if (app === null) throw new NotFoundError(`App "${resource.id}" gibt es nicht`);
     await requireAppPermission(ctx, actor, verb, app);
     return;
@@ -155,8 +154,7 @@ export async function listGrants(
     return ctx.grants.listForResource(input.resource);
   }
   if (input.subject !== undefined) {
-    const own =
-      input.subject.kind === input.actor.kind && input.subject.id === input.actor.id;
+    const own = input.subject.kind === input.actor.kind && input.subject.id === input.actor.id;
     if (!own) {
       // Fremde Freigaben zu lesen ist selbst ein Recht; ohne Wildcard-read
       // auf Apps sieht man nur die eigenen.

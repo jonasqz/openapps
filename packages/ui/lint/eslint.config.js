@@ -51,6 +51,26 @@ export const openappsUiConfig = [
       '@openapps/ui/no-foreign-ui': 'off',
     },
   },
+  {
+    /**
+     * Testdateien dürfen ihr Test-Framework und Test-Hilfen importieren. Die
+     * Regel zielt auf App-Code: ein Test-Runner ist keine zweite
+     * UI-Bibliothek, und jede App braucht einen. Die Farb- und
+     * Zustandsregeln gelten in Tests weiter — ein Test, der eine Liste
+     * rendert, soll ihre Zustände zeigen wie der Code selbst.
+     */
+    name: '@openapps/ui/test-files',
+    files: [
+      '**/*.{test,spec}.{ts,tsx,js,jsx,mjs}',
+      '**/tests/**/*.{ts,tsx,js,jsx,mjs}',
+      '**/__tests__/**/*.{ts,tsx,js,jsx,mjs}',
+      '**/vitest.config.{ts,js,mjs}',
+      '**/*.setup.{ts,js,mjs}',
+    ],
+    rules: {
+      '@openapps/ui/no-foreign-ui': 'off',
+    },
+  },
 ];
 
 export default openappsUiConfig;

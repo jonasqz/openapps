@@ -7,7 +7,7 @@
  */
 
 import { createApp, listApps } from '../../../domain';
-import type { AppManifest, CatalogSource } from '../../../domain/types';
+import type { AppManifest, ManifestSource } from '../../../domain/types';
 import { currentActor } from '../../../lib/actor';
 import { errorResponse, jsonResponse, readJson } from '../../../lib/http';
 import { domainContext } from '../../../lib/runtime';
@@ -26,16 +26,17 @@ interface CreateAppBody {
   readonly name?: string;
   readonly displayName?: string;
   readonly manifest?: AppManifest;
-  readonly source?: CatalogSource;
+  /** Nur fuer ein bestehendes Repo; ohne Angabe legt die Control Plane eines an. */
+  readonly source?: ManifestSource;
 }
 
 export async function POST(request: Request): Promise<Response> {
   try {
     const actor = await currentActor(request);
     const body = await readJson<CreateAppBody>(request);
-    if (body.name === undefined || body.manifest === undefined || body.source === undefined) {
+    if (body.name === undefined || body.manifest === undefined) {
       return jsonResponse(
-        { error: 'validation_failed', message: 'name, manifest und source sind nötig' },
+        { error: 'validation_failed', message: 'name und manifest sind nötig' },
         422,
       );
     }
@@ -43,7 +44,7 @@ export async function POST(request: Request): Promise<Response> {
       actor,
       name: body.name,
       manifest: body.manifest,
-      source: body.source,
+      ...(body.source === undefined ? {} : { source: body.source }),
       ...(body.displayName === undefined ? {} : { displayName: body.displayName }),
     });
     return jsonResponse({ app }, 201);

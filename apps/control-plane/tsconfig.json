@@ -6,11 +6,23 @@
     "allowJs": false,
     "incremental": true,
     "types": ["node"],
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "tests", "next-env.d.ts", "next.config.mjs", "vitest.config.ts"],
+  "include": [
+    "next-env.d.ts",
+    "next.config.mjs",
+    "src",
+    "tests",
+    "vitest.config.ts",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules", ".next"]
 }

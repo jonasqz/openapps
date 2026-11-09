@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+.turbo/
+build/
+out/
+coverage/
+pnpm-lock.yaml
+# Aus dem zod-Schema erzeugt, nicht von Hand gepflegt.
+packages/app-manifest/schema/
+# Erzeugt aus tokens.ts; ein Test vergleicht sie mit der Erzeugung.
+packages/ui/src/tokens/tokens.css
+packages/ui/tailwind/preset.js

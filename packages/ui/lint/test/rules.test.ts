@@ -55,6 +55,15 @@ tester.run('no-raw-color', noRawColor as never, {
 
 tester.run('no-foreign-ui', noForeignUi as never, {
   valid: [
+    {
+      // Eigener Code der App ueber Pfad-Alias ist kein Fremdpaket.
+      code: `
+        import { listItems } from "@/lib/items";
+        import { other } from "~/lib/other";
+        import { third } from "#lib/third";
+        import { fourth } from "./sibling";
+      `,
+    },
     { code: 'import { Button } from "@openapps/ui";' },
     { code: 'import { useState } from "react";' },
     { code: 'import Link from "next/link";' },
@@ -94,6 +103,23 @@ tester.run('require-list-states', requireListStates as never, {
       `,
     },
     {
+      // Eine Table mit empty UND error traegt beide Zustaende selbst; ein
+      // zusaetzlicher Import waere toter Code.
+      code: `
+        import { Table } from "@openapps/ui";
+        const a = (
+          <Table
+            caption="x"
+            columns={[]}
+            rows={[]}
+            rowKey={() => ""}
+            empty={{ title: "Nichts da" }}
+            error={{ title: "Kaputt" }}
+          />
+        );
+      `,
+    },
+    {
       code: `
         import { ListPattern } from "@openapps/ui";
         const a = <ListPattern title="x" columns={[]} rows={[]} rowKey={() => ""} empty={{ title: "" }} />;
@@ -115,6 +141,24 @@ tester.run('require-list-states', requireListStates as never, {
     },
   ],
   invalid: [
+    {
+      // Nur `empty`: der Fehlerzustand fehlt, also greift die Regel weiter.
+      code: `
+        import { Table } from "@openapps/ui";
+        const a = <Table caption="x" columns={[]} rows={[]} rowKey={() => ""} empty={{ title: "" }} />;
+      `,
+      errors: [{ messageId: 'missing' }],
+    },
+    {
+      // `error={undefined}` ist kein Zustand.
+      code: `
+        import { Table } from "@openapps/ui";
+        const a = (
+          <Table caption="x" columns={[]} rows={[]} rowKey={() => ""} empty={{ title: "" }} error={undefined} />
+        );
+      `,
+      errors: [{ messageId: 'missing' }],
+    },
     {
       code: `
         import { Table } from "@openapps/ui";

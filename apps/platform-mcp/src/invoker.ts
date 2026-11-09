@@ -7,11 +7,15 @@
  * nur ueber `@openapps/sdk` — und das SDK prueft die Signatur.
  */
 
-import { identityHeaders } from '@openapps/control-plane/gateway';
+import { identityHeadersForApp } from '@openapps/control-plane/domain';
 import type { AppToolInvoker } from './app-tools';
 
 export interface HttpInvokerOptions {
-  readonly gatewaySigningSecret: string;
+  /**
+   * Master-Secret der Control Plane. Aus ihm leitet `identityHeadersForApp`
+   * das Secret **dieser** App ab — der MCP kennt kein App-Secret selbst.
+   */
+  readonly authMasterSecret: string;
   readonly requestTimeoutMs?: number;
 }
 
@@ -22,17 +26,18 @@ export function createHttpInvoker(options: HttpInvokerOptions): AppToolInvoker {
         throw new Error(`App "${app.name}" hat keine Domain und ist nicht aufrufbar`);
       }
 
-      const headers = identityHeaders(
-        {
-          // Der Agent ist das Subjekt. Sein Name steht im Rechtemodell, also
-          // steht er auch hier.
+      // Dieselbe Funktion, die auch die Forward-Auth benutzt. Der Agent ist
+      // das Subjekt: sein Name steht im Rechtemodell, also steht er auch hier.
+      const headers = identityHeadersForApp({
+        app,
+        identity: {
           userId: `agent:${actor.id}`,
           email: `${actor.id}@agents.invalid`,
           groups: [],
           issuedAt: Math.floor(Date.now() / 1000),
         },
-        options.gatewaySigningSecret,
-      );
+        masterSecret: options.authMasterSecret,
+      });
 
       const response = await fetch(`https://${app.primaryDomain}/api/tools/${toolName}`, {
         method: 'POST',

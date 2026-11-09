@@ -10,6 +10,7 @@
 
 import { createServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { platformContext } from './context';
 import { actorForClient, UnauthenticatedError } from './identity';
 import { createHttpInvoker } from './invoker';
@@ -25,11 +26,11 @@ function credentialsFrom(header: string | undefined): { id: string; secret: stri
   return { id: decoded.slice(0, separator), secret: decoded.slice(separator + 1) };
 }
 
-const signingSecret = process.env.GATEWAY_SIGNING_SECRET;
-if (signingSecret === undefined) {
-  throw new Error('GATEWAY_SIGNING_SECRET fehlt');
+const masterSecret = process.env.OPENAPPS_AUTH_MASTER_SECRET;
+if (masterSecret === undefined) {
+  throw new Error('OPENAPPS_AUTH_MASTER_SECRET fehlt');
 }
-const invoker = createHttpInvoker({ gatewaySigningSecret: signingSecret });
+const invoker = createHttpInvoker({ authMasterSecret: masterSecret });
 
 const httpServer = createServer(async (request, response) => {
   const credentials = credentialsFrom(request.headers.authorization);
@@ -45,13 +46,17 @@ const httpServer = createServer(async (request, response) => {
     // Zustandslos: ein Transport pro Aufruf. Damit traegt kein Aufruf Rechte
     // eines frueheren mit sich.
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    await server.connect(transport);
+    // Das SDK deklariert `sessionId?: string`, verlangt in `connect` aber
+    // `sessionId: string`. Unter `exactOptionalPropertyTypes` passt das nicht
+    // zusammen — ein Widerspruch in den Typen des SDK, nicht hier. Die
+    // Zusicherung ist eng: dasselbe Objekt, nur als `Transport` gelesen.
+    await server.connect(transport as unknown as Transport);
     await transport.handleRequest(request, response);
   } catch (error) {
     const status = error instanceof UnauthenticatedError ? 401 : 500;
-    response.writeHead(status, { 'content-type': 'text/plain' }).end(
-      status === 401 ? 'nicht angemeldet' : 'interner Fehler',
-    );
+    response
+      .writeHead(status, { 'content-type': 'text/plain' })
+      .end(status === 401 ? 'nicht angemeldet' : 'interner Fehler');
   }
 });
 

@@ -7,7 +7,7 @@ Zeile bekommt einen Nachweis im Repo, keinen Haken aus dem Gedächtnis.
 | --- | --- | --- | --- | --- |
 | 1 | App anlegen und live deployen per MCP, < 15 Min, ohne Coolify-UI | Durchlauf mit Stoppuhr | [`nachweise/dod-01.md`](nachweise/dod-01.md) | offen |
 | 2 | Jede App hinter gemeinsamem Login, auch nach Coolify-Update | Testskript gegen alle App-Domains ohne Session, vor und nach Update | `infra/scripts/check-auth.sh`, [`nachweise/dod-02.md`](nachweise/dod-02.md) | offen |
-| 3 | Schema und DB-Rolle pro App, Freigabe und Widerruf wirken | Test: blockiert → Freigabe → lesbar → Widerruf → blockiert | `apps/control-plane/tests/grants.spec.ts`, [`nachweise/dod-03.md`](nachweise/dod-03.md) | offen |
+| 3 | Schema und DB-Rolle pro App, Freigabe und Widerruf wirken | Test: blockiert → Freigabe → lesbar → Widerruf → blockiert | `apps/control-plane/tests/grants-postgres.spec.ts`, [`nachweise/dod-03.md`](nachweise/dod-03.md) | **gegen echtes Postgres grün**, offen bleibt der Lauf auf der Zielinstanz |
 | 4 | Deploy nur nach Review-Gate, eingebautes Secret wird blockiert | Test-Repo mit Secret | `apps/control-plane/tests/review-gate.spec.ts`, [`nachweise/dod-04.md`](nachweise/dod-04.md) | offen |
 | 5 | Rollback mit einem Befehl, < 2 Min | Demo mit Mitschnitt | [`nachweise/dod-05.md`](nachweise/dod-05.md) | offen |
 | 6 | Agent nutzt nur freigegebene Tools, jeder Aufruf protokolliert | Zwei Agents (mit/ohne Freigabe) plus Log-Eintrag | `apps/platform-mcp/tests/agent-grants.spec.ts`, [`nachweise/dod-06.md`](nachweise/dod-06.md) | offen |

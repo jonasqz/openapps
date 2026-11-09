@@ -7,7 +7,10 @@
 import type {
   BackendDeployResult,
   BackendStatus,
+  CreatedRepository,
   DeploymentBackend,
+  NewRepositorySpec,
+  RepositoryBackend,
   SchemaProvisioner,
 } from '../../domain/ports';
 import type { ScannerOutput, ScannerProcess } from '../../domain/review-gate/types';
@@ -16,9 +19,10 @@ export interface RecordingBackend extends DeploymentBackend {
   readonly calls: readonly { method: string; args: readonly unknown[] }[];
 }
 
-export function createRecordingBackend(
-  options?: { deployOk?: boolean; rollbackOk?: boolean },
-): RecordingBackend {
+export function createRecordingBackend(options?: {
+  deployOk?: boolean;
+  rollbackOk?: boolean;
+}): RecordingBackend {
   const calls: { method: string; args: readonly unknown[] }[] = [];
   const deployOk = options?.deployOk ?? true;
   const rollbackOk = options?.rollbackOk ?? true;
@@ -80,6 +84,35 @@ export function createRecordingProvisioner(): RecordingProvisioner {
     },
     async revokeSelect(input) {
       selectGrants.delete(key(input));
+    },
+  };
+}
+
+export interface RecordingRepositoryBackend extends RepositoryBackend {
+  readonly created: readonly NewRepositorySpec[];
+}
+
+/**
+ * Legt kein Repo an, merkt sich aber, dass es gefragt wurde — und kann auf
+ * Verlangen scheitern. Damit laesst sich pruefen, dass `create_app` nichts
+ * registriert, wenn das Repo nicht entsteht.
+ */
+export function createRecordingRepositoryBackend(options?: {
+  failWith?: string;
+}): RecordingRepositoryBackend {
+  const created: NewRepositorySpec[] = [];
+  return {
+    created,
+    async createFromTemplate(spec): Promise<CreatedRepository> {
+      if (options?.failWith !== undefined) {
+        throw new Error(options.failWith);
+      }
+      created.push(spec);
+      return {
+        gitUrl: `https://git.test/openapps/${spec.appName}.git`,
+        tag: 'v0.0.0',
+        webUrl: `https://git.test/openapps/${spec.appName}`,
+      };
     },
   };
 }

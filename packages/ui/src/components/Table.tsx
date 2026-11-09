@@ -1,3 +1,5 @@
+'use client';
+
 import type { JSX, ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';
 import { EmptyState } from './EmptyState.tsx';
@@ -26,14 +28,22 @@ export interface TableProps<Row> {
   rows: readonly Row[];
   rowKey: (row: Row, index: number) => string;
   /** Lädt: zeigt Platzhalterzeilen statt die Tabelle zu verstecken. */
-  loading?: boolean;
-  /** Fehler: ersetzt den Tabellenkörper durch `ErrorState`. */
-  error?: { title: string; description?: string; action?: ReactNode };
+  loading?: boolean | undefined;
+  /**
+   * Fehler: ersetzt den Tabellenkörper durch `ErrorState`.
+   *
+   * `| undefined` ist Absicht, nicht Versehen: Das Repo führt
+   * `exactOptionalPropertyTypes`, und ein Verbraucher setzt diesen Zustand
+   * bedingt (`error={failed ? { title } : undefined}`). Ohne das explizite
+   * `undefined` müsste er die Prop stattdessen spreaden — und dann sieht der
+   * UI-Linter keinen Fehlerzustand mehr.
+   */
+  error?: { title: string; description?: string | undefined; action?: ReactNode } | undefined;
   /** Leer: ersetzt den Tabellenkörper durch `EmptyState`. */
-  empty?: { title: string; description?: string; action?: ReactNode };
+  empty?: { title: string; description?: string | undefined; action?: ReactNode } | undefined;
   /** Zeile anklickbar machen. Erzeugt einen Knopf in der ersten Zelle. */
-  onRowActivate?: (row: Row) => void;
-  className?: string;
+  onRowActivate?: ((row: Row) => void) | undefined;
+  className?: string | undefined;
 }
 
 const HIDE = { sm: 'hidden sm:table-cell', md: 'hidden md:table-cell', lg: 'hidden lg:table-cell' } as const;

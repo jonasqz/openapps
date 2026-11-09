@@ -1,3 +1,5 @@
+'use client';
+
 import type { JSX } from 'react';
 import { cn } from '../lib/cn.ts';
 import { Button } from './Button.tsx';

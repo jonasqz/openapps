@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { createApp, grant, revoke } from '@openapps/control-plane/domain';
 import { PermissionDeniedError } from '@openapps/control-plane/domain';
-import type { Actor, AppManifest, CatalogSource } from '@openapps/control-plane/domain';
+import type { Actor, AppManifest } from '@openapps/control-plane/domain';
 import { callAppTool, listAppTools } from '../src/app-tools';
 import { listAppsTool, runTool } from '../src/tools';
 import { hashClientSecret, actorForClient, UnauthenticatedError } from '../src/identity';
@@ -26,18 +26,22 @@ const berechtigt: Actor = { kind: 'agent', id: 'planer' };
 const unberechtigt: Actor = { kind: 'agent', id: 'neugierig' };
 
 const manifest: AppManifest = {
+  manifestVersion: 1,
   name: 'projects',
   displayName: 'Projektliste',
+  description: 'Projektliste fuer den Test',
+  category: 'test',
   version: '1.0.0',
-  tables: [{ name: 'projects' }],
-  tools: [
-    { name: 'list', description: 'Projekte auflisten' },
-    { name: 'delete', description: 'Projekt loeschen' },
+  requiredTables: [{ name: 'projects', description: 'Projekte' }],
+  offeredTools: [
+    { name: 'list', description: 'Projekte auflisten', verb: 'read', operationId: 'list' },
+    { name: 'delete', description: 'Projekt loeschen', verb: 'write', operationId: 'delete' },
   ],
+  requestedGrants: [],
   env: [],
+  egress: [],
+  source: { git: 'https://example.invalid/projects.git', tag: 'v1.0.0' },
 };
-
-const source: CatalogSource = { kind: 'git', url: 'https://example.invalid/projects.git' };
 
 describe('Agent sieht nur freigegebene Tools', () => {
   it('zeigt dem Agent mit Freigabe genau das freigegebene Tool und dem anderen keines', async () => {
@@ -99,9 +103,7 @@ describe('Agent ohne Freigabe wird blockiert, nicht nur nicht beliefert', () => 
     ).rejects.toBeInstanceOf(PermissionDeniedError);
 
     // Weitergeleitet wurde genau ein Aufruf.
-    expect(invoker.calls).toEqual([
-      { appName: 'projects', toolName: 'list', actorId: 'planer' },
-    ]);
+    expect(invoker.calls).toEqual([{ appName: 'projects', toolName: 'list', actorId: 'planer' }]);
   });
 
   it('blockiert sofort nach dem Widerruf', async () => {
@@ -194,9 +196,9 @@ describe('Agent-Identitaet', () => {
     const actor = await actorForClient(harness.ctx, 'client-planer', 'richtig');
     expect(actor).toEqual({ kind: 'agent', id: 'planer' });
 
-    await expect(
-      actorForClient(harness.ctx, 'client-planer', 'falsch'),
-    ).rejects.toBeInstanceOf(UnauthenticatedError);
+    await expect(actorForClient(harness.ctx, 'client-planer', 'falsch')).rejects.toBeInstanceOf(
+      UnauthenticatedError,
+    );
     await expect(
       actorForClient(harness.ctx, 'client-gibtsnicht', 'richtig'),
     ).rejects.toBeInstanceOf(UnauthenticatedError);
@@ -214,6 +216,6 @@ describe('ueber einen echten MCP-Transport', () => {
 async function setup(): Promise<Harness> {
   const harness = createHarness();
   await seedBootstrapGrants(harness);
-  await createApp(harness.ctx, { actor: admin, name: 'projects', manifest, source });
+  await createApp(harness.ctx, { actor: admin, name: 'projects', manifest });
   return harness;
 }

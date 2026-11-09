@@ -19,7 +19,16 @@ export const DEFAULT_ALLOWED = [
 ];
 
 /** Relative Importe sind immer der eigene Code. */
-const ALWAYS_LOCAL = /^[./]/;
+/**
+ * Eigener Code der App, nie ein Fremdpaket: relative Pfade, absolute Pfade und
+ * die üblichen Pfad-Aliase auf das eigene `src` (`@/lib/items`, `~/lib`,
+ * `#lib`). Ohne diese Aliase meldet die Regel jeder App ihre eigenen Importe —
+ * genau das ist beim ersten Template-Durchlauf passiert.
+ *
+ * `@openapps/...` bleibt davon unberührt: ein Scope mit Namen ist ein Paket,
+ * `@/` ohne Paketnamen ist ein Alias.
+ */
+const ALWAYS_LOCAL = /^(?:[./]|@\/|~\/|#)/;
 
 /** Vorgabe-Dateiname für die Liste, die die Control Plane pflegt. */
 export const DEFAULT_ALLOWLIST_FILE = 'allowed-packages.json';

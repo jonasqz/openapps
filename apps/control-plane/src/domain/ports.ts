@@ -9,10 +9,10 @@ import type {
   App,
   AppManifest,
   AuditEntry,
-  CatalogSource,
   Deployment,
   DeploymentStatus,
   Grant,
+  ManifestSource,
   ResourceRef,
   ReviewDecision,
   SubjectRef,
@@ -24,7 +24,7 @@ export interface NewApp {
   readonly displayName: string;
   readonly category: string | null;
   readonly manifest: AppManifest;
-  readonly source: CatalogSource;
+  readonly source: ManifestSource;
   readonly schemaName: string;
   readonly dbRole: string;
   readonly createdBy: string;
@@ -38,7 +38,11 @@ export interface AppRepository {
   findByDomain(domain: string): Promise<App | null>;
   /** Alle nicht archivierten Apps. Die Rechtepruefung passiert in der Domaene. */
   listAll(): Promise<readonly App[]>;
-  setDeploymentPointers(appId: string, currentId: string | null, previousId: string | null): Promise<void>;
+  setDeploymentPointers(
+    appId: string,
+    currentId: string | null,
+    previousId: string | null,
+  ): Promise<void>;
   setPrimaryDomain(appId: string, domain: string): Promise<void>;
   setManifest(appId: string, manifest: AppManifest): Promise<void>;
 }
@@ -166,6 +170,37 @@ export interface DeploymentBackend {
    * Ohne diesen Schritt gibt es keinen Deploy (DoD 2).
    */
   ensureGateway(backendRef: string, spec: { appName: string; domain: string }): Promise<void>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Repo-Backend (implementiert von src/adapters/github)                         */
+/* -------------------------------------------------------------------------- */
+
+export interface NewRepositorySpec {
+  /** App-Name; wird der Repo-Name. */
+  readonly appName: string;
+  readonly description: string;
+  /** Wer das Anlegen angefordert hat — landet in der Commit-/Audit-Spur. */
+  readonly requestedBy: string;
+}
+
+export interface CreatedRepository {
+  /** Klonbare URL, wie sie ins Manifest und ins Deploy-Backend geht. */
+  readonly gitUrl: string;
+  /** Tag oder Startpunkt, auf dem das neue Repo steht. */
+  readonly tag: string;
+  /** Mensch-lesbare Adresse zum Nachsehen. Kein Teil des Vertrags. */
+  readonly webUrl?: string;
+}
+
+/**
+ * Woher ein neues App-Repo kommt. Die Domaene kennt genau einen Satz:
+ * „lege ein Repo aus dem Starter-Template an und gib mir seine Git-URL".
+ * Welcher Anbieter das tut, steht nur im Adapter — dasselbe Muster wie beim
+ * `DeploymentBackend`, aus demselben Grund (Austauschbarkeit).
+ */
+export interface RepositoryBackend {
+  createFromTemplate(spec: NewRepositorySpec): Promise<CreatedRepository>;
 }
 
 /** Legt Schema und DB-Rolle an (ruft provision_app_schema aus Migration 0006). */

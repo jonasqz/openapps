@@ -6,15 +6,15 @@ an Aufrufer, die eine Freigabe haben.
 
 ## Die Tools
 
-| Tool | Was es tut |
-| --- | --- |
-| `create_app` | App anlegen, Schema und DB-Rolle einrichten |
-| `request_deploy` | Review-Gate starten, bei Freigabe deployen |
-| `list_apps` | Apps auflisten, auf die der Aufrufer `read` hat |
-| `rollback` | zurück auf die Vorversion |
-| `grant` | eine Freigabe vergeben |
-| `revoke` | eine Freigabe widerrufen |
-| `list_grants` | Freigaben nachsehen |
+| Tool             | Was es tut                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `create_app`     | Repo aus dem Starter-Template anlegen, App registrieren, Schema und DB-Rolle einrichten |
+| `request_deploy` | Review-Gate starten, bei Freigabe deployen                                              |
+| `list_apps`      | Apps auflisten, auf die der Aufrufer `read` hat                                         |
+| `rollback`       | zurück auf die Vorversion                                                               |
+| `grant`          | eine Freigabe vergeben                                                                  |
+| `revoke`         | eine Freigabe widerrufen                                                                |
+| `list_grants`    | Freigaben nachsehen                                                                     |
 
 Dazu kommen die App-Tools, benannt als `<app-name>.<tool>`. Angemeldet werden
 nur die freigegebenen; aufgerufen werden dürfen auch nur die — der Aufruf prüft
@@ -41,7 +41,13 @@ tests/             DoD 6
 
 Die Tools enthalten keine eigene Logik und keine eigene Rechteprüfung: sie
 rufen die Domänenfunktionen von `@openapps/control-plane`. Dadurch kann ein
-Endpunkt nicht von seinem Tool abweichen.
+Endpunkt nicht von seinem Tool abweichen. Das Manifest prüft
+`appManifestSchema` aus `@openapps/app-manifest` — nicht ein zweites Schema.
+
+Ein weitergeleiteter Aufruf trägt die Identität des Agents in denselben fünf
+Headern wie ein Aufruf durch das Gateway, signiert mit dem Secret **dieser**
+App (`identityHeadersForApp`). Der MCP kennt kein App-Secret: er leitet es aus
+`OPENAPPS_AUTH_MASTER_SECRET` ab, genau wie die Forward-Auth.
 
 ## Starten
 

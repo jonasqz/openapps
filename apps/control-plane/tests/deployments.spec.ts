@@ -12,7 +12,7 @@ import { createApp, requestDeploy, rollback } from '../src/domain';
 import { ConflictError } from '../src/domain/errors';
 import { createDefaultPipeline } from '../src/domain/review-gate';
 import { createCleanScanner } from '../src/infra/memory/doubles';
-import { admin, createHarness, gitSource, manifest, seedBootstrapGrants } from './helpers';
+import { admin, createHarness, manifest, seedBootstrapGrants } from './helpers';
 
 describe('Rollback', () => {
   it('setzt auf die Vorversion zurueck und tauscht die Zeiger', async () => {
@@ -21,7 +21,6 @@ describe('Rollback', () => {
       actor: admin,
       name: 'projektliste',
       manifest: manifest('projektliste'),
-      source: gitSource('projektliste'),
     });
 
     const erste = await deploy(harness, app.name, '1.0.0', 'aaaaaa1');
@@ -54,7 +53,6 @@ describe('Rollback', () => {
       actor: admin,
       name: 'einmalig',
       manifest: manifest('einmalig'),
-      source: gitSource('einmalig'),
     });
     await deploy(harness, app.name, '1.0.0', 'aaaaaa1');
 
@@ -69,7 +67,6 @@ describe('Rollback', () => {
       actor: admin,
       name: 'notizen',
       manifest: manifest('notizen'),
-      source: gitSource('notizen'),
     });
     await deploy(harness, app.name, '1.0.0', 'aaaaaa1');
     await deploy(harness, app.name, '1.1.0', 'bbbbbb2');

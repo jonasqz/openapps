@@ -13,6 +13,7 @@ import type {
   DeploymentRepository,
   GrantRepository,
   IdGenerator,
+  RepositoryBackend,
   SchemaProvisioner,
 } from './ports';
 import type { ReviewPipeline } from './review-gate/types';
@@ -26,6 +27,8 @@ export interface DomainContext {
   readonly clock: Clock;
   readonly ids: IdGenerator;
   readonly backend: DeploymentBackend;
+  /** Legt das App-Repo aus dem Starter-Template an (DoD 1). */
+  readonly repositories: RepositoryBackend;
   readonly reviewGate: ReviewPipeline;
   readonly provisioner: SchemaProvisioner;
   /**
@@ -33,6 +36,11 @@ export interface DomainContext {
    * vergibt die Control Plane keine Domain und der Deploy bleibt intern.
    */
   readonly baseDomain?: string;
+  /**
+   * Master-Secret, aus dem pro App das `OPENAPPS_AUTH_SECRET` abgeleitet wird
+   * (siehe `src/lib/app-secret.ts`). Es verlaesst die Control Plane nie.
+   */
+  readonly authMasterSecret: string;
 }
 
 export const systemClock: Clock = { now: () => new Date() };

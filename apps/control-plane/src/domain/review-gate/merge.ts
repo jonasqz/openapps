@@ -36,7 +36,9 @@ export function mergeReview(steps: readonly StepResult[], ranAt: string): Review
     reasons.push(`Schritt ${s.step} ist gescheitert: ${s.error ?? 'unbekannt'}`);
   }
   if (ranDeterministic.length === 0) {
-    reasons.push('kein deterministischer Schritt ist gelaufen — ein Claude-Report allein gibt nicht frei');
+    reasons.push(
+      'kein deterministischer Schritt ist gelaufen — ein Claude-Report allein gibt nicht frei',
+    );
   }
 
   const decision = reasons.length === 0 ? 'pass' : 'blocked';
