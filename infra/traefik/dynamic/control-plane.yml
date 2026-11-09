@@ -1,0 +1,46 @@
+# Der Weg von der Forward-Auth zur Control Plane — und das Timeout darauf.
+#
+# Warum dieser Umweg ueberhaupt: Traefiks `forwardAuth`-Middleware kennt keine
+# Timeout-Option; ihr HTTP-Client hat 30 s fest eingebaut, und der
+# Standard-`serversTransport` gilt fuer sie nicht. Gemessen im Nachweis Fall 8:
+# ein Stub, der 3,5 s braucht, kam ohne diesen Umweg mit 200 durch. Spec
+# Abschnitt 2 verlangt Abbruch nach 2 s.
+#
+# Deshalb ruft die Middleware den internen `authz`-Entrypoint (Loopback im
+# Traefik-Container), und von dort geht es als normaler Traefik-Dienst weiter.
+# Ein Dienst hat einen `serversTransport`, und der hat ein Timeout.
+
+http:
+  routers:
+    openapps-authz-forward:
+      # Nur dieser eine Pfad, nur auf dem internen Entrypoint. Die Control
+      # Plane ist hierueber nicht im Ganzen erreichbar.
+      rule: 'PathPrefix(`/api/authz/forward`)'
+      entryPoints:
+        - authz
+      service: openapps-control-plane
+      # Keine Middlewares: hier darf keine Forward-Auth haengen, sonst
+      # braeuchte die Auth-Pruefung eine Auth-Pruefung.
+
+  services:
+    openapps-control-plane:
+      loadBalancer:
+        servers:
+          - url: 'http://control-plane:3000'
+        # Der Host-Header der Forward-Auth-Anfrage ist `127.0.0.1:8090`; die
+        # Control Plane entscheidet ueber `X-Forwarded-Host`, nicht darueber.
+        passHostHeader: true
+        serversTransport: openapps-fast-fail
+
+  serversTransports:
+    # SICHERHEITSRELEVANT: Hier wird „langsam" zu „kein Durchlass". Nach 2 s
+    # ohne Antwort-Header bricht Traefik ab und antwortet der
+    # forwardAuth-Middleware mit 502 — und die laesst nur 2xx durch.
+    # Diese Zahl hochzusetzen heisst, das Zeitfenster zu verlaengern, in dem
+    # eine haengende Control Plane das Gateway blockiert; sie wegzulassen
+    # heisst, 30 s zu warten und dabei 3,5-s-Antworten durchzulassen.
+    openapps-fast-fail:
+      forwardingTimeouts:
+        dialTimeout: 2s
+        responseHeaderTimeout: 2s
+        idleConnTimeout: 10s

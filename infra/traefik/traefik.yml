@@ -1,0 +1,153 @@
+# Statische Traefik-Konfiguration der openapps-Plattform.
+#
+# Diese Datei ist die Quelle des Schutzes, nicht die Labels einer App
+# (Spec `docs/specs/woche-1-forward-auth.md` Abschnitt 1.2). Wer sie nach einem
+# Coolify-Update wiederherstellt, muss die vier markierten Stellen verstehen:
+# jede einzelne von ihnen oeffnet bei falscher Schreibweise alle Apps.
+#
+# Wiederherstellen: Datei nach `/etc/traefik/traefik.yml` der Traefik-Instanz
+# kopieren, Traefik neu starten, danach `infra/scripts/check-auth.sh` laufen
+# lassen. Siehe `infra/README.md`.
+
+# --- 1. Entrypoints ---------------------------------------------------------
+entryPoints:
+  web:
+    address: ':80'
+    http:
+      # Klartext endet in einer Weiterleitung, nicht in einer App. Sonst gaebe
+      # es einen zweiten Weg nach innen, auf dem die Middleware unten nicht
+      # haengt.
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ':443'
+    http:
+      # SICHERHEITSRELEVANT (Spec 1.2): Die Forward-Auth haengt hier, am
+      # Entrypoint, und damit an **jedem** Router auf diesem Entrypoint — auch
+      # an den Routern, die Coolify selbst anlegt, und auch am Catch-all unten.
+      # Ein App-Label ist nur die Zuordnung Host → Container; faellt es weg,
+      # ist die App unerreichbar, aber nie ungeschuetzt.
+      #
+      # Die Reihenfolge ist Teil der Sicherheit: erst `strip`, dann `auth`.
+      # Erst werden die `X-Auth-*`-Header der eingehenden Anfrage geloescht,
+      # dann setzt die Forward-Auth ihre eigenen (ADR 0004, Abschnitt Folgen).
+      # Die Entrypoint-Kette laeuft immer vor jeder Router-Middleware; ein
+      # Label kann sich also nicht davorsetzen.
+      middlewares:
+        - openapps-strip-auth-headers@file
+        - openapps-forward-auth@file
+      tls: {}
+      # SICHERHEITSRELEVANT: `forwardedHeaders` bleibt ungesetzt. Damit gilt
+      # kein Client als vertrauenswuerdiger Proxy, und Traefik ueberschreibt
+      # die `X-Forwarded-*` jeder eingehenden Anfrage mit den eigenen Werten.
+      # Erst dadurch ist `trustForwardHeader` an der Forward-Auth unbedenklich:
+      # der Host, ueber den die Control Plane entscheidet, kommt von Traefik,
+      # nicht vom Aufrufer. Steht hier je `insecure: true` oder eine zu weite
+      # `trustedIPs`-Liste, kann ein Client sich mit
+      # `X-Forwarded-Host: <control-plane>` die Pfad-Allowlist aus Spec 1.3
+      # erschleichen.
+
+  # SICHERHEITSRELEVANT (Spec Abschnitt 2, Zeile „Control Plane antwortet
+  # langsam"): Dieser Entrypoint existiert nur, um der Forward-Auth ein
+  # Timeout zu geben. Traefiks `forwardAuth`-Middleware hat keine
+  # Timeout-Option — ihr HTTP-Client hat 30 s fest eingebaut. Also ruft die
+  # Middleware nicht die Control Plane direkt, sondern diesen Entrypoint;
+  # von hier geht es als normaler Traefik-Dienst weiter, und ein Dienst hat
+  # ein Timeout (`openapps-fast-fail` in `dynamic/control-plane.yml`).
+  # Er lauscht auf dem Loopback **im Container**: nur Traefik selbst kommt
+  # dran, kein anderer Container, kein Host, kein Internet.
+  authz:
+    address: '127.0.0.1:8090'
+    forwardedHeaders:
+      # Nur der Loopback, also nur Traefik selbst. Dadurch bleiben die
+      # `X-Forwarded-*`, die die Forward-Auth gesetzt hat, auf dem Weg nach
+      # innen erhalten — sonst entschiede die Control Plane ueber den Host
+      # `127.0.0.1` statt ueber die App-Domain. Diese Liste darf niemals
+      # weiter werden als diese eine Adresse.
+      trustedIPs:
+        - '127.0.0.1/32'
+
+  # Nur fuer die Traefik-API: Startup-Check der Control Plane und `/ping`.
+  # SICHERHEITSRELEVANT: Dieser Entrypoint darf nicht ins Internet. Im
+  # Container lauscht er auf allen Adressen, weil Docker-Port-Mappings und
+  # DNS im Gateway-Netz sonst nicht funktionieren — veroeffentlicht werden
+  # darf er nur auf dem Loopback des Hosts (`127.0.0.1:8080:8080`) oder gar
+  # nicht, wenn die Control Plane im selben Docker-Netz liegt.
+  # Es haengt bewusst **keine** Forward-Auth daran: sonst braeuchte der
+  # Startup-Check der Control Plane eine Session, um zu pruefen, ob die
+  # Forward-Auth existiert.
+  traefik:
+    address: ':8080'
+
+# --- 2. Provider ------------------------------------------------------------
+providers:
+  docker:
+    # SICHERHEITSRELEVANT: Kein Container wird allein dadurch erreichbar, dass
+    # er laeuft. Ohne `traefik.enable=true` gibt es keinen Router — das ist die
+    # Label-Seite des Default-Deny.
+    exposedByDefault: false
+    # Nur das Gateway-Netz. Haengt ein Container in mehreren Netzen, soll
+    # Traefik nicht raten, welche Adresse gemeint ist.
+    network: openapps-gateway
+    # Read-only-Zugriff auf den Docker-Socket wird im Compose gemountet.
+    endpoint: 'unix:///var/run/docker.sock'
+
+  file:
+    # Hier liegen die Middlewares und der Catch-all-Router. Alles, was nicht
+    # von einem Container kommen darf, kommt aus dieser Datei-Ebene: ein
+    # Container kann keinen `@file`-Namen ueberschreiben.
+    directory: '/etc/traefik/dynamic'
+    watch: true
+
+# --- 3. API fuer den Startup-Check -----------------------------------------
+api:
+  dashboard: false
+  # `insecure: true` heisst bei Traefik nur: die API haengt am dedizierten
+  # `traefik`-Entrypoint ohne eigenen Router. Erreichbar ist sie damit genau
+  # so weit, wie dieser Entrypoint erreichbar ist — siehe Kommentar oben.
+  insecure: true
+
+ping:
+  entryPoint: traefik
+
+# --- 4. Timeouts ------------------------------------------------------------
+# Der Standard-Transport gilt fuer **App-Backends**. Hier steht absichtlich
+# kein `responseHeaderTimeout`: eine App darf langsam sein, das ist kein
+# Sicherheitsproblem. Das 2-s-Timeout der Forward-Auth steht am eigenen
+# Transport `openapps-fast-fail` in `dynamic/control-plane.yml` — gemessen
+# wurde, dass `forwardAuth` den Transport hier **nicht** benutzt (sein Client
+# hat 30 s fest eingebaut); siehe Nachweis Fall 8.
+serversTransport:
+  forwardingTimeouts:
+    dialTimeout: 5s
+
+# --- 5. TLS -----------------------------------------------------------------
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # PLATZHALTER: echte Betreiber-Adresse eintragen, bevor diese Datei auf
+      # einen Host kommt. Kein Secret, aber ohne gueltige Adresse lehnt Let's
+      # Encrypt die Registrierung ab.
+      email: 'platzhalter@example.invalid'
+      storage: '/letsencrypt/acme.json'
+      tlsChallenge: {}
+
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: false
+
+# --- 6. Logs ----------------------------------------------------------------
+log:
+  level: INFO
+accessLog:
+  # Die Identitaets-Header gehoeren nicht ins Log. Traefik loggt
+  # Request-Header nur, wenn sie hier genannt sind — also wird keiner genannt.
+  fields:
+    headers:
+      defaultMode: drop

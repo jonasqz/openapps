@@ -56,6 +56,9 @@ export async function freshDatabase(): Promise<PgFixture> {
   // zu einem Schema gehoeren.
   await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
   await pool.query('CREATE SCHEMA public');
+  // Das Schema von Better Auth (Migration 0008) liegt neben `public` und muss
+  // mit weg, sonst laeuft die Migration auf bestehende Tabellen.
+  await pool.query('DROP SCHEMA IF EXISTS control_plane CASCADE');
   const { rows } = await pool.query<{ rolname: string }>(
     `SELECT rolname FROM pg_roles WHERE rolname LIKE 'app\\_%'`,
   );

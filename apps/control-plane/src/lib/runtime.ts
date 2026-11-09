@@ -10,6 +10,7 @@ import { systemClock, uuidIds, type DomainContext } from '../domain';
 import { createDefaultPipeline } from '../domain/review-gate';
 import {
   createAgentIdentityRepository,
+  createGroupMembershipRepository,
   createAppRepository,
   createAuditRepository,
   createDeploymentRepository,
@@ -18,7 +19,10 @@ import {
   getPool,
 } from '../infra/pg';
 import { gitleaksScanner, semgrepScanner } from '../infra/scanners';
+import { setSessionReaderFactory } from './actor';
+import { getAuth } from './auth';
 import { readEnv } from './env';
+import { createBetterAuthSessionReader } from './session';
 
 let context: DomainContext | undefined;
 
@@ -58,6 +62,22 @@ export function domainContext(): DomainContext {
 
   return context;
 }
+
+/**
+ * Die echte Verdrahtung: Better Auth fuer die Session, die Datenbank fuer die
+ * Gruppen. Registriert wird nur der **Weg** dorthin, nicht die Instanz — sie
+ * entsteht beim ersten Aufruf, der eine Session braucht. Fehlt dann eine
+ * Auth-Variable, wirft `readAuthEnv`; bis dahin gilt Default-Deny.
+ *
+ * Steht hier und nicht in `actor.ts`, damit die Tests ohne Auth laufen: sie
+ * importieren `runtime.ts` nicht und bleiben bei `denyAllSessions`.
+ */
+setSessionReaderFactory(() =>
+  createBetterAuthSessionReader({
+    auth: getAuth(),
+    groups: createGroupMembershipRepository(getPool()),
+  }),
+);
 
 /** Fuer Tests und Skripte: einen eigenen Kontext einsetzen. */
 export function setDomainContext(replacement: DomainContext | undefined): void {

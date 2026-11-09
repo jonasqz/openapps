@@ -29,6 +29,7 @@
     "@openapps/sdk": "workspace:*",
     "@openapps/ui": "workspace:*",
     "better-auth": "1.2.7",
+    "kysely": "0.27.6",
     "next": "15.1.6",
     "pg": "8.13.1",
     "react": "18.3.1",

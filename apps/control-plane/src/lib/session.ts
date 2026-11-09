@@ -3,17 +3,25 @@
  * ein Agent mit OAuth-Client. Beide werden zu demselben `Actor`, weil das
  * Rechtemodell keinen Unterschied kennt.
  *
- * ## Offen (Annahme)
+ * ## Woher die Gruppen kommen
  *
- * Better Auth ist als Abhaengigkeit deklariert, aber noch nicht verdrahtet:
- * `resolveSession` ist ein Anschluss, keine Implementierung. Sobald die
- * Better-Auth-Instanz steht, wird `createBetterAuthSessionReader` ihr
- * `api.getSession` aufrufen — die Gruppen kommen aus dem Google-SSO-Claim.
- * Bis dahin liefert `denyAllSessions` konsequent "kein Nutzer", damit nichts
- * versehentlich offen ist (Default-Deny).
+ * Aus der Datenbank der Control Plane (`group_members`, Migration 0009), nicht
+ * aus dem Token. Ein frueherer Kommentar an dieser Stelle behauptete das
+ * Gegenteil ("aus dem Google-SSO-Claim") — das war falsch: Google liefert ohne
+ * Workspace-Admin-SDK keine Gruppen, und eine Mitgliedschaft aus einem Token
+ * waere nicht widerrufbar. Das Rechtemodell liegt zentral in der Control Plane
+ * (CLAUDE.md, Grundsatz 4), Gruppen gehoeren dazu.
+ *
+ * Deshalb wird hier auch **nichts gecacht**: jeder Aufruf liest die
+ * Mitgliedschaft neu. Ein Widerruf wirkt beim naechsten Request, nicht beim
+ * naechsten Login.
+ *
+ * `denyAllSessions` bleibt der Default im Code und in den Tests. Die echte
+ * Verdrahtung passiert in `src/lib/runtime.ts`.
  */
 
 import type { Actor } from '../domain/types';
+import { normalizeEmail } from './auth-policy';
 
 export interface SessionUser {
   readonly userId: string;
@@ -32,6 +40,50 @@ export const denyAllSessions: SessionReader = {
     return null;
   },
 };
+
+/** Nur der Lesepfad der Mitgliedschaften — mehr braucht eine Session nicht. */
+export interface GroupMembershipLookup {
+  groupsFor(email: string): Promise<readonly string[]>;
+}
+
+/**
+ * Nur das, was dieser Leser von Better Auth braucht: `api.getSession` mit den
+ * Headern (und damit den Cookies) des Aufrufs. Als eigene Schnittstelle, damit
+ * ein Test keinen OAuth-Anbieter braucht.
+ */
+export interface BetterAuthSessionApi {
+  api: {
+    getSession(context: {
+      headers: Headers;
+    }): Promise<{ user: { id: string; email: string } } | null>;
+  };
+}
+
+export function createBetterAuthSessionReader(deps: {
+  readonly auth: BetterAuthSessionApi;
+  readonly groups: GroupMembershipLookup;
+}): SessionReader {
+  return {
+    async read(request: Request): Promise<SessionUser | null> {
+      // Die Cookies des Aufrufs, unveraendert weitergegeben. Better Auth prueft
+      // Signatur und Ablauf der Session; hier wird nichts selbst entschieden.
+      const session = await deps.auth.api.getSession({ headers: new Headers(request.headers) });
+      if (session === null) return null;
+
+      const email = normalizeEmail(session.user.email);
+      if (session.user.id === '' || email === '') {
+        // Eine Session ohne Identitaet ist keine Identitaet.
+        return null;
+      }
+
+      return {
+        userId: session.user.id,
+        email,
+        groups: await deps.groups.groupsFor(email),
+      };
+    },
+  };
+}
 
 export function actorFromSession(user: SessionUser): Actor {
   return { kind: 'user', id: user.userId, groups: user.groups };

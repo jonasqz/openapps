@@ -1,0 +1,151 @@
+Nachweis DoD 2 — Gateway-Seite, lokaler Lauf
+============================================
+Datum:     2026-11-09, 13:40–13:44 UTC
+Phase:     lokal (kein Coolify, kein echtes Update — das ist der Lauf, der die
+           Traefik-Konfiguration selbst prueft, nicht ihre Stabilitaet ueber
+           ein Update; der steht noch aus)
+Stapel:    infra/traefik/docker-compose.yml
+Traefik:   traefik:v3.3 → Version 3.3.7,
+           sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f
+Deny:      nginx:alpine
+Control Plane: Stub (infra/traefik/local/control-plane-stub.py), **nicht** die
+           echte Route. Der Stub steuert nur den Antwortcode; die Pruefkette
+           aus Spec 1.1 ist nicht Teil dieses Laufs.
+Wiederholen: infra/traefik/local/make-certs.sh && docker compose up -d &&
+           infra/traefik/local/nachweis.sh
+
+Konfiguration, die geprueft wurde
+---------------------------------
+Unveraendert gemountet: infra/traefik/traefik.yml, infra/traefik/dynamic/*,
+infra/traefik/deny-backend/default.conf. Lokal zusaetzlich: selbst signiertes
+Standard-Zertifikat (local/tls.local.yml) und ein Router-Label ohne
+`tls.certresolver`, weil Let's Encrypt fuer `.local.test` nichts ausstellt.
+
+Entrypoint `websecure` laut Traefik-API (/api/entrypoints):
+  "middlewares": ["openapps-strip-auth-headers@file","openapps-forward-auth@file"]
+  "forwardedHeaders": {}        (kein Client gilt als Proxy)
+Router laut /api/http/routers:
+  openapps-app1@docker        prio 23   Host(`app1.local.test`)
+  openapps-app2@docker        prio 23   Host(`app2.local.test`)
+  openapps-catch-all@file     prio 1    HostRegexp(`^.+$`)
+  openapps-authz-forward@file           PathPrefix(`/api/authz/forward`), EP authz
+
+Die acht Faelle
+---------------
+1. App mit Router und Freigabe
+   GET https://app1.local.test/            -> 200
+   In der App angekommen (Body der Dummy-App):
+     X-Auth-User-Id: usr_stub_1
+     X-Auth-User-Email: stub@example.invalid
+     X-Auth-Groups: team-a,team-b
+     X-Auth-Issued-At: 0
+     X-Auth-Signature: stub-signature-not-a-real-hmac
+   Alle fuenf aus Spec 3.1, keiner mehr.                            OK
+
+2. Forward-Auth sagt 403
+   GET https://app1.local.test/deny        -> 403
+   Body: "stub: keine Freigabe". Kein App-Inhalt, kein "app":-Feld,
+   kein Set-Cookie. Die App wurde nicht erreicht.                   OK
+
+3. Keine Session
+   GET https://app1.local.test/nosession   -> 302
+   location: https://control-plane.local.test/login
+             ?next=https://app1.local.test/nosession
+   Traefik gibt das 3xx der Control Plane an den Client weiter.      OK
+
+4. Client schickt die Identitaets-Header selbst
+   GET https://app1.local.test/ mit
+     X-Auth-User-Id: admin, X-Auth-User-Email: eve@example.invalid,
+     X-Auth-Groups: admins, X-Auth-Issued-At: 9999999999,
+     X-Auth-Signature: gefaelscht
+   -> 200, aber in der App steht:
+     X-Auth-User-Id: usr_stub_1 (nicht admin)
+     X-Auth-Groups: team-a,team-b (nicht admins)
+     X-Auth-Signature: stub-signature-not-a-real-hmac (nicht gefaelscht)
+     X-Auth-Issued-At: 0 (nicht 9999999999)
+   Null gefaelschte Werte in der App. Das ist der Angriff aus ADR 0004,
+   und die Strip-Middleware am Entrypoint haelt ihn.                OK
+
+5. Domain ohne Router
+   GET https://unbekannt.local.test/       -> 403
+   server: openapps-forward-auth-stub, Body "stub: keine App fuer diese
+   Domain" — abgelehnt von der Control Plane (Schritt 1 der Pruefkette),
+   bevor der Catch-all zum Zug kommt. Beide Schichten liegen auf dem Weg.  OK
+
+5b. Dieselbe Domain, Forward-Auth sagt absichtlich 200
+   GET https://unbekannt.local.test/force-allow -> 403
+   server: nginx, x-openapps-deny: catch-all,
+   Body "403 Diese Domain ist nicht freigegeben."
+   Also: Selbst wenn die Auth irrt, sperrt der Catch-all. Nur so ist
+   belegt, dass das Deny-Backend wirklich antwortet und nicht nur
+   dasteht.                                                          OK
+
+6. Labels weggenommen (der Coolify-Update-Fall)
+   a) Container ohne Labels, Domain im Stub als freigegeben eingetragen:
+      GET https://nolabels.local.test/     -> 403, x-openapps-deny: catch-all
+   b) Echte Wegnahme an einer laufenden App: app2 vorher 200, dann
+      `docker rm -f` und als Container ohne Traefik-Labels neu gestartet:
+      GET https://app2.local.test/         -> 403, server: nginx,
+      x-openapps-deny: catch-all
+      /api/http/routers zeigt openapps-app2@docker nicht mehr.
+   Kein 200, kein App-Inhalt. Die App ist unerreichbar, nie ungeschuetzt. OK
+
+7. Control Plane gestoppt (`docker compose stop control-plane`)
+   https://app1.local.test/       -> 502
+   https://app2.local.test/       -> 502
+   https://unbekannt.local.test/  -> 502
+   Fuer alle Domains dasselbe: kein Durchlass. Kein Fall, in dem der
+   Ausfall der Control Plane eine App oeffnet.                        OK
+
+8. Control Plane langsam (Stub schlaeft 3,5 s)
+   GET https://app1.local.test/slow -> 504 nach 2 s
+   Abbruch am 2-s-Transport, App nicht erreicht.                      OK
+
+   Wichtig zur Herkunft dieser Zeile: Beim ersten Lauf fiel genau dieser
+   Fall. `forwardAuth` benutzt den Standard-`serversTransport` **nicht**;
+   ihr HTTP-Client hat 30 s fest eingebaut. Ergebnis damals:
+   "app1 /slow -> 200 nach 7s". Die Konfiguration war falsch, nicht der
+   Test. Behoben ueber den internen `authz`-Entrypoint plus
+   serversTransport `openapps-fast-fail`
+   (infra/traefik/dynamic/control-plane.yml).
+
+Zusatzprobe: halb wiederhergestellte Konfiguration
+--------------------------------------------------
+`dynamic/middlewares.yml` entfernt (der Fall „jemand stellt nach einem
+Coolify-Update nur die halbe Konfiguration wieder her"):
+  GET https://app1.local.test/   -> 404 "404 page not found"
+  Traefik-Log: ERR middleware "openapps-forward-auth@file" does not exist
+               routerName=openapps-app1@docker
+               routerName=openapps-catch-all@file
+Jeder Router auf dem Entrypoint fiel aus, keiner lieferte 200. Fail closed,
+und das Log sagt laut, was fehlt. Nach Zuruecklegen der Datei wieder 200.
+
+Startup-Check der Control Plane
+-------------------------------
+  GET http://traefik:8080/api/entrypoints
+Gesucht wird der Eintrag mit "name":"websecure" und darin
+  http.middlewares == ["openapps-strip-auth-headers@file",
+                       "openapps-forward-auth@file"]
+Fehlt einer der beiden Namen oder ist die Reihenfolge vertauscht, ist der
+Schutz weg bzw. die Strip-Stufe unwirksam → Alarm.
+  GET http://traefik:8080/ping  -> 200 (Lebenszeichen, ohne Auth)
+
+Was dieser Lauf nicht zeigt
+---------------------------
+- Nichts ueber ein echtes Coolify-Update: Traefik lief hier aus
+  infra/traefik/, nicht aus Coolifys Verwaltung.
+- Nichts ueber die echte Pruefkette aus Spec 1.1 (Session, Freigabe, HMAC):
+  der Stub rechnet keine Signatur, sie ist ein Platzhalter-String.
+- Nichts darueber, ob App-Container am Gateway vorbei erreichbar sind
+  (Spec 3.3) — dafuer ist der Label-Lint zustaendig.
+- Nichts ueber die Luecke waehrend eines Updates; die Schleifen-Messung
+  aus Spec 4.4 fehlt noch.
+
+Nachbemerkung zum Mount
+-----------------------
+Der Bestaetigungslauf (13:52 UTC) lief mit der Endfassung des Compose, in der
+jede Datei aus `dynamic/` einzeln gemountet wird. Vorher war das Verzeichnis
+als Ganzes gemountet; Docker legte dabei den Mountpoint der lokalen
+`tls.local.yml` als leere Datei in `infra/traefik/dynamic/` ab — eine leere
+TLS-Store-Datei, die auf einem Host mitgelaufen waere. Entfernt, Mount
+umgebaut, alle acht Faelle erneut OK (identische Ergebnisse wie oben).

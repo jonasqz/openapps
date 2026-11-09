@@ -41,11 +41,39 @@ const PUBLIC_PREFIXES = [
 ] as const;
 
 export function isPublicControlPlanePath(path: string): boolean {
+  const normalized = normalizedPath(path);
+  // Im Zweifel nicht oeffentlich: ein Pfad, den wir nicht eindeutig lesen
+  // koennen, braucht eine Session.
+  if (normalized === null) return false;
   return PUBLIC_PREFIXES.some((prefix) =>
     prefix.endsWith('/')
-      ? path.startsWith(prefix)
-      : path === prefix || path.startsWith(`${prefix}/`),
+      ? normalized.startsWith(prefix)
+      : normalized === prefix || normalized.startsWith(`${prefix}/`),
   );
+}
+
+/**
+ * Der Pfad, auf dem die Allowlist entscheidet — oder `null`, wenn er nicht
+ * eindeutig ist.
+ *
+ * Grund: Ein reiner Praefix-Vergleich haelt `/login/../grants` fuer
+ * oeffentlich. `X-Forwarded-Uri` kommt so, wie der Client ihn geschickt hat;
+ * wir normalisieren nicht nach, sondern lehnen ab. Dasselbe gilt fuer eine
+ * zweite Kodierung (`/login/%2e%2e/grants`): einmal dekodieren, dann pruefen.
+ */
+function normalizedPath(value: string): string | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+  if (!decoded.startsWith('/') || decoded.includes('\\') || decoded.includes('\u0000')) {
+    return null;
+  }
+  const segments = decoded.split('/');
+  if (segments.some((segment) => segment === '.' || segment === '..')) return null;
+  return decoded;
 }
 
 async function handle(request: Request): Promise<Response> {

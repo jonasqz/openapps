@@ -1,0 +1,10 @@
+# Nur fuer den lokalen Nachweis: ein selbst signiertes Standard-Zertifikat,
+# damit der Entrypoint `websecure` ohne Let's Encrypt TLS kann. Die Datei wird
+# vom Compose zusaetzlich in das dynamische Verzeichnis gemountet und gehoert
+# nicht auf einen Server.
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/traefik/local-certs/local.crt
+        keyFile: /etc/traefik/local-certs/local.key

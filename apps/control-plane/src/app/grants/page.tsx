@@ -6,9 +6,10 @@
 
 import { Table, type TableColumn } from '@openapps/ui';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { listGrants } from '../../domain';
 import type { Grant } from '../../domain/types';
-import { currentActor } from '../../lib/actor';
+import { currentActorOrNull } from '../../lib/actor';
 import { domainContext } from '../../lib/runtime';
 
 export const dynamic = 'force-dynamic';
@@ -30,10 +31,13 @@ export default async function GrantsPage() {
   const requestHeaders = await headers();
   const request = new Request('http://control-plane/grants', { headers: requestHeaders });
 
+  // Ohne Session: Login, nicht Fehlerzustand.
+  const actor = await currentActorOrNull(request);
+  if (actor === null) redirect('/login?next=%2Fgrants');
+
   let grants: readonly Grant[] = [];
   let failure: string | undefined;
   try {
-    const actor = await currentActor(request);
     grants = await listGrants(domainContext(), { actor });
   } catch (error) {
     failure = error instanceof Error ? error.message : 'unbekannter Fehler';

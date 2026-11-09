@@ -9,9 +9,10 @@
 
 import { Table, type TableColumn } from '@openapps/ui';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { listApps } from '../domain';
 import type { App } from '../domain/types';
-import { currentActor } from '../lib/actor';
+import { currentActorOrNull } from '../lib/actor';
 import { domainContext } from '../lib/runtime';
 
 export const dynamic = 'force-dynamic';
@@ -32,10 +33,14 @@ export default async function AppsPage() {
   const requestHeaders = await headers();
   const request = new Request('http://control-plane/apps', { headers: requestHeaders });
 
+  // Ohne Session gibt es hier nichts zu zeigen, auch keinen Fehlerzustand:
+  // der Nutzer gehoert auf den Login (Spec 1.3 laesst `/login` offen).
+  const actor = await currentActorOrNull(request);
+  if (actor === null) redirect('/login?next=%2F');
+
   let apps: readonly App[] = [];
   let failure: string | undefined;
   try {
-    const actor = await currentActor(request);
     apps = await listApps(domainContext(), { actor });
   } catch (error) {
     failure = error instanceof Error ? error.message : 'unbekannter Fehler';
