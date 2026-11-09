@@ -37,9 +37,7 @@ function gatewaySettingsFromEnv(env: ControlPlaneEnv): GatewaySettings {
     denyBackendUrl: env.denyBackendUrl,
     entryPoint: env.gatewayEntryPoint,
     certResolver: env.gatewayCertResolver,
-    ...(env.controlPlaneUrl === undefined
-      ? {}
-      : { controlPlane: { host: env.controlPlaneHost, url: env.controlPlaneUrl } }),
+    controlPlane: { host: env.controlPlaneHost, url: env.controlPlaneUrl },
   };
 }
 

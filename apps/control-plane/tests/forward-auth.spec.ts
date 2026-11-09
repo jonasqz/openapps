@@ -36,6 +36,10 @@ const ENV: Record<string, string> = {
   APPS_DOMAIN,
   CONTROL_PLANE_HOST,
   FORWARD_AUTH_URL: `https://${CONTROL_PLANE_HOST}/api/authz/forward`,
+  // Pflicht: ohne sie schreibt der Generator keinen Router fuer die Control
+  // Plane, und readEnv verweigert den Start. Dass die Route dann 403 liefert
+  // statt 302, ist richtig — im Zweifel geschlossen.
+  CONTROL_PLANE_SERVICE_URL: 'http://openapps-control-plane:3000',
   OPENAPPS_AUTH_MASTER_SECRET: 'master-secret-nur-fuer-tests-0123456789',
 };
 

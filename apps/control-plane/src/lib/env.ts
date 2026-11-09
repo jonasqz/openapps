@@ -72,7 +72,7 @@ export interface ControlPlaneEnv {
    * Fehlt sie, schreibt der Generator keinen Router fuer die Control Plane —
    * dann ist der Login ueber unsere Konfiguration nicht erreichbar.
    */
-  readonly controlPlaneUrl: string | undefined;
+  readonly controlPlaneUrl: string;
 }
 
 export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
@@ -103,7 +103,12 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
         : env.GATEWAY_CERT_RESOLVER.trim() === ''
           ? null
           : env.GATEWAY_CERT_RESOLVER.trim(),
-    controlPlaneUrl: env.CONTROL_PLANE_SERVICE_URL,
+    // Pflicht, nicht optional: Ohne diese Adresse schreibt der Generator keinen
+    // Router fuer die Control Plane. Dann muesste Coolify ihr eine Domain geben
+    // — und dieser Router traegt unsere Middlewares NICHT. Die Control Plane
+    // mitsamt /api/* staende damit ungeschuetzt hinter Coolifys eigenem Router.
+    // Lieber der Start verweigert als die Anmeldung offen.
+    controlPlaneUrl: required(env, 'CONTROL_PLANE_SERVICE_URL'),
   };
 }
 
