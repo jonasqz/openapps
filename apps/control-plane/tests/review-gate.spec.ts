@@ -24,7 +24,14 @@ import {
   createCleanScanner,
   createFixedScanner,
 } from '../src/infra/memory/doubles';
-import { admin, createHarness, emptyManifest, manifest, seedBootstrapGrants } from './helpers';
+import {
+  admin,
+  createHarness,
+  emptyManifest,
+  manifest,
+  seedBootstrapGrants,
+  testLabelLint,
+} from './helpers';
 
 /** Ein gitleaks-Bericht, wie er bei einem eingebauten Secret aussieht. */
 const GITLEAKS_SECRET_REPORT = JSON.stringify([
@@ -44,12 +51,16 @@ const reviewInput: ReviewInput = {
   repoDir: '/tmp/does-not-matter',
   manifest: emptyManifest('demo'),
   uiActions: [],
-  codeFacts: { tables: [], tools: [], envVars: [] },
+  codeFacts: { tables: [], tools: [], envVars: [], publishedPorts: [], dockerNetworks: [] },
+  // Ohne Gateway-Ziel blockiert der Label-Lint — das ist Absicht und steht als
+  // eigener Fall in tests/gateway-label-lint.spec.ts.
+  gateway: { appName: 'demo', domain: 'demo.apps.test' },
 };
 
 describe('Review-Gate: deterministische Scanner', () => {
   it('blockiert ein eingebautes Secret', async () => {
     const pipeline = createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createFixedScanner({ exitCode: 1, stdout: GITLEAKS_SECRET_REPORT }),
       semgrep: createCleanScanner('semgrep'),
     });
@@ -63,6 +74,7 @@ describe('Review-Gate: deterministische Scanner', () => {
 
   it('gibt frei, wenn beide Scanner sauber sind', async () => {
     const pipeline = createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createCleanScanner('gitleaks'),
       semgrep: createCleanScanner('semgrep'),
     });
@@ -75,6 +87,7 @@ describe('Review-Gate: deterministische Scanner', () => {
 
   it('blockiert, wenn ein Scanner nicht lief — fehlende Pruefung ist keine bestandene Pruefung', async () => {
     const pipeline = createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createBrokenScanner(),
       semgrep: createCleanScanner('semgrep'),
     });
@@ -87,6 +100,7 @@ describe('Review-Gate: deterministische Scanner', () => {
 
   it('laeuft alle Schritte, auch wenn einer blockiert', async () => {
     const pipeline = createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createFixedScanner({ exitCode: 1, stdout: GITLEAKS_SECRET_REPORT }),
       semgrep: createFixedScanner({
         exitCode: 1,
@@ -109,6 +123,7 @@ describe('Review-Gate: deterministische Scanner', () => {
       'gitleaks',
       'semgrep',
       'ui-lint',
+      'gateway-labels',
       'tool-parity',
       'manifest-match',
       'claude-report',
@@ -118,6 +133,7 @@ describe('Review-Gate: deterministische Scanner', () => {
 
   it('ueberspringt den UI-Linter, solange es keine Regeln gibt, und blockiert deshalb nicht', async () => {
     const pipeline = createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createCleanScanner('gitleaks'),
       semgrep: createCleanScanner('semgrep'),
     });
@@ -216,6 +232,7 @@ describe('Review-Gate: der Claude-Report kann nicht freigeben', () => {
 describe('Review-Gate: Tool-Paritaet und Manifest-Abgleich', () => {
   it('blockiert eine UI-Aktion ohne MCP-Tool', async () => {
     const pipeline = createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createCleanScanner('gitleaks'),
       semgrep: createCleanScanner('semgrep'),
     });
@@ -228,6 +245,7 @@ describe('Review-Gate: Tool-Paritaet und Manifest-Abgleich', () => {
 
   it('blockiert eine Tabelle, die im Code steht und nicht im Manifest', async () => {
     const pipeline = createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createCleanScanner('gitleaks'),
       semgrep: createCleanScanner('semgrep'),
     });
@@ -246,6 +264,7 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
   it('deployt nicht, wenn das Gate blockiert, und haelt den Befund am Deployment fest', async () => {
     const harness = createHarness({
       pipeline: createDefaultPipeline({
+        gatewayLint: testLabelLint(),
         gitleaks: createFixedScanner({ exitCode: 1, stdout: GITLEAKS_SECRET_REPORT }),
         semgrep: createCleanScanner('semgrep'),
       }),
@@ -281,6 +300,7 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
     const harness = createHarness({
       baseDomain: 'apps.test',
       pipeline: createDefaultPipeline({
+        gatewayLint: testLabelLint(),
         gitleaks: createCleanScanner('gitleaks'),
         semgrep: createCleanScanner('semgrep'),
       }),
@@ -310,13 +330,16 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
     expect(stored?.currentDeploymentId).toBe(outcome.deployment.id);
 
     // Die App wurde im Backend angelegt, bekam ihre Env und wurde hinter das
-    // Gateway gestellt — in dieser Reihenfolge, und erst danach deployt.
+    // Gateway gestellt — in dieser Reihenfolge, und erst danach deployt. Zum
+    // Schluss liest der Label-Lint zurueck, was wirklich an ihr steht.
     expect(harness.backend.calls.map((c) => c.method)).toEqual([
       'createApp',
       'setEnv',
       'ensureGateway',
       'deploy',
+      'readGatewayLabels',
     ]);
+    expect(outcome.gateway.state).toBe('clean');
 
     // Die Env traegt genau das, womit @openapps/sdk rechnet (ADR 0004).
     const envKeys = harness.backend.calls.find((c) => c.method === 'setEnv')?.args[1];

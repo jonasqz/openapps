@@ -7,6 +7,7 @@
  * nichts darüber, welche Apps es gibt oder wie es ihnen geht. Eine Prüfung,
  * die die Datenbank anfasst, wäre ein ungeprüfter Pfad in die Datenbank.
  */
+import { platformAlarms } from '../../infra/alarms';
 import { gatewayAlarm } from '../../infra/gateway-guard';
 
 export const dynamic = 'force-dynamic';
@@ -19,14 +20,23 @@ export function GET(): Response {
   // jede Domain, auch den Login, ueber den die Konfiguration repariert wird
   // (Nachweis Fall 7). Begruendung ausfuehrlich bei `runGatewayStartupCheck`.
   const problems = gatewayAlarm();
-  const body = problems === undefined ? 'ok\n' : `ok\ngateway: ALARM ${problems.join(' | ')}\n`;
+  // Dazu die Befunde des Label-Lints nach dem Deploy (eine Zeile pro App).
+  // Auch sie bleiben ein 200: Der Grund steht bei `createAlarmSink`.
+  const alarms = platformAlarms();
 
-  return new Response(body, {
+  const lines = [
+    'ok',
+    ...(problems === undefined ? [] : [`gateway: ALARM ${problems.join(' | ')}`]),
+    ...alarms.map((alarm) => `${alarm.kind} ${alarm.subject}: ALARM ${alarm.problems.join(' | ')}`),
+  ];
+  const alarming = problems !== undefined || alarms.length > 0;
+
+  return new Response(`${lines.join('\n')}\n`, {
     status: 200,
     headers: {
       'content-type': 'text/plain; charset=utf-8',
       'cache-control': 'no-store',
-      ...(problems === undefined ? {} : { 'x-openapps-gateway': 'alarm' }),
+      ...(alarming ? { 'x-openapps-gateway': 'alarm' } : {}),
     },
   });
 }

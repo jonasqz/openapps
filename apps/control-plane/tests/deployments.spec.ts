@@ -12,7 +12,7 @@ import { createApp, requestDeploy, rollback } from '../src/domain';
 import { ConflictError } from '../src/domain/errors';
 import { createDefaultPipeline } from '../src/domain/review-gate';
 import { createCleanScanner } from '../src/infra/memory/doubles';
-import { admin, createHarness, manifest, seedBootstrapGrants } from './helpers';
+import { admin, createHarness, manifest, seedBootstrapGrants, testLabelLint } from './helpers';
 
 describe('Rollback', () => {
   it('setzt auf die Vorversion zurueck und tauscht die Zeiger', async () => {
@@ -84,6 +84,7 @@ async function setup() {
   const harness = createHarness({
     baseDomain: 'apps.test',
     pipeline: createDefaultPipeline({
+      gatewayLint: testLabelLint(),
       gitleaks: createCleanScanner('gitleaks'),
       semgrep: createCleanScanner('semgrep'),
     }),

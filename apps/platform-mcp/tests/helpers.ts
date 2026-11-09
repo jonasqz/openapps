@@ -10,6 +10,7 @@ import {
   type DomainContext,
 } from '@openapps/control-plane/domain';
 import { createPipeline } from '@openapps/control-plane/review-gate';
+import { createTraefikLabelLint } from '@openapps/control-plane/adapters/coolify';
 import {
   createRecordingBackend,
   createRecordingProvisioner,
@@ -34,6 +35,10 @@ export function createHarness(): Harness {
     clock: systemClock,
     ids: uuidIds,
     backend: createRecordingBackend(),
+    // Der Label-Lint gehoert zum Kontext, seit er vor und nach jedem Deploy
+    // laeuft (Spec Woche 1, Abschnitt 1). Hier der echte, mit der Adresse aus
+    // `.env.example`.
+    gatewayLint: createTraefikLabelLint('http://127.0.0.1:8090/api/authz/forward'),
     repositories: createRecordingRepositoryBackend(),
     reviewGate: createPipeline([]),
     provisioner: createRecordingProvisioner(),

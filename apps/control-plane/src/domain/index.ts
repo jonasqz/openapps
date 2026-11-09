@@ -32,7 +32,13 @@ export {
 } from './manifest-grants';
 export { record as recordAudit, audited } from './audit';
 export { createApp, listApps, getApp, canAccessApp, requireAppPermission } from './apps';
-export { requestDeploy, rollback, listDeployments } from './deployments';
+export {
+  requestDeploy,
+  rollback,
+  listDeployments,
+  type DeployOutcome,
+  type GatewayLintReport,
+} from './deployments';
 export { grant, revoke, listGrants, canCallTool } from './grants';
 export * as reviewGate from './review-gate';
 export type {

@@ -1,0 +1,17 @@
+-- 0010_deployment_degraded.sql — ein Deployment, das laeuft, aber nicht sauber ist.
+--
+-- Grund: Der Label-Lint laeuft laut Spec Woche 1 (Abschnitt 1) **nach** jedem
+-- Deploy gegen die Labels, die wirklich an der App stehen. Findet er dann
+-- etwas, ist der Deploy schon gelaufen und nicht mehr ungeschehen zu machen —
+-- und die App ist deswegen nicht ungeschuetzt, sondern faellt auf 403 vom
+-- Deny-Backend (gemessen im Gateway-Lauf, docs/nachweise/dod-02-laeufe).
+--
+-- Deshalb kein 'failed' (das hiesse: lief nicht) und kein 'live' (das hiesse:
+-- sauber), sondern ein eigener Zustand. 'live' zu schreiben waere die
+-- gefaehrlichste Variante: Der Befund stuende nur im Audit-Log und jede Liste
+-- wuerde die App als in Ordnung zeigen.
+--
+-- Ein Rollback bleibt moeglich: Die Deployment-Zeiger werden wie bei 'live'
+-- gesetzt, der Container laeuft ja. Ob automatisch zurueckgerollt wird, ist
+-- eine eigene Entscheidung und steht hier ausdruecklich nicht.
+ALTER TYPE deployment_status ADD VALUE IF NOT EXISTS 'degraded' AFTER 'live';

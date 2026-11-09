@@ -5,7 +5,7 @@
  */
 
 import { appAuthSecret } from './app-secret';
-import { audited } from './audit';
+import { audited, record } from './audit';
 import { requireAppPermission } from './apps';
 import { appContainerPort } from './app-port';
 import { appIdOf, gatewayHost } from './gateway-identity';
@@ -35,7 +35,35 @@ export interface RequestDeployInput {
 export interface DeployOutcome {
   readonly deployment: Deployment;
   readonly review: ReviewResult;
+  /**
+   * Der Label-Lint **nach** dem Deploy (Spec Woche 1, Abschnitt 1). Steht hier
+   * am Ergebnis, damit ein Aufrufer — HTTP-Route, MCP-Tool — den Befund
+   * weitergeben kann, ohne das Audit-Log zu lesen.
+   */
+  readonly gateway: GatewayLintReport;
 }
+
+/**
+ * Was der Label-Lint nach dem Deploy ergeben hat. Vier Zustaende, und die
+ * Unterscheidung ist der Zweck (dasselbe Muster wie
+ * `src/infra/gateway-guard.ts`):
+ *
+ * - `clean` — gelesen, vollstaendig. Das ist eine Messung.
+ * - `finding` — gelesen, unvollstaendig. Das ist ein Befund.
+ * - `unreachable` — nicht gelesen. Das ist **kein** Befund: Ein Backend, das
+ *   nicht antwortet, sagt nichts darueber, wie die App haengt.
+ * - `skipped` — es gab nichts zu lesen, weil nicht deployt wurde.
+ */
+export type GatewayLintReport =
+  | { readonly state: 'clean' }
+  | {
+      readonly state: 'finding';
+      /** Fehlende oder abweichende Label-Schluessel. */
+      readonly missing: readonly string[];
+      readonly reason?: string;
+    }
+  | { readonly state: 'unreachable'; readonly reason: string }
+  | { readonly state: 'skipped'; readonly reason: string };
 
 export async function requestDeploy(
   ctx: DomainContext,
@@ -79,6 +107,10 @@ export async function requestDeploy(
         manifest,
         uiActions: input.uiActions ?? [],
         codeFacts: input.codeFacts ?? { tables: [], tools: [], envVars: [] },
+        // Das Gateway-Ziel dieses Deploys. Der Port steht absichtlich nicht
+        // dabei: Der Label-Lint leitet ihn aus dem Manifest der Arbeitskopie
+        // ab, und ein unbrauchbarer Wert darin ist genau einer der Befunde.
+        gateway: { appName: app.name, domain: app.primaryDomain },
       });
 
       deployment = await ctx.deployments.patch(deployment.id, {
@@ -97,10 +129,28 @@ export async function requestDeploy(
       const backendRef = await ensureBackendApp(ctx, app, existing);
       const result = await ctx.backend.deploy({ backendRef, gitSha: input.gitSha });
 
+      // Der zweite Lauf des Label-Lints, und der einzige, der etwas messen
+      // kann: Was steht wirklich an der App, nachdem `ensureGateway` und der
+      // Deploy gelaufen sind (Spec Woche 1, Abschnitt 1: „vor und nach jedem
+      // Deploy")?
+      const gateway: GatewayLintReport = result.ok
+        ? await inspectGatewayLabels(ctx, app, result.backendRef)
+        : { state: 'skipped', reason: 'der Deploy ist nicht gelaufen' };
+
       deployment = await ctx.deployments.patch(deployment.id, {
-        status: result.ok ? 'live' : 'failed',
+        // `degraded` statt `live`: Der Deploy laeuft, aber er gilt nicht als
+        // sauber. Begruendung in Migration 0010 und bei `inspectGatewayLabels`.
+        status: result.ok ? (gateway.state === 'finding' ? 'degraded' : 'live') : 'failed',
         backendRef: result.backendRef,
         ...(result.ok ? { deployedAt: ctx.clock.now() } : {}),
+      });
+
+      await reportGatewayLint(ctx, {
+        actor: input.actor,
+        app,
+        deploymentId: deployment.id,
+        report: gateway,
+        ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
       });
 
       if (result.ok) {
@@ -114,11 +164,12 @@ export async function requestDeploy(
       }
 
       return {
-        value: { deployment, review },
+        value: { deployment, review, gateway },
         detail: {
           deploymentId: deployment.id,
           decision: review.decision,
           blocking: review.blockingFindings.map((f) => f.code),
+          gatewayLabels: gateway.state,
         },
       };
     },
@@ -192,6 +243,123 @@ export async function listDeployments(
   const app = await resolveApp(ctx, input.appIdOrName);
   await requireAppPermission(ctx, input.actor, 'read', app);
   return ctx.deployments.listByApp(app.id);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Label-Lint nach dem Deploy                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Liest die Gateway-Labels der App zurueck und schickt sie durch den Lint.
+ *
+ * Warum diese Pruefung die wichtigere ist: Vor dem Deploy prueft die Control
+ * Plane, was sie selbst ableiten wuerde — zum Teil eine Pruefung gegen sich
+ * selbst. Hier wird gemessen. Ein Coolify-Update, das die Labels einer App
+ * entfernt (Spec 2, Zeile „Coolify-Update entfernt oder ueberschreibt
+ * App-Labels"; im Gateway-Lauf wirklich passiert), faellt nur hier auf.
+ *
+ * Was ein Befund **nicht** ist: ein Notfall. Der Schutz haengt am Entrypoint
+ * (Spec 1.2), und eine App ohne Router landet am Catch-all mit 403. Die App
+ * ist also kaputt, nicht offen. Deshalb wird hier nichts abgebrochen und
+ * nichts zurueckgerollt — ein automatischer Rollback waere eine eigene
+ * Entscheidung mit eigenen Folgen (er wuerde eine funktionierende Vorversion
+ * ueber eine kaputte neue legen, ohne dass jemand den Befund gesehen hat).
+ */
+async function inspectGatewayLabels(
+  ctx: DomainContext,
+  app: App,
+  backendRef: string,
+): Promise<GatewayLintReport> {
+  if (app.primaryDomain === null) {
+    // Kann hier nicht passieren (ohne Domain gibt es keinen Deploy), steht
+    // aber da, damit der Fall nicht still als `clean` endet.
+    return { state: 'skipped', reason: 'die App hat keine Domain' };
+  }
+
+  let reading;
+  try {
+    reading = await ctx.backend.readGatewayLabels(backendRef);
+  } catch (cause) {
+    // Ein Fehler beim Lesen ist kein Befund ueber die Labels.
+    return { state: 'unreachable', reason: cause instanceof Error ? cause.message : String(cause) };
+  }
+  if (reading.state === 'unreachable') {
+    return { state: 'unreachable', reason: reading.reason };
+  }
+
+  let port: number;
+  try {
+    port = appContainerPort(app);
+  } catch (cause) {
+    // Wir haben gelesen, koennen aber nicht sagen, was richtig waere. Das ist
+    // ein Befund und kein `unreachable`: Die Ursache liegt bei uns.
+    return {
+      state: 'finding',
+      missing: [],
+      reason: `Port nicht ableitbar: ${cause instanceof Error ? cause.message : String(cause)}`,
+    };
+  }
+
+  const missing = ctx.gatewayLint.missing(reading.labels, {
+    appName: app.name,
+    domain: app.primaryDomain,
+    port,
+  });
+
+  return missing.length === 0 ? { state: 'clean' } : { state: 'finding', missing };
+}
+
+/**
+ * Der Befund wird laut: eigener Audit-Eintrag, Alarm im Prozess (und damit in
+ * `/healthz`). Das Statusfeld des Deployments steht beim Aufrufer auf
+ * `degraded` — zusammen sind das die drei Stellen, an denen ein Mensch es
+ * sieht, ohne danach zu suchen.
+ */
+async function reportGatewayLint(
+  ctx: DomainContext,
+  input: {
+    actor: Actor;
+    app: App;
+    deploymentId: string;
+    report: GatewayLintReport;
+    correlationId?: string;
+  },
+): Promise<void> {
+  const { app, report } = input;
+  const subject = `app:${app.name}`;
+
+  const problems =
+    report.state === 'finding'
+      ? [
+          ...(report.reason === undefined ? [] : [report.reason]),
+          ...report.missing.map((key) => `Label fehlt oder weicht ab: ${key}`),
+        ]
+      : [];
+
+  if (report.state === 'finding') {
+    ctx.alarms?.raise({ kind: 'gateway_labels', subject, problems });
+  } else if (report.state === 'clean') {
+    ctx.alarms?.clear('gateway_labels', subject);
+  }
+
+  await record(ctx, {
+    actor: input.actor,
+    action: 'gateway_label_lint',
+    resource: { kind: 'app', id: app.id },
+    // `error` nur beim Befund. `unreachable` ist kein Befund, steht aber mit
+    // Grund im Log — sonst waere „wir wissen nichts" unsichtbar.
+    outcome: report.state === 'finding' ? 'error' : 'allowed',
+    reason: report.state === 'finding' ? problems.join(' | ') : null,
+    detail: {
+      deploymentId: input.deploymentId,
+      state: report.state,
+      ...(report.state === 'finding' ? { missing: report.missing } : {}),
+      ...(report.state === 'unreachable' || report.state === 'skipped'
+        ? { reason: report.reason }
+        : {}),
+    },
+    ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
+  });
 }
 
 /**

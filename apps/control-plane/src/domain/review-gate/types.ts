@@ -16,6 +16,7 @@
  * Schritt tatsaechlich gelaufen ist.
  */
 
+import type { GatewayLabelLint } from '../ports';
 import type { AppManifest } from '../types';
 
 export type StepKind = 'deterministic' | 'advisory';
@@ -48,6 +49,23 @@ export interface ReviewInput {
   readonly uiActions: readonly string[];
   /** Aus dem Code gelesene Tatsachen, gegen die das Manifest geprueft wird. */
   readonly codeFacts: CodeFacts;
+  /**
+   * Wohin dieser Deploy ans Gateway gehaengt wuerde. Fehlt die Angabe, kann
+   * der Label-Lint nichts pruefen — und blockiert dann, statt durchzulassen.
+   */
+  readonly gateway?: GatewayReviewTarget;
+}
+
+/**
+ * Das Gateway-Ziel dieses Deploys, so weit die Control Plane es **vor** dem
+ * Deploy kennt. Der Port steht nicht hier: er kommt aus dem Manifest der
+ * Arbeitskopie (`domain/app-port.ts`) und ist genau einer der Werte, die der
+ * Schritt pruefen soll.
+ */
+export interface GatewayReviewTarget {
+  readonly appName: string;
+  /** `null`, solange keine Domain vergeben ist — dann gibt es keinen Router. */
+  readonly domain: string | null;
 }
 
 export interface CodeFacts {
@@ -56,6 +74,22 @@ export interface CodeFacts {
   readonly envVars: readonly string[];
   /** Ausgehende Netzwerkziele, die im Code vorkommen. */
   readonly outboundHosts?: readonly string[];
+  /**
+   * Host-Ports, die die Arbeitskopie veroeffentlichen will — `ports:` in einer
+   * `docker-compose.yml`, `-p` in einem Startskript. Spec 3.3 erlaubt keinen
+   * einzigen: Ein veroeffentlichter Port macht den Container am Gateway vorbei
+   * erreichbar, und dann ist das Signatur-Modell aus 3.2 wertlos.
+   *
+   * `undefined` heisst **nicht** „keine" — es heisst „nicht erhoben". Der
+   * Unterschied steht im Befund `gateway.container_facts_unknown`.
+   */
+  readonly publishedPorts?: readonly string[];
+  /**
+   * Docker-Netze, in die die Arbeitskopie den Container legen will. Spec 3.3:
+   * nur das Gateway-Netz, kein zweites. Wie bei `publishedPorts` ist
+   * `undefined` „nicht erhoben".
+   */
+  readonly dockerNetworks?: readonly string[];
 }
 
 export interface StepResult {
@@ -112,6 +146,13 @@ export interface ScannerOutput {
   readonly stdout: string;
   readonly stderr?: string;
 }
+
+/**
+ * Der Label-Lint als Anschluss des Gates. Er liegt in der Adapter-Schicht,
+ * weil nur sie weiss, wie ein Label aussieht; was vollstaendig **bedeutet**,
+ * beurteilt der Schritt.
+ */
+export type { GatewayLabelLint };
 
 /** Der Claude-Report. Advisory, immer. */
 export interface ClaudeReviewer {

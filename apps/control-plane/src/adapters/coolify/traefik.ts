@@ -15,6 +15,7 @@
  */
 
 import { IDENTITY_HEADERS } from '../../domain';
+import type { GatewayLabelLint, GatewayLabelPlan, GatewayTarget } from '../../domain/ports';
 
 export interface ForwardAuthLabelInput {
   /** Name der App, genutzt als Router- und Middleware-Name. */
@@ -107,4 +108,86 @@ export function missingForwardAuthLabels(
 ): readonly string[] {
   const expected = forwardAuthLabels(expectedFor);
   return Object.keys(expected).filter((key) => actual[key] !== expected[key]);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Der Label-Lint als Anschluss der Domaene                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Liest einem Label-Satz an, was er bedeutet: Port, Forward-Auth-Adresse,
+ * Host-Regel, Middleware-Kette, und ob die Kette die mitgeschickten
+ * `X-Auth-*`-Header **vor** der Forward-Auth entfernt.
+ *
+ * Absichtlich ueber die Schluessel gelesen und nicht aus `appName` geraten:
+ * Dieselbe Funktion beurteilt den Satz, den wir erzeugen wuerden, und den
+ * Satz, der nach dem Deploy wirklich am Container steht. Ein Satz, in dem die
+ * Reihenfolge der Middlewares vertauscht ist, faellt hier auf — Spec 2,
+ * Zeile „Middleware-Reihenfolge vertauscht".
+ */
+export function inspectForwardAuthLabels(
+  labels: Readonly<Record<string, string>>,
+  appName: string,
+): Omit<GatewayLabelPlan, 'labels'> {
+  const router = `openapps-${appName}`;
+  const middlewares = (labels[`traefik.http.routers.${router}.middlewares`] ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  // Name ohne Provider-Suffix: `openapps-auth-demo@docker` → `openapps-auth-demo`.
+  const plain = middlewares.map((entry) => entry.split('@')[0] ?? entry);
+
+  const authIndex = plain.findIndex(
+    (name) => labels[`traefik.http.middlewares.${name}.forwardauth.address`] !== undefined,
+  );
+  const stripIndex = plain.findIndex((name) =>
+    IDENTITY_HEADERS.every(
+      (header) =>
+        labels[
+          `traefik.http.middlewares.${name}.headers.customrequestheaders.${headerLabelName(header)}`
+        ] === '',
+    ),
+  );
+
+  const authName = authIndex === -1 ? undefined : plain[authIndex];
+
+  return {
+    servicePort: labels[`traefik.http.services.${router}.loadbalancer.server.port`],
+    forwardAuthAddress:
+      authName === undefined
+        ? undefined
+        : labels[`traefik.http.middlewares.${authName}.forwardauth.address`],
+    hostRule: labels[`traefik.http.routers.${router}.rule`],
+    middlewares,
+    // Entfernen vor Pruefen. Steht der Strip hinter der Auth, ist er wertlos:
+    // dann ueberschreibt er die Header, die die Auth gerade gesetzt hat, bzw.
+    // laesst die des Clients vorher durch (ADR 0004).
+    stripsIdentityHeaders: stripIndex !== -1 && (authIndex === -1 || stripIndex < authIndex),
+    forwardsAuth: authIndex !== -1,
+  };
+}
+
+/**
+ * Der Label-Lint, den die Domaene benutzt (`GatewayLabelLint` in
+ * `domain/ports.ts`). Reine Rechnung, kein Netzzugriff — damit der Schritt im
+ * Review-Gate deterministisch bleibt.
+ */
+export function createTraefikLabelLint(forwardAuthUrl: string): GatewayLabelLint {
+  const inputOf = (target: GatewayTarget): ForwardAuthLabelInput => ({
+    appName: target.appName,
+    domain: target.domain,
+    port: target.port,
+    forwardAuthUrl,
+  });
+
+  return {
+    plan(target: GatewayTarget): GatewayLabelPlan {
+      const labels = forwardAuthLabels(inputOf(target));
+      return { labels, ...inspectForwardAuthLabels(labels, target.appName) };
+    },
+    missing(actual, target): readonly string[] {
+      return missingForwardAuthLabels(actual, inputOf(target));
+    },
+  };
 }

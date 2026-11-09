@@ -23,6 +23,11 @@ export interface ControlPlaneEnv {
   readonly appDatabaseHost: string;
   readonly gitleaksBinary: string;
   readonly semgrepBinary: string;
+  /**
+   * Das eine Docker-Netz, in dem App und Gateway zusammen liegen (Spec Woche 1,
+   * Abschnitt 3.3). Der Label-Lint blockiert jedes weitere Netz.
+   */
+  readonly gatewayNetwork: string;
 }
 
 export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
@@ -41,6 +46,7 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
     appDatabaseHost: required(env, 'APP_DATABASE_HOST'),
     gitleaksBinary: env.GITLEAKS_BINARY ?? 'gitleaks',
     semgrepBinary: env.SEMGREP_BINARY ?? 'semgrep',
+    gatewayNetwork: env.GATEWAY_DOCKER_NETWORK ?? 'coolify',
   };
 }
 

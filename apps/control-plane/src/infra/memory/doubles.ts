@@ -5,11 +5,15 @@
  */
 
 import type {
+  AlarmSink,
   BackendDeployResult,
   BackendStatus,
   CreatedRepository,
   DeploymentBackend,
+  GatewayLabelLint,
+  GatewayLabelReading,
   NewRepositorySpec,
+  PlatformAlarm,
   RepositoryBackend,
   SchemaProvisioner,
 } from '../../domain/ports';
@@ -19,13 +23,33 @@ export interface RecordingBackend extends DeploymentBackend {
   readonly calls: readonly { method: string; args: readonly unknown[] }[];
 }
 
-export function createRecordingBackend(options?: {
-  deployOk?: boolean;
-  rollbackOk?: boolean;
-}): RecordingBackend {
+export interface RecordingBackendOptions {
+  readonly deployOk?: boolean;
+  readonly rollbackOk?: boolean;
+  /**
+   * Der Lint, mit dem das Double die Labels erzeugt, die `ensureGateway`
+   * gesetzt haette. Damit liest `readGatewayLabels` im Normalfall genau das
+   * zurueck, was ein funktionierendes Backend zeigen wuerde — und ein Test,
+   * der einen Befund will, nimmt `gatewayLabels`.
+   */
+  readonly lint?: GatewayLabelLint;
+  /**
+   * Was `readGatewayLabels` liefert, ungeachtet dessen, was gesetzt wurde:
+   * ein eigener Label-Satz, eine Aenderung des gesetzten Satzes, oder
+   * `'unreachable'` fuer „wir wissen nichts".
+   */
+  readonly gatewayLabels?:
+    | Readonly<Record<string, string>>
+    | 'unreachable'
+    | ((set: Readonly<Record<string, string>>) => Readonly<Record<string, string>>);
+}
+
+export function createRecordingBackend(options?: RecordingBackendOptions): RecordingBackend {
   const calls: { method: string; args: readonly unknown[] }[] = [];
   const deployOk = options?.deployOk ?? true;
   const rollbackOk = options?.rollbackOk ?? true;
+  /** Was pro Backend-Referenz zuletzt ans Gateway gegeben wurde. */
+  const labelsByRef = new Map<string, Readonly<Record<string, string>>>();
   const note = (method: string, ...args: unknown[]): void => {
     calls.push({ method, args });
   };
@@ -56,6 +80,58 @@ export function createRecordingBackend(options?: {
     },
     async ensureGateway(ref, spec) {
       note('ensureGateway', ref, spec);
+      if (options?.lint !== undefined) {
+        labelsByRef.set(ref, options.lint.plan(spec).labels);
+      }
+    },
+    async readGatewayLabels(ref): Promise<GatewayLabelReading> {
+      note('readGatewayLabels', ref);
+      const override = options?.gatewayLabels;
+      if (override === 'unreachable') {
+        return { state: 'unreachable', reason: 'Backend im Test absichtlich nicht erreichbar' };
+      }
+      const set = labelsByRef.get(ref) ?? {};
+      if (typeof override === 'function') {
+        return { state: 'read', labels: override(set) };
+      }
+      if (override !== undefined) {
+        return { state: 'read', labels: override };
+      }
+      // Kein Lint und kein Vorgabewert: Dann hat dieses Double nie Labels
+      // gesehen und sagt das, statt einen leeren Satz als Messung auszugeben.
+      if (options?.lint === undefined) {
+        return { state: 'unreachable', reason: 'dieses Double kennt keine Labels' };
+      }
+      return { state: 'read', labels: set };
+    },
+  };
+}
+
+export interface RecordingAlarmSink extends AlarmSink {
+  readonly raised: readonly PlatformAlarm[];
+  readonly cleared: readonly { kind: string; subject: string }[];
+  /** Die offenen Alarme — erhoben und nicht wieder aufgehoben. */
+  open(): readonly PlatformAlarm[];
+}
+
+/** Merkt sich Alarme, statt sie ins Log zu schreiben. */
+export function createRecordingAlarmSink(): RecordingAlarmSink {
+  const raised: PlatformAlarm[] = [];
+  const cleared: { kind: string; subject: string }[] = [];
+  const key = (kind: string, subject: string): string => `${kind}\u0000${subject}`;
+  const openAlarms = new Map<string, PlatformAlarm>();
+
+  return {
+    raised,
+    cleared,
+    open: () => [...openAlarms.values()],
+    raise(alarm) {
+      raised.push(alarm);
+      openAlarms.set(key(alarm.kind, alarm.subject), alarm);
+    },
+    clear(kind, subject) {
+      cleared.push({ kind, subject });
+      openAlarms.delete(key(kind, subject));
     },
   };
 }

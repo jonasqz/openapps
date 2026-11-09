@@ -13,6 +13,7 @@ import type {
   BackendDeployResult,
   BackendStatus,
   DeploymentBackend,
+  GatewayLabelReading,
 } from '../../domain/ports';
 import type { CoolifyConfig } from './config';
 import { forwardAuthLabels } from './traefik';
@@ -20,6 +21,12 @@ import { forwardAuthLabels } from './traefik';
 interface CoolifyApplication {
   readonly uuid?: string;
   readonly status?: string;
+  /**
+   * Die „custom labels" der App — eine Zeile pro Label, `key=value`. Coolify
+   * gibt sie je nach Version base64-kodiert zurueck; `parseCoolifyLabels`
+   * nimmt beides.
+   */
+  readonly custom_labels?: string | null;
 }
 
 interface CoolifyDeployment {
@@ -155,7 +162,77 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
         },
       });
     },
+
+    /**
+     * Liest die Labels zurueck, mit denen diese App am Gateway haengt.
+     *
+     * Was das hier genau ist — und was nicht: Gelesen wird der Label-Satz, den
+     * das Deploy-Backend an dieser App **fuehrt** und bei jedem Start an den
+     * Container gibt, nicht die Labels aus einem `docker inspect`. Mehr gibt
+     * die REST-API nicht her. Das reicht fuer den Fall, der im Gateway-Lauf
+     * wirklich passiert ist (alle Traefik-Labels weg, docs/nachweise/
+     * dod-02-laeufe), und es ist eine Messung und keine Ableitung: Steht hier
+     * etwas anderes als das, was `ensureGateway` gesetzt hat, hat es jemand
+     * oder etwas geaendert.
+     *
+     * Jeder Fehler beim Lesen ist `unreachable` und **kein** Befund. Ein
+     * Netzwerkfehler sagt nichts darueber, wie die App haengt.
+     */
+    async readGatewayLabels(backendRef): Promise<GatewayLabelReading> {
+      let app: CoolifyApplication;
+      try {
+        app = await call<CoolifyApplication>(`/applications/${backendRef}`);
+      } catch (cause) {
+        return {
+          state: 'unreachable',
+          reason: cause instanceof Error ? cause.message : String(cause),
+        };
+      }
+
+      if (typeof app !== 'object' || app === null || app.uuid === undefined) {
+        // Keine verwertbare App-Antwort: Wir wissen nichts ueber die Labels.
+        // Daraus einen Befund zu machen hiesse, eine Formaenderung der API als
+        // Sicherheitsvorfall zu melden.
+        return { state: 'unreachable', reason: 'Antwort enthaelt keine App mit Referenz' };
+      }
+
+      // Eine App **ohne** Labels ist dagegen eine Messung: genau so sieht es
+      // aus, wenn ein Update den Satz entfernt hat.
+      return { state: 'read', labels: parseCoolifyLabels(app.custom_labels ?? '') };
+    },
   };
+}
+
+/**
+ * `key=value` pro Zeile, wie Coolify die „custom labels" fuehrt — je nach
+ * Version base64-kodiert. Beides wird akzeptiert: Entscheidend ist, dass ein
+ * fehlendes Label nicht als „base64-Muell" durchgeht und damit stillschweigend
+ * zu einem leeren Satz wird (der dann als Befund gemeldet wuerde, obwohl wir
+ * nur falsch gelesen haben).
+ */
+export function parseCoolifyLabels(raw: string): Readonly<Record<string, string>> {
+  const text = raw.includes('=') && raw.includes('traefik.') ? raw : decodeIfBase64(raw);
+
+  const labels: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    const index = trimmed.indexOf('=');
+    if (index <= 0) continue;
+    labels[trimmed.slice(0, index).trim()] = trimmed.slice(index + 1).trim();
+  }
+  return labels;
+}
+
+function decodeIfBase64(raw: string): string {
+  const compact = raw.trim();
+  if (compact === '' || !/^[A-Za-z0-9+/=\r\n]+$/.test(compact)) return raw;
+  try {
+    const decoded = Buffer.from(compact, 'base64').toString('utf8');
+    return decoded.includes('=') ? decoded : raw;
+  } catch {
+    return raw;
+  }
 }
 
 function mapStatus(raw: string | undefined): BackendStatus {

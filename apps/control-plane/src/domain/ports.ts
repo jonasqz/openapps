@@ -150,6 +150,94 @@ export interface BackendDeployResult {
 
 export type BackendStatus = 'unknown' | 'building' | 'running' | 'stopped' | 'failed';
 
+/* ----------------------------- Label-Lint --------------------------------- */
+
+/**
+ * Die App, wie das Gateway sie sieht: Name, Domain, Port. Neutral gehalten —
+ * kein Traefik- und kein Coolify-Begriff.
+ */
+export interface GatewayTarget {
+  readonly appName: string;
+  readonly domain: string;
+  readonly port: number;
+}
+
+/**
+ * Was das Backend fuer eine App ans Gateway geben wuerde, aufgeschluesselt in
+ * die Teile, auf die es ankommt.
+ *
+ * Warum nicht einfach die rohen Labels: Die Namen der Label-Schluessel sind
+ * Traefik-Vokabular und gehoeren in den Adapter. Die **Bedeutung** — laeuft
+ * eine Forward-Auth davor, werden mitgeschickte Identitaets-Header entfernt,
+ * steht der Port drin — gehoert in die Domaene, weil nur sie beurteilen kann,
+ * ob das reicht. Der Adapter uebersetzt, die Domaene urteilt.
+ */
+export interface GatewayLabelPlan {
+  /** Der vollstaendige Satz, wie er ans Backend ginge. Fuer den Nachweis. */
+  readonly labels: Readonly<Record<string, string>>;
+  /** Port, den das Gateway fuer den Dienst benutzt, als Zeichenkette wie im Label. */
+  readonly servicePort: string | undefined;
+  /** Adresse, die die Forward-Auth pro Aufruf fragt. */
+  readonly forwardAuthAddress: string | undefined;
+  /** Die Host-Regel des Routers, z. B. ``Host(`app.example.com`)``. */
+  readonly hostRule: string | undefined;
+  /** Middleware-Kette des Routers, in Reihenfolge. */
+  readonly middlewares: readonly string[];
+  /**
+   * `true`, wenn die Kette eine Middleware enthaelt, die die `X-Auth-*`-Header
+   * der **Anfrage** loescht, und diese **vor** der Forward-Auth steht.
+   */
+  readonly stripsIdentityHeaders: boolean;
+  /** `true`, wenn die Kette eine Forward-Auth enthaelt. */
+  readonly forwardsAuth: boolean;
+}
+
+/**
+ * Der Label-Lint aus Spec Woche 1, Abschnitt 1 (Baustein „Label-Lint", „vor und
+ * nach jedem Deploy"). Zwei Richtungen, beide noetig:
+ *
+ * - `plan` — was wuerden wir setzen? Das ist eine **Ableitung** und laeuft vor
+ *   dem Deploy. Sie faengt den Fall, dass die Ableitung schon scheitert.
+ * - `missing` — was fehlt an einem **gemessenen** Satz? Das laeuft nach dem
+ *   Deploy gegen die Labels, die wirklich am Container stehen, und ist der
+ *   Teil, der etwas beweist.
+ */
+export interface GatewayLabelLint {
+  plan(target: GatewayTarget): GatewayLabelPlan;
+  /** Fehlende oder abweichende Label-Schluessel. Leer heisst vollstaendig. */
+  missing(actual: Readonly<Record<string, string>>, target: GatewayTarget): readonly string[];
+}
+
+/**
+ * Das Ergebnis des Zuruecklesens. Drei Zustaende waeren zwei zu wenig: „nicht
+ * erreichbar" ist **kein** Befund ueber die Labels (dasselbe Muster wie
+ * `src/infra/gateway-guard.ts`). Wer daraus einen Befund macht, hat beim
+ * ersten Netzwerkfehler einen Alarm, den niemand mehr liest.
+ */
+export type GatewayLabelReading =
+  | { readonly state: 'read'; readonly labels: Readonly<Record<string, string>> }
+  | { readonly state: 'unreachable'; readonly reason: string };
+
+/* -------------------------------- Alarme ---------------------------------- */
+
+/**
+ * Ein Zustand, der laut ist, aber nichts abbricht. Gegenstueck zum
+ * Prozess-Alarm in `src/infra/gateway-guard.ts`: Die Domaene kennt nur diesen
+ * Satz, wo der Alarm landet (Log, `/healthz`) entscheidet die Infrastruktur.
+ */
+export interface PlatformAlarm {
+  /** Stabiler Bezeichner, z. B. 'gateway_labels'. */
+  readonly kind: string;
+  /** Worueber der Alarm geht, z. B. `app:projektliste`. */
+  readonly subject: string;
+  readonly problems: readonly string[];
+}
+
+export interface AlarmSink {
+  raise(alarm: PlatformAlarm): void;
+  clear(kind: string, subject: string): void;
+}
+
 /**
  * Was die Control Plane von einem Deploy-Backend braucht. Die Begriffe sind
  * absichtlich neutral: hinter diesem Interface laesst sich Coolify austauschen,
@@ -179,6 +267,17 @@ export interface DeploymentBackend {
     backendRef: string,
     spec: { appName: string; domain: string; port: number },
   ): Promise<void>;
+  /**
+   * Liest zurueck, welche Gateway-Labels an dieser App stehen — nach dem
+   * Deploy, als Messung und nicht als Ableitung (Spec Woche 1, Abschnitt 1:
+   * Label-Lint „vor und nach jedem Deploy").
+   *
+   * Der Rueckgabewert unterscheidet „gelesen" von „nicht erreichbar", weil die
+   * Domaene aus dem zweiten Fall **keinen** Befund machen darf. Was der
+   * Adapter dafuer anfaellt, ist seine Sache; die Domaene bekommt flache
+   * Schluessel-Wert-Paare.
+   */
+  readGatewayLabels(backendRef: string): Promise<GatewayLabelReading>;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -6,11 +6,13 @@
 
 import type {
   AgentIdentityRepository,
+  AlarmSink,
   AppRepository,
   AuditRepository,
   Clock,
   DeploymentBackend,
   DeploymentRepository,
+  GatewayLabelLint,
   GrantRepository,
   IdGenerator,
   RepositoryBackend,
@@ -27,6 +29,12 @@ export interface DomainContext {
   readonly clock: Clock;
   readonly ids: IdGenerator;
   readonly backend: DeploymentBackend;
+  /**
+   * Der Label-Lint: einmal vor dem Deploy im Review-Gate, einmal danach gegen
+   * die zurueckgelesenen Labels (Spec Woche 1, Abschnitt 1). Er rechnet nur —
+   * das Netz spricht `backend`.
+   */
+  readonly gatewayLint: GatewayLabelLint;
   /** Legt das App-Repo aus dem Starter-Template an (DoD 1). */
   readonly repositories: RepositoryBackend;
   readonly reviewGate: ReviewPipeline;
@@ -41,6 +49,12 @@ export interface DomainContext {
    * (siehe `src/lib/app-secret.ts`). Es verlaesst die Control Plane nie.
    */
   readonly authMasterSecret: string;
+  /**
+   * Wohin ein lauter, aber nicht abbrechender Befund geht (`/healthz`, Log).
+   * Fehlt die Senke, bleibt der Befund im Audit-Log und am Deployment — er
+   * geht nie verloren, er ist nur weniger sichtbar.
+   */
+  readonly alarms?: AlarmSink;
 }
 
 export const systemClock: Clock = { now: () => new Date() };

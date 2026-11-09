@@ -7,14 +7,19 @@
  * geprueft.
  */
 
+import { createTraefikLabelLint } from '../src/adapters/coolify';
 import { systemClock, uuidIds, type DomainContext } from '../src/domain';
+import type { GatewayLabelLint } from '../src/domain/ports';
 import { createPipeline } from '../src/domain/review-gate';
 import type { ReviewPipeline, ReviewStep } from '../src/domain/review-gate/types';
 import {
+  createRecordingAlarmSink,
   createRecordingBackend,
   createRecordingProvisioner,
   createRecordingRepositoryBackend,
+  type RecordingAlarmSink,
   type RecordingBackend,
+  type RecordingBackendOptions,
   type RecordingProvisioner,
   type RecordingRepositoryBackend,
 } from '../src/infra/memory/doubles';
@@ -27,6 +32,18 @@ export interface Harness {
   readonly backend: RecordingBackend;
   readonly provisioner: RecordingProvisioner;
   readonly repositories: RecordingRepositoryBackend;
+  readonly alarms: RecordingAlarmSink;
+}
+
+/**
+ * Der echte Label-Lint des Adapters. Absichtlich nicht gestubbt: Was
+ * „vollstaendig" heisst, soll in den Tests dasselbe heissen wie im Betrieb.
+ * Die Adresse ist dieselbe wie in `.env.example`.
+ */
+export const TEST_FORWARD_AUTH_URL = 'http://127.0.0.1:8090/api/authz/forward';
+
+export function testLabelLint(): GatewayLabelLint {
+  return createTraefikLabelLint(TEST_FORWARD_AUTH_URL);
 }
 
 /**
@@ -40,9 +57,16 @@ export function createHarness(options?: {
   pipeline?: ReviewPipeline;
   baseDomain?: string;
   repositoryFailsWith?: string;
+  /** Was das Backend nach dem Deploy zurueckliest. Default: der echte Satz. */
+  gatewayLabels?: RecordingBackendOptions['gatewayLabels'];
 }): Harness {
   const store = createMemoryStore();
-  const backend = createRecordingBackend();
+  const lint = testLabelLint();
+  const backend = createRecordingBackend({
+    lint,
+    ...(options?.gatewayLabels === undefined ? {} : { gatewayLabels: options.gatewayLabels }),
+  });
+  const alarms = createRecordingAlarmSink();
   const provisioner = createRecordingProvisioner();
   const repositories = createRecordingRepositoryBackend(
     options?.repositoryFailsWith === undefined ? {} : { failWith: options.repositoryFailsWith },
@@ -57,14 +81,16 @@ export function createHarness(options?: {
     clock: systemClock,
     ids: uuidIds,
     backend,
+    gatewayLint: lint,
     repositories,
     reviewGate: options?.pipeline ?? createPipeline(options?.steps ?? []),
     provisioner,
     authMasterSecret: TEST_MASTER_SECRET,
+    alarms,
     ...(options?.baseDomain === undefined ? {} : { baseDomain: options.baseDomain }),
   };
 
-  return { ctx, store, backend, provisioner, repositories };
+  return { ctx, store, backend, provisioner, repositories, alarms };
 }
 
 /** Der Plattform-Administrator: die eine Freigabe aus Migration 0006. */

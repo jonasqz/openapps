@@ -4,7 +4,7 @@
  * steckt: Postgres, Coolify, echte Scanner.
  */
 
-import { createConfiguredBackend } from '../adapters/coolify';
+import { createConfiguredBackend, createConfiguredGatewayLabelLint } from '../adapters/coolify';
 import { createConfiguredRepositoryBackend } from '../adapters/github';
 import { systemClock, uuidIds, type DomainContext } from '../domain';
 import { createDefaultPipeline } from '../domain/review-gate';
@@ -18,6 +18,7 @@ import {
   createPgProvisioner,
   getPool,
 } from '../infra/pg';
+import { createAlarmSink } from '../infra/alarms';
 import { gitleaksScanner, semgrepScanner } from '../infra/scanners';
 import { setSessionReaderFactory } from './actor';
 import { getAuth } from './auth';
@@ -31,6 +32,9 @@ export function domainContext(): DomainContext {
 
   const env = readEnv();
   const pool = getPool();
+  // Eine Instanz, zweimal gebraucht: im Review-Gate vor dem Deploy und in
+  // `requestDeploy` gegen die zurueckgelesenen Labels danach.
+  const gatewayLint = createConfiguredGatewayLabelLint();
 
   context = {
     apps: createAppRepository(pool),
@@ -41,10 +45,15 @@ export function domainContext(): DomainContext {
     clock: systemClock,
     ids: uuidIds,
     backend: createConfiguredBackend(),
+    gatewayLint,
     repositories: createConfiguredRepositoryBackend(),
     reviewGate: createDefaultPipeline({
       gitleaks: gitleaksScanner(env.gitleaksBinary),
       semgrep: semgrepScanner(env.semgrepBinary),
+      // Der Label-Lint vor dem Deploy. Nicht optional: ohne ihn blockiert das
+      // Gate, statt einen Deploy ohne Gateway-Pruefung durchzulassen.
+      gatewayLint,
+      gatewayNetwork: env.gatewayNetwork,
       // UI-Linter-Regeln liefert der UI-Agent; bis dahin wird der Schritt
       // uebersprungen und blockiert nicht.
       // Claude-Report wird nachgezogen; das Gate bleibt ohne ihn gueltig.
@@ -57,6 +66,7 @@ export function domainContext(): DomainContext {
         `postgres://${role}:${encodeURIComponent(password)}@${env.appDatabaseHost}`,
     }),
     authMasterSecret: env.authMasterSecret,
+    alarms: createAlarmSink(),
     ...(env.baseDomain === undefined ? {} : { baseDomain: env.baseDomain }),
   };
 

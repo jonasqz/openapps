@@ -49,6 +49,7 @@ export type DeploymentStatus =
   | 'blocked'
   | 'deploying'
   | 'live'
+  | 'degraded'
   | 'superseded'
   | 'failed'
   | 'rolled_back';
