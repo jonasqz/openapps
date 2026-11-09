@@ -5,8 +5,8 @@ mit einer Einschätzung.
 
 | Wann | Was | Nachweis am Ende | Abbruch |
 | --- | --- | --- | --- |
-| Tag 0 | `marmelab/platform` einen Tag testen: Fork als Basis oder Neubau? | [ADR 0003](decisions/0003-marmelab-platform-fork-oder-neubau.md), Feld „Entscheidung" gefüllt | – |
-| Woche 1 | Forward-Auth plus Default-Deny, robust gegen Coolify-Updates — [Spec](specs/woche-1-forward-auth.md) | DoD 2: Testskript ruft alle App-Domains ohne Session auf, vor und nach Coolify-Update | Steht nach Woche 1 nicht stabil: Ansatz neu denken |
+| Tag 0 | `marmelab/platform` einen Tag testen: Fork als Basis oder Neubau? | [ADR 0003](decisions/0003-marmelab-platform-fork-oder-neubau.md), Feld „Entscheidung“ gefüllt | – |
+| Woche 1 | Forward-Auth plus Default-Deny, robust gegen Coolify-Updates — [Spec](specs/woche-1-forward-auth.md) | DoD 2: Testskript ruft alle App-Pfade ohne Session auf, vor und nach Coolify-Update | Steht nach Woche 1 nicht stabil: Ansatz neu denken |
 | Woche 2 | Schema pro App, DB-Rolle pro App, Freigaben zwischen Apps, Rechtemodell | DoD 3: Test blockiert → Freigabe → lesbar → Widerruf → blockiert | – |
 | Woche 3 | MCP-Tools pro App aus der OpenAPI-Spec, Agent-Login als eigener OAuth-Client | DoD 6: zwei Agents, mit und ohne Freigabe, plus Log-Eintrag | Laufen nicht sauber: handgeschriebene Tools pro Template |
 | Woche 4–6 | Review-Gate (gitleaks, Semgrep, UI-Linter, Claude-Report), Rollback, Plattform-MCP, Starter-Template, Design System | DoD 1, 4, 5 und 7 | – |
@@ -20,8 +20,16 @@ ein Setup auf frischer Coolify-Instanz. Die Schwellen stehen in
 
 ## Aktueller Stand
 
-Stand 2026-11-09. `pnpm check` ist grün: 9 Pakete typegeprüft, 6 gelintet,
-291 Tests bestanden, 1 übersprungen, 9 als `todo` sichtbar offen.
+Stand 2026-11-09, nach dem Umbau auf ADR 0007 und 0008.
+
+**`pnpm check` ist nicht grün.** Der Typecheck von `apps/control-plane`
+scheitert an vier Stellen in `tests/env.spec.ts`: `readEnv()` nimmt
+`NodeJS.ProcessEnv`, die Tests übergeben ein `Record<string, string>`, und
+`NODE_ENV` fehlt darin (TS2345). Gemessen am 2026-11-09, sechs von acht
+Aufgaben liefen durch, der Build brach mit ab. Die Zahlen aus dem letzten
+grünen Lauf (9 Pakete typegeprüft, 6 gelintet, 291 Tests bestanden, 1
+übersprungen, 9 als `todo`) stehen hier als letzter Stand, nicht als heutige
+Messung.
 
 | Baustein | Stand |
 | --- | --- |
@@ -32,36 +40,50 @@ Stand 2026-11-09. `pnpm check` ist grün: 9 Pakete typegeprüft, 6 gelintet,
 | `apps/control-plane` | Domäne, Rechtemodell, Review-Gate, Rollback, Forward-Auth-Route — 39 Tests, davon 4 gegen echtes Postgres |
 | `apps/platform-mcp` | sechs Tools, App-Tool-Weiterleitung, `how_to_build_app` — 6 Tests |
 | `templates/starter-app` | Manifest, OpenAPI, Migration, Handler, Liste, UI-Linter verdrahtet — 4 Tests |
-| Woche-1-Spec zur Forward-Auth | steht ([`specs/woche-1-forward-auth.md`](specs/woche-1-forward-auth.md)) |
-| Nachweis-Mappe `docs/nachweise/` | ein Lauf liegt vor (Gateway, lokal, gegen Stub); die Läufe gegen echte Control Plane und echtes Coolify-Update stehen aus |
-| Prüfskript DoD 2 | steht, prüft auch die Traefik-Konfiguration; noch kein Lauf gegen die Zielinstanz |
-| Label-Lint | verdrahtet: Schritt `gateway-labels` vor dem Deploy, Messung der echten Labels danach (Befund ⇒ `degraded`) |
-| Traefik-Konfiguration | steht: Entrypoint-Middleware, Catch-all-Router, Deny-Backend, Loopback-Entrypoint fürs 2-s-Timeout — acht Fälle lokal gegen Traefik 3.3.7 geprüft |
-| Startup-Check gegen die Traefik-API | steht; unerreichbare API = WARN, falsche Antwort = ALARM, sichtbar in `/healthz` |
+| Woche-1-Spec zur Forward-Auth | steht in Fassung 2, nach ADR 0007 und 0008 ([`specs/woche-1-forward-auth.md`](specs/woche-1-forward-auth.md)) |
+| Nachweis-Mappe `docs/nachweise/` | zwei lokale Läufe liegen vor: der alte Aufbau (acht Fälle OK) und der heutige (neun Fälle, einer gefallen). Beide gegen einen Stub, keiner gegen echte Control Plane oder echtes Coolify-Update |
+| Pfade statt Subdomains ([ADR 0007](decisions/0007-eine-domain-pfade-statt-subdomains.md)) | umgesetzt: Ableitung, `basePath`, Forward-Auth über das erste Pfadsegment |
+| Eigene dynamische Konfiguration ([ADR 0008](decisions/0008-eigene-dynamische-konfiguration.md)) | umgesetzt: Generator, atomares Schreiben nach `/data/coolify/proxy/dynamic/openapps.yaml`, `verify` nach jedem Deploy. Belegt gegen Coolify v4.7.1 |
+| Default-Deny im Generator | steht am **Typ**: `GuardedRouter` ist außerhalb von `domain/gateway-config.ts` nicht konstruierbar, die einzige Fabrik nimmt die Middlewares nicht als Parameter. Dazu `gatewayConfigProblems()` als unabhängige zweite Lesart |
+| Prüfskript DoD 2 | steht für die Adressliste; der zweite Teil prüft noch die Entrypoint-Kette aus dem alten Aufbau und ist nachzuziehen. Noch kein Lauf gegen die Zielinstanz |
+| Review-Gate-Schritt `gateway-config` | verdrahtet: vor dem Deploy die erzeugbare Konfiguration plus Manifest und Arbeitskopie, nach dem Deploy die Negativ-Messung am Backend (Befund ⇒ `degraded`) |
+| Eigene statische Traefik-Konfiguration | **entfallen.** Entrypoints und der Resolver `letsencrypt` gehören Coolify; es gibt kein `traefik.yml` und keine Entrypoint-Middleware von uns mehr |
+| Startup-Check gegen die Traefik-API | steht, auf Router umgestellt: jeder Router mit dem Präfix `openapps-` trägt die Kette in dieser Reihenfolge und ist `enabled`, Catch-all vorhanden, `forwardedHeaders` am Entrypoint leer. Unerreichbare API = WARN, falsche Antwort = ALARM, sichtbar in `/healthz` |
 | Better Auth (Google-SSO) | steht: Domain-Schranke, Gruppen aus der Control Plane, Login-Seite ([ADR 0006](decisions/0006-gruppen-und-domain-schranke.md)) |
 
 ## Was als Nächstes dran ist
 
-In dieser Reihenfolge, weil das Riskanteste zuerst kommt:
+Vor allem anderen: **`pnpm check` grün machen.** Vier Typfehler in
+`apps/control-plane/tests/env.spec.ts` brechen den Lauf ab; solange er rot ist,
+sagt kein Haken in dieser Datei etwas.
 
-1. **DoD 2 auf der Zielinstanz nachweisen.** Der Gateway-Lauf lief lokal gegen
-   einen Stub. Was fehlt: Lauf mit echter Control Plane, zwei Läufe um ein
-   echtes Coolify-Update herum, und die Sekunden-Schleifen-Messung aus Spec 4.4.
-   Das ist der Nachweis, auf den das ganze Projekt wartet.
-2. **Tag 0 entscheiden**
+Dann in dieser Reihenfolge, weil das Riskanteste zuerst kommt:
+
+1. **DoD 2 auf der Zielinstanz nachweisen.** Beide Läufe liefen lokal gegen
+   einen Stub. Was fehlt: Lauf mit echter Control Plane (damit zum ersten Mal
+   die Prüfkette aus Spec 1.1 und die echte HMAC-Signatur), zwei Läufe um ein
+   echtes Coolify-Update herum, und die Sekunden-Schleifen-Messung aus
+   Spec 4.4. Das ist der Nachweis, auf den das ganze Projekt wartet. Dazu
+   gehört der Mount von `/data/coolify/proxy/dynamic` in die
+   Dienstdefinition der Control Plane — ohne ihn scheitert der erste Deploy.
+2. **`check-auth.sh` nachziehen.** Sein zweiter Teil prüft die
+   Middleware-Kette am Entrypoint `websecure`. Diesen Entrypoint gibt es in
+   Coolifys Konfiguration nicht, und die Kette hängt nicht mehr dort. Bis das
+   umgestellt ist, ist dieser Teil kein Nachweis.
+3. **Tag 0 entscheiden**
    ([ADR 0003](decisions/0003-marmelab-platform-fork-oder-neubau.md)).
-3. **Gruppenpflege als Endpunkt und MCP-Tool** (`grant_group_member`,
-   `revoke_group_member`). „Agents first" verlangt sie, bevor es dafür eine
+4. **Gruppenpflege als Endpunkt und MCP-Tool** (`grant_group_member`,
+   `revoke_group_member`). „Agents first“ verlangt sie, bevor es dafür eine
    Oberfläche gibt; bis dahin geht Pflege nur per SQL oder Bootstrap-Variable.
-4. **Scanner wirklich laufen lassen** — gitleaks und semgrep als Prozess gegen
+5. **Scanner wirklich laufen lassen** — gitleaks und semgrep als Prozess gegen
    ein Test-Repo mit eingebautem Secret (DoD 4).
-5. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
-6. **Die Control Plane in die App-Shell setzen.** Die Shell aus `@openapps/ui`
+6. **ADR 0005 umsetzen:** ein Vokabular für Subjekte.
+7. **Die Control Plane in die App-Shell setzen.** Die Shell aus `@openapps/ui`
    steht, die Control Plane trägt sie noch nicht — die Login-Seite muss
    außerhalb liegen, das braucht eine Routengruppe.
-7. **Einen Fakten-Sammler für Spec 3.3.** Ohne ihn sind „kein veröffentlichter
-   Host-Port" und „kein zweites Netz" pro Deploy ein Hinweis, keine Sperre.
-8. **`degraded` sichtbar machen.** Der Status existiert in Datenbank und
+8. **Einen Fakten-Sammler für Spec 3.3.** Ohne ihn sind „kein veröffentlichter
+   Host-Port“ und „kein zweites Netz“ pro Deploy ein Hinweis, keine Sperre.
+9. **`degraded` sichtbar machen.** Der Status existiert in Datenbank und
    Outcome, aber keine Liste und kein MCP-Tool zeigt ihn eigens an — ein
    Zustand, den niemand sieht, wirkt wie keiner.
 
@@ -69,12 +91,17 @@ In dieser Reihenfolge, weil das Riskanteste zuerst kommt:
 
 | Schuld | Warum sie jetzt in Kauf genommen ist |
 | --- | --- |
+| `pnpm check` scheitert am Typecheck von `apps/control-plane` (`tests/env.spec.ts`, TS2345: `NODE_ENV` fehlt im übergebenen Env-Objekt) | Nicht in Kauf genommen, sondern offen: Ein roter `check` macht jede weitere Aussage über den Stand wertlos. Vier Zeilen in einer Testdatei, kein Befund über den Code der Domäne. |
 | `platform-mcp` bindet die Domäne der Control Plane als TypeScript-Quelle ein und läuft über `tsx` | Der richtige Schnitt wäre ein eigenes Paket unter `packages/`. Das ist ein Umbau, der nichts an den Kriterien ändert — später, nicht jetzt. |
 | Zwei Wörter für Subjekte (`user` in der Datenbank, `human` im Manifest), übersetzt an einer Stelle | [ADR 0005](decisions/0005-ein-vokabular-fuer-subjekte.md) entscheidet `human`; die Migration fehlt noch. |
 | `better-auth` verlangt über `better-call` `zod` 4, im Repo liegt 3.24 | Bleibt eine Peer-Warnung: `better-auth` selbst hängt auf `zod@^3.24`. Dass es trägt, ist belegt — die Postgres-Tests laufen durch die echte Instanz. Ein Update von `better-call` kann es kippen; der kleine Hebel wäre ein Pin. |
-| Forward-Auth läuft pro Aufruf zweimal: einmal am Entrypoint, einmal aus den App-Labels | Gürtel und Hosenträger, bis ein echtes Coolify-Update gemessen ist. Solange nicht bekannt ist, was ein Update mit den Labels tut, ist die zweite Schicht ihr Geld wert. Danach reduzieren. |
+| **Das 2-s-Timeout der Auth-Anfrage ist verloren.** Eine hängende Control Plane blockiert das Gateway bis zu 30 s statt 2 s | Traefiks `forwardAuth` hat keine Timeout-Option, ihr HTTP-Client hat 30 s fest eingebaut. Das alte Timeout hing an einem Dienst hinter einem eigenen Entrypoint; Entrypoints stehen statisch, und die statische Datei gehört Coolify (ADR 0008). Die Alternative wäre, `/api/authz/forward` auf einen Router ohne Middlewares zu legen — ein Loch in genau der Schicht, die der Umbau zumauert. Bewusst hingenommen: Die Lücke lässt nichts Unfreigegebenes durch. Gemessen als Fall 8 im Protokoll, im Code als `GATEWAY_TIMEOUT_NOTE`. |
+| **Eine registrierte, noch nicht deployte App liefert 502 statt 403** | Die Datei wird immer für alle registrierten Apps erzeugt; eine App ohne laufenden Container bekommt einen Router auf einen Dienst, der nicht antwortet. Kein Loch — die Forward-Auth läuft davor —, aber sichtbar kaputt. Die Alternative wäre eine Backend-Abfrage pro App bei jedem Schreiben. |
+| Es gibt keine Stelle mehr, die die Forward-Auth global erzwingt | Bewusster Tausch aus ADR 0008: Vorher hing die Garantie an einer Datei, die uns nicht gehört; jetzt an Code, den wir besitzen und testen. Preis: Nimmt jemand einem Router in der Datei von Hand die Middlewares, ist der Pfad offen — gemessen, mit gefälschten Headern durchgekommen. Startup-Check und Lint sehen es, verhindern es nicht. |
+| Spec 3.3 wird nicht am laufenden Container gemessen | Der Schritt `gateway-config` liest Manifest, Arbeitskopie und die Angaben des Backends. „Kein veröffentlichter Host-Port“ und „kein zweites Netz“ sind damit pro Deploy ein Hinweis, keine Sperre. Es fehlt ein Fakten-Sammler gegen den Container selbst. |
+| Der Weg auf den Host ist ein Mount, also derselbe Server für Control Plane und Proxy | Der Weg mit den wenigsten Rechten: kein API-Token mit Schreibrecht, kein SSH-Schlüssel. Mehrere Server deckt er nicht ab; dann braucht es einen Agenten auf dem Proxy-Host. Fehlt der Mount, scheitert der erste Deploy mit einem Fehler, der das Verzeichnis nennt. |
+| ADR 0008 ist gegen **Coolify v4.7.1** belegt, nicht allgemein | Dass Coolify unser `openapps.yaml` nicht anfasst, ist für diese Fassung aus dem Code belegt. Für jede spätere ist es wieder offen — deshalb läuft `check-auth.sh` nach jedem Update. |
 | Der Port einer App kommt aus einer `PORT`-Env-Konvention, nicht aus einem Manifest-Feld | Reicht heute. Ein eigenes Feld würde den Manifest-Abgleich im Review-Gate sauberer machen. |
-| Der Lint nach dem Deploy liest Coolifys geführte Labels, nicht `docker inspect` | Es fällt auf, wenn ein Update den Satz entfernt — aber es ist nicht der Container selbst. Der echte Beweis wäre zusätzlich die Traefik-API gegen die App-Domain. |
-| Ändert eine App ihren Port, wird `ensureGateway` nicht erneut gerufen | Der Lint nach dem Deploy meldet es als Befund, statt dass es still falsch bleibt. Saubere Lösung wäre ein erneuter Aufruf bei Portänderung. |
+| Der Lint nach dem Deploy liest, was das Deploy-Backend führt (Labels, `ports_mappings`, Domains), nicht `docker inspect` | Es fällt auf, wenn das Backend einer App einen eigenen Weg nach innen gegeben hat — aber es ist nicht der Container selbst. Der echte Beweis wäre zusätzlich die Traefik-API gegen den App-Pfad. |
 | `@openapps/ui` liefert Quellcode, also müssen alle Apps dieselben React-Typen fahren (18) | Bewusst: lesbar für Agents, keine Stale-Build-Fehler. Preis ist die gemeinsame Typversion. |
 | Test-Postgres läuft auf `postgres:16`, nicht 17 | Das Image lag lokal vor und die Nachweise sind dagegen **gelaufen**. Ein verifiziertes Image ist mehr wert als ein neueres, das nur vermutet ist. |

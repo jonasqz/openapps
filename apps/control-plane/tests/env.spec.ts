@@ -6,7 +6,10 @@ import { readEnv } from '../src/lib/env';
  * konfiguriert ist schlimmer als nicht konfiguriert — lieber der Start
  * verweigert als eine Plattform, die mit einer Luecke laeuft.
  */
-const VOLLSTAENDIG: Record<string, string> = {
+const VOLLSTAENDIG: NodeJS.ProcessEnv = {
+  // NODE_ENV gehoert in dieser Umgebung zum Pflichtteil von ProcessEnv, ist
+  // aber nichts, was readEnv liest — hier nur, damit der Typ passt.
+  NODE_ENV: 'test',
   DATABASE_URL: 'postgres://openapps_app@localhost:5432/openapps',
   APP_DATABASE_HOST: 'localhost:5432/openapps',
   APPS_DOMAIN: 'intern.example.com',
@@ -27,7 +30,8 @@ describe('readEnv', () => {
     // Plane. Dann muesste Coolify ihr eine Domain geben — und dieser Router
     // traegt unsere Middlewares nicht, die Anmeldung staende ungeschuetzt da.
     const { CONTROL_PLANE_SERVICE_URL: _weg, ...ohne } = VOLLSTAENDIG;
-    expect(() => readEnv(ohne)).toThrowError(/CONTROL_PLANE_SERVICE_URL/);
+    const umgebung: NodeJS.ProcessEnv = ohne;
+    expect(() => readEnv(umgebung)).toThrowError(/CONTROL_PLANE_SERVICE_URL/);
   });
 
   it('verweigert den Start, wenn eine andere Pflicht-Variable fehlt', () => {
@@ -37,7 +41,7 @@ describe('readEnv', () => {
       'CONTROL_PLANE_HOST',
       'OPENAPPS_AUTH_MASTER_SECRET',
     ]) {
-      const ohne = { ...VOLLSTAENDIG };
+      const ohne: NodeJS.ProcessEnv = { ...VOLLSTAENDIG };
       delete ohne[schluessel];
       expect(() => readEnv(ohne), schluessel).toThrowError(new RegExp(schluessel));
     }
