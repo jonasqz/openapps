@@ -11,7 +11,7 @@ export type {
   TextFormField,
 } from './FormPattern.tsx';
 export { DetailPattern } from './DetailPattern.tsx';
-export type { DetailField, DetailPatternProps, DetailSection } from './DetailPattern.tsx';
+export type { DetailBack, DetailField, DetailPatternProps, DetailSection } from './DetailPattern.tsx';
 /**
  * Die Muster „leerer Zustand“ und „Fehlerzustand“ sind je eine Komponente —
  * ein eigenes Muster darüber wäre eine leere Hülle. Sie werden hier

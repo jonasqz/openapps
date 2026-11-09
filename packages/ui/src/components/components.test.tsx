@@ -12,7 +12,7 @@ import { Input } from './Input.tsx';
 import { Pagination, pageCount } from './Pagination.tsx';
 import { Select } from './Select.tsx';
 import { Spinner } from './Spinner.tsx';
-import { Table } from './Table.tsx';
+import { Table, fieldContent } from './Table.tsx';
 import { Tabs } from './Tabs.tsx';
 import { ToastProvider, useToast, TOAST_LIMIT } from './Toast.tsx';
 import { overrideStrings, resetStrings } from '../strings.ts';
@@ -141,6 +141,101 @@ describe('Table', () => {
     const rows = Array.from({ length: 500 }, (_, index) => ({ name: `${LONG}-${index}` }));
     render(<Table caption="Viele" columns={columns} rows={rows} rowKey={(row) => row.name} />);
     expect(screen.getAllByRole('row')).toHaveLength(501);
+  });
+});
+
+/**
+ * Die serverfähige Form: Spalten nennen ein `field`, `rowKey` einen Feldnamen
+ * oder nichts. Keine Funktion geht über die Server/Client-Grenze — genau
+ * daran brach der Build des Starter-Templates.
+ */
+describe('Table ohne Funktions-Props', () => {
+  interface User extends Record<string, unknown> {
+    id: string;
+    name: string;
+    tage: number;
+  }
+
+  const rows: readonly User[] = [
+    { id: 'a', name: 'Anna', tage: 3 },
+    { id: 'b', name: 'Bert', tage: 11 },
+  ];
+
+  it('gibt dasselbe aus wie die Form mit cell', () => {
+    const withField = render(
+      <Table<User>
+        caption="Nutzer"
+        rows={rows}
+        columns={[
+          { field: 'name', header: 'Name' },
+          { field: 'tage', header: 'Tage', align: 'right' },
+        ]}
+      />,
+    ).container.innerHTML;
+
+    const withCell = render(
+      <Table<User>
+        caption="Nutzer"
+        rows={rows}
+        rowKey={(row) => row.id}
+        columns={[
+          { key: 'name', header: 'Name', cell: (row) => row.name },
+          { key: 'tage', header: 'Tage', align: 'right', cell: (row) => row.tage },
+        ]}
+      />,
+    ).container.innerHTML;
+
+    expect(withField).toBe(withCell);
+  });
+
+  it('nimmt ohne rowKey das Feld id und sonst einen anderen Feldnamen', () => {
+    const { container } = render(
+      <Table<User> caption="Nutzer" rows={rows} columns={[{ field: 'name', header: 'Name' }]} />,
+    );
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(2);
+
+    const named = render(
+      <Table<User>
+        caption="Nutzer"
+        rows={rows}
+        rowKey="name"
+        columns={[{ field: 'name', header: 'Name' }]}
+      />,
+    );
+    expect(named.container.querySelectorAll('tbody tr')).toHaveLength(2);
+  });
+
+  it('formatiert Werte, die React nicht selbst rendern kann', () => {
+    expect(fieldContent(null)).toBe('—');
+    expect(fieldContent(undefined)).toBe('—');
+    expect(fieldContent('')).toBe('—');
+    expect(fieldContent(new Date('2026-11-09T22:30:00Z'))).toBe('09.11.2026');
+    expect(fieldContent(new Date('kaputt'))).toBe('—');
+    expect(fieldContent(true)).toBe('Ja');
+    expect(fieldContent(false)).toBe('Nein');
+    expect(fieldContent(0)).toBe(0);
+    expect(fieldContent(7n)).toBe('7');
+    expect(fieldContent('Anna')).toBe('Anna');
+  });
+
+  it('zeigt leere Felder und Daten in der Zelle', () => {
+    interface Row2 extends Record<string, unknown> {
+      id: string;
+      domain: string | null;
+      angelegt: Date;
+    }
+    render(
+      <Table<Row2>
+        caption="Apps"
+        rows={[{ id: 'x', domain: null, angelegt: new Date('2026-01-02T00:00:00Z') }]}
+        columns={[
+          { field: 'domain', header: 'Domain' },
+          { field: 'angelegt', header: 'Angelegt' },
+        ]}
+      />,
+    );
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('02.01.2026')).toBeInTheDocument();
   });
 });
 

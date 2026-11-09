@@ -20,6 +20,11 @@ export interface DetailSection {
   fields: readonly DetailField[];
 }
 
+/** Zurück-Verweis: ein Ziel (serverfähig) oder ein Rückruf (nur Client). */
+export type DetailBack =
+  | { label: string; href: string; onClick?: never }
+  | { label: string; onClick: () => void; href?: never };
+
 export interface DetailPatternProps {
   title: string;
   /** Kleiner Text über dem Titel, z. B. Kategorie oder ID. */
@@ -28,8 +33,13 @@ export interface DetailPatternProps {
   meta?: ReactNode;
   /** Knöpfe oben rechts. */
   actions?: ReactNode;
-  /** Zurück-Verweis. Steht als erstes in der Fokus-Reihenfolge. */
-  back?: { label: string; onClick: () => void };
+  /**
+   * Zurück-Verweis. Steht als erstes in der Fokus-Reihenfolge.
+   *
+   * `href` ist der Normalfall und serverfähig. `onClick` ist eine Funktion und
+   * geht nur aus einer Client-Komponente.
+   */
+  back?: DetailBack;
   sections: readonly DetailSection[];
   /** Zusätzlicher Inhalt unter den Abschnitten (Verlauf, Tabellen …). */
   children?: ReactNode;
@@ -44,6 +54,9 @@ export interface DetailPatternProps {
  * Kopfbereich mit Titel, Status und Aktionen, darunter Abschnitte aus
  * Label/Wert-Paaren. Auf Phone-Breite einspaltig, ab `sm` zweispaltig.
  */
+const BACK_CLASS =
+  'self-start rounded-md text-sm font-medium text-primary underline-offset-2 hover:underline outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+
 export function DetailPattern({
   title,
   eyebrow,
@@ -68,12 +81,13 @@ export function DetailPattern({
 
   return (
     <article className={cn('flex min-w-0 flex-col gap-5', className)}>
-      {back === undefined ? null : (
-        <button
-          type="button"
-          onClick={back.onClick}
-          className="self-start rounded-md text-sm font-medium text-primary underline-offset-2 hover:underline outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-        >
+      {back === undefined ? null : back.onClick === undefined ? (
+        <a href={back.href} className={BACK_CLASS}>
+          <span aria-hidden="true">← </span>
+          {back.label}
+        </a>
+      ) : (
+        <button type="button" onClick={back.onClick} className={BACK_CLASS}>
           <span aria-hidden="true">← </span>
           {back.label}
         </button>

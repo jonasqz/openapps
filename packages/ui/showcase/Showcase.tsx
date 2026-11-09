@@ -19,6 +19,7 @@ import {
   Tabs,
   useToast,
 } from '../src/index.ts';
+import type { TableColumn } from '../src/index.ts';
 import { DetailPattern, FormPattern, ListPattern } from '../src/index.ts';
 import { AppShell } from '../src/shell/AppShell.tsx';
 import type { ShellApp, ShellNavGroup, ShellNotification, ShellUser } from '../src/shell/types.ts';
@@ -86,9 +87,14 @@ const ROWS: readonly Row[] = [
 
 const STATUS_TONE = { offen: 'warning', genehmigt: 'success', abgelehnt: 'danger' } as const;
 
-const COLUMNS = [
-  { key: 'name', header: 'Name', cell: (row: Row) => row.name, className: 'w-2/5' },
-  { key: 'art', header: 'Art', cell: (row: Row) => row.art, hideBelow: 'sm' as const },
+/**
+ * Spalten: `field` ist der Normalfall und serverfähig, `cell` der Sonderfall
+ * für ein Element in der Zelle — und nur aus Client-Komponenten erlaubt. Das
+ * Schaufenster selbst ist eine.
+ */
+const COLUMNS: readonly TableColumn<Row>[] = [
+  { field: 'name', header: 'Name', className: 'w-2/5' },
+  { field: 'art', header: 'Art', hideBelow: 'sm' },
   {
     key: 'status',
     header: 'Status',
@@ -98,7 +104,7 @@ const COLUMNS = [
       </Badge>
     ),
   },
-  { key: 'tage', header: 'Tage', cell: (row: Row) => row.tage, align: 'right' as const, hideBelow: 'md' as const },
+  { field: 'tage', header: 'Tage', align: 'right', hideBelow: 'md' },
 ];
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }): JSX.Element {
@@ -289,20 +295,18 @@ function Content(): JSX.Element {
 
           <Demo label="Table — normal, lädt, Fehler, leer">
             <div className="flex flex-col gap-4">
-              <Table caption="Anträge" columns={COLUMNS} rows={ROWS} rowKey={(row) => row.id} onRowActivate={() => {}} />
-              <Table caption="Lädt" columns={COLUMNS} rows={[]} rowKey={(row) => row.id} loading />
+              <Table caption="Anträge" columns={COLUMNS} rows={ROWS} onRowActivate={() => {}} />
+              <Table caption="Lädt" columns={COLUMNS} rows={[]} loading />
               <Table
                 caption="Leer"
                 columns={COLUMNS}
                 rows={[]}
-                rowKey={(row) => row.id}
                 empty={{ title: 'Noch keine Anträge', description: 'Der erste Antrag erscheint hier.' }}
               />
               <Table
                 caption="Fehler"
                 columns={COLUMNS}
                 rows={[]}
-                rowKey={(row) => row.id}
                 error={{ title: 'Anträge nicht geladen', description: 'Das Gateway antwortet nicht.' }}
               />
             </div>
@@ -325,7 +329,6 @@ function Content(): JSX.Element {
             actions={<Button size="sm">Neuer Antrag</Button>}
             columns={COLUMNS}
             rows={filtered}
-            rowKey={(row) => row.id}
             onRowActivate={() => {}}
             search={{ label: 'Suche', value: search, onChange: setSearch }}
             filters={[
@@ -393,7 +396,7 @@ function Content(): JSX.Element {
           <DetailPattern
             title="Sommerurlaub"
             eyebrow="URL-2026-014"
-            back={{ label: 'Zur Liste', onClick: () => {} }}
+            back={{ label: 'Zur Liste', href: '#muster' }}
             meta={
               <>
                 <Badge tone="warning" srPrefix="Status: ">offen</Badge>

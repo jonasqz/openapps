@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui-showcase",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@openapps/ui", "run", "showcase"],
+      "port": 4321
+    }
+  ]
+}

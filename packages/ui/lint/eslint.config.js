@@ -12,12 +12,13 @@
 import tsParser from '@typescript-eslint/parser';
 import { plugin } from './rules/index.js';
 
-/** Die drei Regeln, die der Guide als „ja" führt. */
+/** Die Regeln, die der Guide als „ja" führt. */
 export const rules = {
   '@openapps/ui/no-raw-color': 'error',
   '@openapps/ui/no-foreign-ui': 'error',
   '@openapps/ui/require-list-states': 'error',
   '@openapps/ui/require-form-states': 'error',
+  '@openapps/ui/no-server-function-props': 'error',
 };
 
 /** Die Regeln für App-Code — fertig zum Spreaden in eine Flat Config. */

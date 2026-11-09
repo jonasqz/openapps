@@ -141,9 +141,44 @@ der zeigt, dass es greift, und einen, der korrekten Code durchlässt.
 | `no-foreign-ui` | Importe außerhalb der Allowlist (`@openapps/ui`, `@openapps/sdk`, `@openapps/app-manifest`, `react`, `react-dom`, `next`, Tailwind) |
 | `require-list-states` | eine Liste (`Table`, `ListPattern`, `.map` in `ul`/`ol`/`tbody`) ohne importierten `EmptyState` **und** `ErrorState` — `ListPattern` zählt als beides |
 | `require-form-states` | ein Formular ohne importiertes `FormPattern` |
+| `no-server-function-props` | eine Funktion an `Table`, `ListPattern`, `DetailPattern` oder `FormPattern` aus einer Datei, die sicher auf dem Server rendert |
 
 Jede Regel hat in `lint/test/` einen Fall, der greift, und einen, der korrekten
 Code durchlässt.
+
+### Tabellen rendern serverseitig
+
+Eine Seite im App-Router holt ihre Daten in der Server-Komponente, `Table` ist
+eine Client-Komponente — und React reicht **keine Funktion** über diese Grenze.
+Deshalb ist die serverfähige Form die Vorgabe:
+
+```tsx
+<Table
+  caption="Einträge"
+  rows={items.map(toRow)}
+  columns={[
+    { field: 'title', header: 'Titel' },
+    { field: 'angelegt', header: 'Angelegt', hideBelow: 'sm' },
+  ]}
+  empty={{ title: 'Noch keine Einträge' }}
+  error={failed ? { title: 'Nicht geladen' } : undefined}
+/>
+```
+
+- Eine Spalte nennt ihr `field`; der Spaltenschlüssel ist dann der Feldname.
+- `rowKey` entfällt, solange die Zeile ein Feld `id` hat; sonst der Feldname.
+- Abgeleitete Werte (zusammengesetzt, formatiert) rechnet die Server-Komponente
+  vorher in die Zeile, statt sie in eine `cell`-Funktion zu legen.
+- `null`, `''`, `Date`, `bigint` und `boolean` formatiert die Tabelle selbst
+  (`—`, `09.11.2026`, `Ja`/`Nein`) — ohne Zeitzone und Spracheinstellung des
+  Browsers, sonst stünde nach dem Hydrieren etwas anderes da.
+
+`cell`, `rowKey` als Funktion, `onRowActivate`, `onSubmit` und `back.onClick`
+bleiben erlaubt — aber nur in einer Datei mit `'use client'`. `DetailPattern`
+hat dafür `back: { label, href }`. Was die Regel `no-server-function-props`
+nicht sieht: eine ausgelagerte Komponente ohne `'use client'`, die eine
+Server-Seite benutzt, und Funktionen, die erst ein Aufruf zurückgibt
+(`columns={spalten()}`).
 
 ### Was als Formular gilt
 

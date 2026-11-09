@@ -7,6 +7,7 @@ import {
 import { noRawColor } from './no-raw-color.js';
 import { requireFormStates } from './require-form-states.js';
 import { requireListStates } from './require-list-states.js';
+import { noServerFunctionProps } from './no-server-function-props.js';
 
 /** Das ESLint-Plugin von @openapps/ui. */
 export const plugin = {
@@ -16,11 +17,13 @@ export const plugin = {
     'no-foreign-ui': noForeignUi,
     'require-list-states': requireListStates,
     'require-form-states': requireFormStates,
+    'no-server-function-props': noServerFunctionProps,
   },
 };
 
 export {
   noForeignUi,
+  noServerFunctionProps,
   noRawColor,
   requireFormStates,
   requireListStates,

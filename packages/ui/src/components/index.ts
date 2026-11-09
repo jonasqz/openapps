@@ -22,8 +22,15 @@ export { Select } from './Select.tsx';
 export type { SelectOption, SelectProps } from './Select.tsx';
 export { Spinner } from './Spinner.tsx';
 export type { SpinnerProps } from './Spinner.tsx';
-export { Table } from './Table.tsx';
-export type { TableColumn, TableProps } from './Table.tsx';
+export { Table, fieldContent } from './Table.tsx';
+export type {
+  TableCellColumn,
+  TableColumn,
+  TableColumnBase,
+  TableFieldColumn,
+  TableFieldValue,
+  TableProps,
+} from './Table.tsx';
 export { Tabs } from './Tabs.tsx';
 export type { TabItem, TabsProps } from './Tabs.tsx';
 export { TOAST_LIMIT, ToastProvider, useToast } from './Toast.tsx';

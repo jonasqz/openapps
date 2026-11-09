@@ -10,7 +10,7 @@ import { Table } from '../components/Table.tsx';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { ErrorState } from '../components/ErrorState.tsx';
 import type { SelectOption } from '../components/Select.tsx';
-import type { TableColumn } from '../components/Table.tsx';
+import type { TableColumn, TableProps } from '../components/Table.tsx';
 import { strings } from '../strings.ts';
 
 export interface ListFilter {
@@ -40,7 +40,8 @@ export interface ListPatternProps<Row> {
 
   columns: readonly TableColumn<Row>[];
   rows: readonly Row[];
-  rowKey: (row: Row, index: number) => string;
+  /** Wie bei `Table`: Feldname (serverfähig) oder Funktion. Vorgabe `id`. */
+  rowKey?: TableProps<Row>['rowKey'];
   onRowActivate?: (row: Row) => void;
 
   loading?: boolean;
@@ -162,8 +163,8 @@ export function ListPattern<Row>({
             caption={title}
             columns={columns}
             rows={rows}
-            rowKey={rowKey}
             loading={loading}
+            {...(rowKey === undefined ? {} : { rowKey })}
             empty={emptyForState}
             {...(onRowActivate === undefined ? {} : { onRowActivate })}
           />

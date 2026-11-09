@@ -39,6 +39,16 @@ export interface UiStrings {
     readonly emptyTitle: string;
     /** „<Tabellenname> lädt …" */
     readonly loadingLabel: (caption: string) => string;
+    /** Platzhalter für ein leeres Feld in einer Zelle. */
+    readonly emptyValue: string;
+    readonly yes: string;
+    readonly no: string;
+    /**
+     * Ein Datum in einer Zelle. Muss ohne Zeitzone und ohne
+     * Spracheinstellung des Browsers auskommen: Die Tabelle rendert auf dem
+     * Server und hydriert im Browser, sonst stehen dort zwei Zeichenketten.
+     */
+    readonly date: (value: Date) => string;
   };
   readonly pagination: {
     readonly label: string;
@@ -136,6 +146,11 @@ const de: UiStrings = {
   table: {
     emptyTitle: 'Noch keine Einträge',
     loadingLabel: (caption) => `${caption} lädt …`,
+    emptyValue: '—',
+    yes: 'Ja',
+    no: 'Nein',
+    date: (value) =>
+      `${String(value.getUTCDate()).padStart(2, '0')}.${String(value.getUTCMonth() + 1).padStart(2, '0')}.${value.getUTCFullYear()}`,
   },
   pagination: {
     label: 'Seitenweiterschaltung',

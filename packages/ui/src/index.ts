@@ -21,7 +21,12 @@ export type {
   TextFormField,
 } from './patterns/FormPattern.tsx';
 export { DetailPattern } from './patterns/DetailPattern.tsx';
-export type { DetailField, DetailPatternProps, DetailSection } from './patterns/DetailPattern.tsx';
+export type {
+  DetailBack,
+  DetailField,
+  DetailPatternProps,
+  DetailSection,
+} from './patterns/DetailPattern.tsx';
 
 /* Texte. v1 ist deutsch; eine App kann einzelne Texte ersetzen. */
 export { germanStrings, overrideStrings, resetStrings, strings } from './strings.ts';
