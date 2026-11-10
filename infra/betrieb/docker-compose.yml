@@ -1,0 +1,125 @@
+# Die Plattform auf einem Server mit Coolify — als **eine** Ressource vom Typ
+# „Docker Compose" aus diesem Repo. Anleitung: infra/betrieb/README.md.
+#
+# Drei Dienste, keiner mit veroeffentlichtem Port und keiner mit Domain in
+# Coolify. Erreichbar wird die Control Plane allein ueber den Router, den sie
+# selbst nach /data/coolify/proxy/dynamic schreibt (ADR 0008). Gaebe man ihr in
+# Coolify eine Domain, haette Coolifys Router unsere Middlewares nicht — die
+# Anmeldung staende ungeschuetzt da.
+#
+# Werte mit `:?` sind Pflicht: Coolify zeigt sie in der Oberflaeche an, und
+# fehlt einer, startet der Stapel nicht. Secrets nur dort eintragen, nie hier.
+
+services:
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: apps/control-plane/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://openapps_owner:${OPENAPPS_OWNER_PASSWORD:?}@openapps-postgres:5432/openapps
+      # Was eine App als DSN bekommt — derselbe Postgres, im selben Netz.
+      APP_DATABASE_HOST: openapps-postgres:5432/openapps
+
+      APPS_DOMAIN: ${APPS_DOMAIN:?}
+      CONTROL_PLANE_HOST: ${CONTROL_PLANE_HOST:?}
+      CONTROL_PLANE_SERVICE_URL: http://openapps-control-plane:3000
+      FORWARD_AUTH_ADDRESS: http://openapps-control-plane:3000/api/authz/forward
+      GATEWAY_DENY_BACKEND_URL: http://openapps-deny-backend:8080
+      GATEWAY_DYNAMIC_DIR: /traefik/dynamic
+      GATEWAY_DOCKER_NETWORK: coolify
+      GATEWAY_ENTRYPOINT: https
+      GATEWAY_CERT_RESOLVER: letsencrypt
+      # Coolifys Proxy heisst im Netz `coolify-proxy`; die API laeuft auf 8080.
+      TRAEFIK_API_URL: http://coolify-proxy:8080
+
+      OPENAPPS_AUTH_MASTER_SECRET: ${OPENAPPS_AUTH_MASTER_SECRET:?}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      BETTER_AUTH_URL: https://${CONTROL_PLANE_HOST:?}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?}
+      AUTH_ALLOWED_EMAIL_DOMAINS: ${AUTH_ALLOWED_EMAIL_DOMAINS:?}
+      AUTH_BOOTSTRAP_ADMINS: ${AUTH_BOOTSTRAP_ADMINS:?}
+
+      COOLIFY_BASE_URL: ${COOLIFY_BASE_URL:?}
+      COOLIFY_API_TOKEN: ${COOLIFY_API_TOKEN:?}
+      COOLIFY_PROJECT_UUID: ${COOLIFY_PROJECT_UUID:?}
+      COOLIFY_SERVER_UUID: ${COOLIFY_SERVER_UUID:?}
+      COOLIFY_ENVIRONMENT_NAME: ${COOLIFY_ENVIRONMENT_NAME:-production}
+
+      GITHUB_TOKEN: ${GITHUB_TOKEN:?}
+      GITHUB_OWNER: ${GITHUB_OWNER:?}
+      GITHUB_TEMPLATE_REPO: ${GITHUB_TEMPLATE_REPO:?}
+      GITHUB_REPO_PRIVATE: 'true'
+
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      # Der eine Bind-Mount: hier schreibt die Control Plane openapps.yaml,
+      # Coolifys Traefik liest es (ADR 0008). Nur auf **einem** Server tragfaehig.
+      - /data/coolify/proxy/dynamic:/traefik/dynamic
+    networks:
+      coolify:
+        aliases:
+          - openapps-control-plane
+      intern: {}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  deny-backend:
+    build:
+      context: ../..
+      dockerfile: infra/betrieb/deny-backend/Dockerfile
+    restart: unless-stopped
+    networks:
+      coolify:
+        aliases:
+          - openapps-deny-backend
+
+  postgres:
+    build:
+      context: ../..
+      dockerfile: infra/betrieb/postgres/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Der Superuser wird nur beim allerersten Start benutzt, um die Rolle der
+      # Control Plane anzulegen (postgres/10-owner.sh).
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      POSTGRES_DB: postgres
+      OPENAPPS_OWNER_PASSWORD: ${OPENAPPS_OWNER_PASSWORD:?}
+    volumes:
+      - openapps-postgres:/var/lib/postgresql/data
+    networks:
+      # Im Coolify-Netz, weil die Apps hier ihre Datenbank finden. Was eine App
+      # darin darf, begrenzt ihre Rolle (DoD 3), nicht das Netz.
+      coolify:
+        aliases:
+          - openapps-postgres
+      intern: {}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d openapps']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+networks:
+  # Das Netz von Coolifys Proxy und aller Apps. Gehoert Coolify, nicht uns.
+  coolify:
+    external: true
+  intern: {}
+
+volumes:
+  openapps-postgres: {}

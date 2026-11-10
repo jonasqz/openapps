@@ -1,7 +1,7 @@
 /**
  * Schema und DB-Rolle pro App, plus die Postgres-Seite der Freigaben.
  *
- * Alles laeuft ueber `provision_app_schema` aus Migration 0006 — die Funktion
+ * Alles laeuft ueber `provision_app_schema` (Migration 0006, ersetzt in 0013) — die Funktion
  * haelt fest, dass eine App-Rolle nie SUPERUSER und nie BYPASSRLS bekommt.
  * Hier im Code wird keine Rolle direkt angelegt, damit es nur eine Stelle gibt,
  * an der diese Regel steht.
@@ -39,18 +39,25 @@ export function createPgProvisioner(
       assertIdentifier(objectName);
       // USAGE auf dem Schema und SELECT auf genau einem Objekt — nicht auf
       // "ALL TABLES", damit eine spaetere Tabelle nicht stillschweigend
-      // mitfreigegeben wird.
-      await db.query(`GRANT USAGE ON SCHEMA "${schemaName}" TO "${grantee}"`);
-      await db.query(`GRANT SELECT ON "${schemaName}"."${objectName}" TO "${grantee}"`);
+      // mitfreigegeben wird. Ueber die Funktion aus Migration 0013, die als
+      // Eigentuemer des Schemas freigibt: Ein direktes GRANT der Control Plane
+      // waere ohne Superuser nur eine WARNING und haette nichts bewirkt.
+      await db.query(`SELECT app_select_grant($1, $2, $3, 'grant')`, [
+        schemaName,
+        objectName,
+        grantee,
+      ]);
     },
 
     async revokeSelect({ grantee, schemaName, objectName }) {
       assertIdentifier(grantee);
       assertIdentifier(schemaName);
       assertIdentifier(objectName);
-      await db.query(`REVOKE SELECT ON "${schemaName}"."${objectName}" FROM "${grantee}"`);
-      // USAGE bleibt stehen, solange eine andere Freigabe im selben Schema
-      // offen ist. Ohne SELECT ist USAGE allein wertlos.
+      await db.query(`SELECT app_select_grant($1, $2, $3, 'revoke')`, [
+        schemaName,
+        objectName,
+        grantee,
+      ]);
     },
   };
 }

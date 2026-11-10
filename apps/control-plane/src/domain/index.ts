@@ -60,6 +60,7 @@ export {
   type GatewayConfigReport,
   gatewayConfigFor,
   ownRouterProblems,
+  publishGatewayAtStartup,
 } from './deployments';
 export { grant, revoke, listGrants, canCallTool } from './grants';
 export {

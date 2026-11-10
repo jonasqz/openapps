@@ -1,4 +1,6 @@
-import { Pool, type PoolConfig } from 'pg';
+// `pg` ist CommonJS: Unter Node-ESM gibt es keinen benannten Export `Pool`,
+// nur den Default. Siehe apps/control-plane/src/infra/pg/pool.ts.
+import pg from 'pg';
 import { SdkConfigurationError } from './errors.js';
 
 /**
@@ -61,7 +63,7 @@ export interface AppPoolOptions {
  *
  * @throws {SdkConfigurationError} bei fehlender oder verdächtiger Konfiguration.
  */
-export function createAppPool(options: AppPoolOptions = {}): Pool {
+export function createAppPool(options: AppPoolOptions = {}): pg.Pool {
   const connectionString = options.connectionString ?? process.env[DATABASE_URL_ENV];
   const schema = options.schema ?? process.env[DATABASE_SCHEMA_ENV];
 
@@ -77,7 +79,7 @@ export function createAppPool(options: AppPoolOptions = {}): Pool {
   const safeSchema = assertSafeSchemaName(schema.trim());
   assertAppConnectionString(connectionString.trim(), options.expectedRole);
 
-  const config: PoolConfig = {
+  const config: pg.PoolConfig = {
     connectionString: connectionString.trim(),
     application_name: options.applicationName ?? safeSchema,
     // Startup-Option: gilt ab der ersten Anweisung dieser Verbindung.
@@ -87,7 +89,7 @@ export function createAppPool(options: AppPoolOptions = {}): Pool {
     connectionTimeoutMillis: options.connectionTimeoutMillis ?? 5_000,
   };
 
-  return new Pool(config);
+  return new pg.Pool(config);
 }
 
 /**

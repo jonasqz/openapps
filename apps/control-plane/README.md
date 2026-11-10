@@ -112,14 +112,15 @@ Variablen stehen in `.env.example`. Secrets kommen nie in den Code.
 
 ## Nachweise
 
-| Datei                             | Kriterium                                                                                                            |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `tests/create-app.spec.ts`        | DoD 1: Repo entsteht vor der Registrierung; scheitert es, wird nichts registriert                                    |
-| `tests/grants.spec.ts`            | DoD 3 im Rechtemodell: blockiert → Freigabe → lesbar → Widerruf → blockiert                                          |
-| `tests/grants-postgres.spec.ts`   | DoD 3 in Postgres: fremdes Schema gesperrt, `search_path`-Trick scheitert, keine Rolle mit `rolsuper`/`rolbypassrls` |
-| `tests/review-gate.spec.ts`       | DoD 4: eingebautes Secret blockiert; ein Claude-Report allein gibt nie frei                                          |
-| `tests/deployments.spec.ts`       | DoD 5: Rollback tauscht die Zeiger, Backend genau einmal gerufen                                                     |
-| `tests/gateway-signature.spec.ts` | die Naht zum SDK: `getUser` nimmt die Signatur der Control Plane an und lehnt jede Abweichung ab                     |
+| Datei                             | Kriterium                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/create-app.spec.ts`        | DoD 1: Repo entsteht vor der Registrierung; scheitert es, wird nichts registriert                                                                             |
+| `tests/grants.spec.ts`            | DoD 3 im Rechtemodell: blockiert → Freigabe → lesbar → Widerruf → blockiert                                                                                   |
+| `tests/grants-postgres.spec.ts`   | DoD 3 in Postgres, als Rolle ohne Superuser wie im Betrieb: fremdes Schema gesperrt, `search_path`-Trick scheitert, keine Rolle mit `rolsuper`/`rolbypassrls` |
+| `tests/review-gate.spec.ts`       | DoD 4: eingebautes Secret blockiert; ein Claude-Report allein gibt nie frei                                                                                   |
+| `tests/deployments.spec.ts`       | DoD 5: Rollback tauscht die Zeiger, Backend genau einmal gerufen                                                                                              |
+| `tests/gateway-start.spec.ts`     | ADR 0008: `openapps.yaml` entsteht beim Start, auch ohne App — sonst gaebe es keinen Login                                                                    |
+| `tests/gateway-signature.spec.ts` | die Naht zum SDK: `getUser` nimmt die Signatur der Control Plane an und lehnt jede Abweichung ab                                                              |
 
 ### Tests gegen eine echte Postgres-Instanz
 

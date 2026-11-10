@@ -38,6 +38,7 @@ import {
   freshDatabase,
   postgresReachable,
   sqlError,
+  OWNER_DATABASE_URL,
   TEST_DATABASE_URL,
   type PgFixture,
 } from './pg-helpers';
@@ -47,7 +48,7 @@ const reachable = await postgresReachable();
 
 /** Host-Teil der DSN, die eine App bekommt — aus der Test-URL abgeleitet. */
 const appDatabaseHost = (() => {
-  const url = new URL(TEST_DATABASE_URL);
+  const url = new URL(OWNER_DATABASE_URL);
   return `${url.host}${url.pathname}`;
 })();
 
@@ -71,7 +72,7 @@ describe.skipIf(!reachable)('Postgres setzt die Schema-Trennung durch', () => {
       gatewaySettings: testGatewaySettings(),
       repositories: createRecordingRepositoryBackend(),
       reviewGate: createPipeline([]),
-      // Der echte Provisioner: er ruft provision_app_schema aus Migration 0006.
+      // Der echte Provisioner: er ruft provision_app_schema (0006, ersetzt in 0013).
       provisioner: createPgProvisioner(db.pool, {
         appDsnTemplate: ({ role, password }) =>
           `postgres://${role}:${encodeURIComponent(password)}@${appDatabaseHost}`,
@@ -115,6 +116,37 @@ describe.skipIf(!reachable)('Postgres setzt die Schema-Trennung durch', () => {
       `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'app\\_%' ORDER BY nspname`,
     );
     expect(schemas.rows.map((r) => r.nspname)).toEqual(['app_crm', 'app_projects']);
+  });
+
+  it('laeuft selbst ohne Superuser — so wie im Betrieb', async () => {
+    // Die Rolle, mit der die Control Plane hier arbeitet. Liefe sie als
+    // Superuser, waeren die Befunde aus Migration 0013 wieder unsichtbar.
+    const { rows } = await db.pool.query<{ rolsuper: boolean; rolbypassrls: boolean }>(
+      `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`,
+    );
+    expect(rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+  });
+
+  it('legt eine App zweimal an (zweiter Deploy) und bricht ab, wenn ihre Rolle aufgeweicht wurde', async () => {
+    const projects = await setupApp('projects');
+    expect(projects).toBeDefined();
+    const app = await ctx.apps.findByName('projects');
+    if (app === null) throw new Error('App fehlt');
+
+    // Zweiter Deploy: setzt das Passwort neu. Ohne Superuser ging genau das
+    // vor 0013 schief.
+    await expect(
+      ctx.provisioner.provision({ schemaName: app.schemaName, dbRole: app.dbRole }),
+    ).resolves.toBeDefined();
+
+    // Jemand hat der Rolle von Hand BYPASSRLS gegeben. Die Control Plane
+    // kann das nicht zuruecknehmen (nur ein Superuser darf es) — also darf
+    // sie die Rolle auch nicht weiter ausgeben.
+    const superuser = db.connectAs(TEST_DATABASE_URL);
+    await superuser.query(`ALTER ROLE "${app.dbRole}" BYPASSRLS`);
+    await expect(
+      ctx.provisioner.provision({ schemaName: app.schemaName, dbRole: app.dbRole }),
+    ).rejects.toThrow(/BYPASSRLS/);
   });
 
   it('blockiert → Freigabe → lesbar → Widerruf → blockiert, in Postgres selbst', async () => {

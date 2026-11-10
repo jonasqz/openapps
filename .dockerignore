@@ -1,0 +1,16 @@
+# Was nicht ins Image gehoert. Vor allem: keine .env, kein node_modules vom
+# Mac (falsche Plattform), kein Git-Verlauf.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/coverage
+**/*.tsbuildinfo
+.git
+.env
+.env.*
+!.env.example
+.DS_Store
+.claude
+docs
+infra/app-urls.txt

@@ -25,6 +25,12 @@ Stand: offen — Test existiert noch nicht.
 - Nach `revoke` schlägt derselbe Zugriff wieder fehl, ohne Neustart und ohne
   neues Deploy.
 - Die Rollen tragen kein `BYPASSRLS` und sind kein Superuser.
+- Das alles gilt, während die Control Plane selbst **ohne** Superuser läuft,
+  mit derselben Rolle wie im Betrieb (`CREATEROLE`, sonst nichts). Bis
+  Migration 0013 liefen die Tests als Superuser und haben deshalb drei Fehler
+  nicht gesehen: Ohne Superuser scheiterte das Anlegen jeder App, jeder zweite
+  Deploy, und eine Freigabe zwischen Apps war nur eine WARNING ohne Wirkung.
+  Der Test `laeuft selbst ohne Superuser` hält fest, dass es so bleibt.
 
 ## Was der Test nicht beweist
 

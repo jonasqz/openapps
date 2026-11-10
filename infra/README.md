@@ -9,16 +9,17 @@ Control Plane schreibt ihre Traefik-Router selbst). Eine eigene **statische**
 Traefik-Konfiguration gibt es nicht mehr; sie gehoert Coolify, und wir fassen
 sie nicht an.
 
-| Pfad | Was |
-| --- | --- |
-| `scripts/check-auth.sh` | Nachweis fuer DoD 2: kein App-Pfad ohne Session erreichbar, vor und nach jedem Coolify-Update |
-| `scripts/traefik-guard.py` | Die Auswertung der Traefik-API fuer `check-auth.sh`: Router, Middlewares, `forwardedHeaders` |
-| `app-urls.txt.example` | Vorlage fuer die Adressliste, die das Skript prueft (eine Domain, ein Pfad je App — ADR 0007) |
+| Pfad                                    | Was                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/check-auth.sh`                 | Nachweis fuer DoD 2: kein App-Pfad ohne Session erreichbar, vor und nach jedem Coolify-Update                            |
+| `scripts/traefik-guard.py`              | Die Auswertung der Traefik-API fuer `check-auth.sh`: Router, Middlewares, `forwardedHeaders`                             |
+| `app-urls.txt.example`                  | Vorlage fuer die Adressliste, die das Skript prueft (eine Domain, ein Pfad je App — ADR 0007)                            |
 | `traefik/dynamic/openapps.example.yaml` | **Beispiel**, nicht zum Ausrollen: was der Generator ausgibt. Auf dem Host schreibt die Control Plane diese Datei selbst |
-| `traefik/deny-backend/` | nginx, das auf jede Anfrage 403 antwortet. Das Einzige hier, was auf einen Host gehoert |
-| `traefik/docker-compose.yml` | Lokaler Stapel fuer den Nachweis: Traefik in Coolifys statischer Form, Deny-Backend, Auth-Stub, drei Dummy-Apps |
-| `traefik/local/` | Nur fuer den lokalen Lauf: Generator-Aufruf, Stub, Dummy-App, Wegwerf-Zertifikat, `nachweis.sh` |
-| `traefik/.env.example` | Nur Ports fuer den lokalen Stapel. Keine Secrets |
+| `traefik/deny-backend/`                 | nginx, das auf jede Anfrage 403 antwortet. Das Einzige hier, was auf einen Host gehoert                                  |
+| `traefik/docker-compose.yml`            | Lokaler Stapel fuer den Nachweis: Traefik in Coolifys statischer Form, Deny-Backend, Auth-Stub, drei Dummy-Apps          |
+| `traefik/local/`                        | Nur fuer den lokalen Lauf: Generator-Aufruf, Stub, Dummy-App, Wegwerf-Zertifikat, `nachweis.sh`                          |
+| `traefik/.env.example`                  | Nur Ports fuer den lokalen Stapel. Keine Secrets                                                                         |
+| `betrieb/`                              | Der Stapel fuer den Server: Control Plane, Deny-Backend, Postgres als eine Coolify-Ressource, plus Anleitung             |
 
 ## Die groesste Annahme
 
@@ -161,6 +162,9 @@ Startup-Check der Control Plane; `tests/traefik-guard-skript.spec.ts` haelt
 beide Fassungen auf demselben Urteil.
 
 ## Was auf dem Host noch gebraucht wird
+
+Der fertige Stapel dafuer steht in [`betrieb/`](betrieb/README.md): Dienst-
+definition fuer Coolify, Dockerfiles und die Schritte fuer den ersten Start.
 
 - Die Control Plane laeuft auf **demselben** Server wie Coolifys Proxy, und
   `/data/coolify/proxy/dynamic` ist in ihre Dienstdefinition gemountet (im

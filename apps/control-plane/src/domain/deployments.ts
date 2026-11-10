@@ -310,6 +310,23 @@ async function publishGatewayConfig(ctx: DomainContext): Promise<GatewayDynamicC
 }
 
 /**
+ * Schreibt die Gateway-Konfiguration beim Start der Control Plane — dieselbe
+ * Funktion wie nach jedem Deploy, nur ohne Deploy davor.
+ *
+ * Ohne diesen Aufruf gaebe es auf einem frischen Server keinen Router fuer die
+ * Control Plane: Die Datei entstand bisher nur bei einem App-Deploy, ein
+ * Deploy braucht eine Anmeldung, und die Anmeldung braucht den Router. Ein
+ * Henne-Ei-Problem, das erst auf dem Zielserver aufgefallen waere.
+ *
+ * Auch nach einem Neustart ist das richtig: Die Datei wird aus der Datenbank
+ * neu erzeugt, also aus dem Stand, den die Control Plane fuer wahr haelt —
+ * nicht aus dem, was zufaellig noch auf dem Host liegt.
+ */
+export async function publishGatewayAtStartup(ctx: DomainContext): Promise<GatewayDynamicConfig> {
+  return publishGatewayConfig(ctx);
+}
+
+/**
  * Die Messung nach dem Deploy. Zwei Fragen, und beide kann nur diese Stelle
  * beantworten:
  *
