@@ -12,6 +12,13 @@ export interface CoolifyConfig {
   readonly projectUuid: string;
   readonly serverUuid: string;
   readonly environmentName: string;
+  /**
+   * Die in Coolify verbundene GitHub-App, ueber die private App-Repos geklont
+   * werden. Fehlt sie, gehen nur oeffentliche Repos.
+   */
+  readonly githubAppUuid?: string;
+  /** Zweig, den Coolify klont. Gebaut wird immer ein festgenagelter Commit. */
+  readonly gitBranch: string;
   readonly requestTimeoutMs: number;
 }
 
@@ -22,6 +29,13 @@ export function coolifyConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Cool
     projectUuid: required(env, 'COOLIFY_PROJECT_UUID'),
     serverUuid: required(env, 'COOLIFY_SERVER_UUID'),
     environmentName: env.COOLIFY_ENVIRONMENT_NAME ?? 'production',
+    ...(env.COOLIFY_GITHUB_APP_UUID === undefined || env.COOLIFY_GITHUB_APP_UUID === ''
+      ? {}
+      : { githubAppUuid: env.COOLIFY_GITHUB_APP_UUID }),
+    gitBranch:
+      env.COOLIFY_GIT_BRANCH === undefined || env.COOLIFY_GIT_BRANCH === ''
+        ? 'main'
+        : env.COOLIFY_GIT_BRANCH,
     requestTimeoutMs: Number(env.COOLIFY_TIMEOUT_MS ?? '30000'),
   };
 }

@@ -21,9 +21,12 @@ import { appManifestSchema, manifestSourceSchema } from '@openapps/app-manifest'
 import { z } from 'zod';
 import {
   addGroupMember,
+  createAgentIdentity,
   createApp,
   createGroup,
+  disableAgentIdentity,
   grant,
+  listAgentIdentities,
   listApps,
   listGrants,
   listGroupMembers,
@@ -66,8 +69,9 @@ const subjectKind = z.enum(['user', 'group', 'app', 'agent']);
 const verb = z.enum(['read', 'write', 'execute']);
 // `group` seit Migration 0011: Eine Gruppe ist Subjekt und Ressource. Die
 // Liste muss dieselbe sein wie `ResourceKind` in der Domaene — sonst kann ein
-// Agent ein Recht nicht vergeben, das das Modell kennt.
-const resourceKind = z.enum(['app', 'table', 'view', 'tool', 'group']);
+// Agent ein Recht nicht vergeben, das das Modell kennt. `agent` seit Migration
+// 0014: wer Agent-Identitaeten anlegen und sperren darf, ist eine Freigabe.
+const resourceKind = z.enum(['app', 'table', 'view', 'tool', 'group', 'agent']);
 
 /**
  * Das Manifest wird mit dem maßgeblichen Schema geprueft, nicht mit einem
@@ -129,12 +133,12 @@ export const requestDeployTool = defineTool({
   name: 'request_deploy',
   title: 'Deploy anfragen',
   description:
-    'Startet das Review-Gate (gitleaks, semgrep, UI-Linter, Tool-Paritaet, Manifest-Abgleich, Claude-Report) und deployt nur bei Freigabe. Ein blockierender Befund eines Scanners verhindert den Deploy; der Claude-Report allein gibt nie frei.',
+    'Deployt einen gepushten Commit: Die Plattform holt ihn selbst aus dem Repo der App (repoDir nur fuer lokale Laeufe angeben). Startet das Review-Gate (gitleaks, semgrep, UI-Linter, Tool-Paritaet, Manifest-Abgleich, Claude-Report) und deployt nur bei Freigabe. Ein blockierender Befund eines Scanners verhindert den Deploy; der Claude-Report allein gibt nie frei.',
   schema: z.object({
     app: z.string(),
     version: z.string(),
     gitSha: z.string(),
-    repoDir: z.string(),
+    repoDir: z.string().optional(),
     manifest: appManifestSchema.optional(),
     uiActions: z.array(z.string()).optional(),
     codeFacts: codeFactsSchema.optional(),
@@ -145,7 +149,7 @@ export const requestDeployTool = defineTool({
       appIdOrName: input.app,
       version: input.version,
       gitSha: input.gitSha,
-      repoDir: input.repoDir,
+      ...(input.repoDir === undefined ? {} : { repoDir: input.repoDir }),
       ...(input.manifest === undefined ? {} : { manifest: input.manifest }),
       ...(input.uiActions === undefined ? {} : { uiActions: input.uiActions }),
       ...(input.codeFacts === undefined ? {} : { codeFacts: input.codeFacts }),
@@ -174,7 +178,7 @@ export const grantTool = defineTool({
   name: 'grant',
   title: 'Freigabe vergeben',
   description:
-    'Vergibt genau ein Recht: Subjekt (Mensch, Gruppe, App, Agent) darf ein Verb (read, write, execute) auf einer Ressource (App, Tabelle, View, Tool). Bei Tabellen und Views zwischen Apps wird zusaetzlich der Postgres-Grant gesetzt.',
+    'Vergibt genau ein Recht: Subjekt (Mensch, Gruppe, App, Agent) darf ein Verb (read, write, execute) auf einer Ressource (App, Tabelle, View, Tool, Gruppe, Agent). Bei Tabellen und Views zwischen Apps wird zusaetzlich der Postgres-Grant gesetzt.',
   schema: z.object({
     subjectKind,
     subjectId: z.string(),
@@ -324,8 +328,64 @@ export const revokeGroupMemberTool = defineTool({
 });
 
 /**
- * Die sechs Tools des Briefs, `list_grants` zum Nachsehen und die
- * Gruppenpflege. Mehr gibt es nicht: jede weitere Plattform-Aktion entsteht
+ * Agent-Identitaeten. Ohne diese drei Tools gaebe es einen Agent nur per
+ * SQL-Insert — und damit eine Aktion, die kein Agent ausfuehren kann
+ * (CLAUDE.md, Grundsatz 1). Den allerersten legt ein Mensch ueber die Seite
+ * `/agents` an; jeder weitere kann von einem Agent kommen, der `write` auf
+ * `agent:*` hat.
+ */
+export const listAgentsTool = defineTool({
+  name: 'list_agents',
+  title: 'Agents auflisten',
+  description:
+    'Listet die Agent-Identitaeten, auf die der Aufrufer eine Lese-Freigabe hat (read auf agent:<name> oder agent:*). Secrets stehen nie in der Liste — gespeichert ist nur ihr Hash.',
+  schema: z.object({}),
+  async handler({ ctx, actor, correlationId }) {
+    const agents = await listAgentIdentities(ctx, {
+      actor,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+    return { agents };
+  },
+});
+
+export const createAgentTool = defineTool({
+  name: 'create_agent',
+  title: 'Agent anlegen',
+  description:
+    'Legt eine Agent-Identitaet an und gibt ihr Token zurueck — genau dieses eine Mal, danach kennt es niemand mehr. Braucht write auf agent:*. Die neue Identitaet darf nichts: Rechte bekommt sie erst ueber grant mit subjectKind agent und dem Namen als subjectId. Das Token gehoert in die Env des Agents, nicht in ein Repo.',
+  schema: z.object({
+    name: z.string(),
+    displayName: z.string().optional(),
+  }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return createAgentIdentity(ctx, {
+      actor,
+      name: input.name,
+      ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const disableAgentTool = defineTool({
+  name: 'disable_agent',
+  title: 'Agent sperren',
+  description:
+    'Sperrt eine Agent-Identitaet. Braucht write auf diesen Agent. Wirkt beim naechsten Aufruf: Das Token wird bei jedem Aufruf geprueft, nicht gecacht. Der Name bleibt vergeben, damit das Audit-Log eindeutig bleibt; ein neuer Zugang braucht einen neuen Namen.',
+  schema: z.object({ name: z.string() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return disableAgentIdentity(ctx, {
+      actor,
+      name: input.name,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+/**
+ * Die sechs Tools des Briefs, `list_grants` zum Nachsehen, die
+ * Gruppenpflege und die Agent-Identitaeten. Mehr gibt es nicht: jede weitere Plattform-Aktion entsteht
  * erst als Domaenenfunktion.
  */
 export const platformTools: readonly AnyToolDefinition[] = [
@@ -341,6 +401,9 @@ export const platformTools: readonly AnyToolDefinition[] = [
   listGroupMembersTool,
   grantGroupMemberTool,
   revokeGroupMemberTool,
+  listAgentsTool,
+  createAgentTool,
+  disableAgentTool,
 ];
 
 export interface ToolRunResult {

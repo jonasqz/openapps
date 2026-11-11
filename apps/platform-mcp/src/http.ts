@@ -3,28 +3,28 @@
  * Start ueber HTTP — der Weg fuer Agents, die sich als eigener OAuth-Client
  * anmelden.
  *
- * Die Identitaet kommt pro Aufruf aus `Authorization: Basic <clientId:secret>`
- * und wird bei **jedem** Aufruf geprueft. Kein Token-Cache, keine Session:
- * wird ein Agent gesperrt, ist er beim naechsten Aufruf draussen.
+ * Die Identitaet kommt pro Aufruf aus dem `Authorization`-Header
+ * (`src/credentials.ts`) und wird bei **jedem** Aufruf geprueft. Kein
+ * Token-Cache, keine Session: wird ein Agent gesperrt, ist er beim naechsten
+ * Aufruf draussen.
+ *
+ * Von aussen erreichbar ist dieser Server nicht direkt, sondern ueber
+ * `https://<CONTROL_PLANE_HOST>/mcp` — die Control Plane reicht den Aufruf
+ * durch (ADR 0009). Deshalb hoert er standardmaessig nur auf 127.0.0.1.
  */
 
 import { createServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { platformContext } from './context';
+import { credentialsFrom } from './credentials';
 import { actorForClient, UnauthenticatedError } from './identity';
 import { createHttpInvoker } from './invoker';
 import { createPlatformServer } from './server';
 
 const PORT = Number(process.env.PLATFORM_MCP_PORT ?? '3001');
 
-function credentialsFrom(header: string | undefined): { id: string; secret: string } | null {
-  if (header === undefined || !header.toLowerCase().startsWith('basic ')) return null;
-  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
-  const separator = decoded.indexOf(':');
-  if (separator === -1) return null;
-  return { id: decoded.slice(0, separator), secret: decoded.slice(separator + 1) };
-}
+const HOST = process.env.PLATFORM_MCP_HOST ?? '127.0.0.1';
 
 const masterSecret = process.env.OPENAPPS_AUTH_MASTER_SECRET;
 if (masterSecret === undefined) {
@@ -33,9 +33,15 @@ if (masterSecret === undefined) {
 const invoker = createHttpInvoker({ authMasterSecret: masterSecret });
 
 const httpServer = createServer(async (request, response) => {
+  // Lebenszeichen fuer das Startskript — ohne Datenbank, ohne Auskunft.
+  if (request.method === 'GET' && request.url === '/healthz') {
+    response.writeHead(200, { 'content-type': 'text/plain' }).end('ok');
+    return;
+  }
+
   const credentials = credentialsFrom(request.headers.authorization);
   if (credentials === null) {
-    response.writeHead(401, { 'www-authenticate': 'Basic realm="openapps"' }).end();
+    response.writeHead(401, { 'www-authenticate': 'Bearer realm="openapps"' }).end();
     return;
   }
 
@@ -60,6 +66,6 @@ const httpServer = createServer(async (request, response) => {
   }
 });
 
-httpServer.listen(PORT, () => {
-  process.stderr.write(`platform-mcp hoert auf Port ${PORT}\n`);
+httpServer.listen(PORT, HOST, () => {
+  process.stderr.write(`platform-mcp hoert auf ${HOST}:${PORT}\n`);
 });

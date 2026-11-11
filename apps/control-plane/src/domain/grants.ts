@@ -39,7 +39,8 @@ async function requireAuthorityOver(
   // darf auch Rechte auf sie weitergeben — dieselbe Regel wie oben, nur ohne
   // den Umweg ueber eine besitzende App. Ohne diesen Zweig landete
   // `group:marketing` in `parseObjectResourceId` und waere ein Formatfehler.
-  if (resource.kind === 'group') {
+  // Dasselbe gilt fuer eine Agent-Identitaet (Migration 0014).
+  if (resource.kind === 'group' || resource.kind === 'agent') {
     await requirePermission(ctx, actor, verb, resource);
     return;
   }

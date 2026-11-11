@@ -71,48 +71,60 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
 
   return {
     async createApp(spec: BackendAppSpec): Promise<{ backendRef: string }> {
-      const created = await call<CoolifyApplication>('/applications/public', {
-        method: 'POST',
-        body: {
-          project_uuid: config.projectUuid,
-          server_uuid: config.serverUuid,
-          environment_name: config.environmentName,
-          name: spec.appName,
-          git_repository: spec.gitUrl,
-          git_branch: spec.gitRef,
-          build_pack: 'nixpacks',
-          // --- Die vier Zeilen, auf die es nach ADR 0008 ankommt ----------
-          //
-          // 1. **Keine Domain, und zwar ausdruecklich.** `autogenerate_domain`
-          //    ist in Coolifys API default `true`
-          //    (`ApplicationsController.php:1690`): Wer `domains` weglaesst,
-          //    bekommt trotzdem eine sslip.io-Domain — und mit ihr einen
-          //    Router **ohne** unsere Middlewares. Das Weglassen von `domains`
-          //    allein reicht also nicht.
-          autogenerate_domain: false,
-          // 2. Der Netz-Alias, unter dem unser Dienst die App anspricht. Der
-          //    Containername taugt dafuer nicht: Default ist
-          //    `<uuid>-<Zeitstempel>`, er aendert sich bei jedem Deploy
-          //    (`docker.php:670-686`).
-          custom_network_aliases: spec.networkAlias,
-          // 3. Zweiter Halt: ein stabiler Containername mit demselben Wert.
-          //    Dann traegt auch der Containername den Alias, falls
-          //    `custom_network_aliases` in einer Coolify-Fassung einmal nicht
-          //    greift.
-          is_consistent_container_name_enabled: true,
-          custom_internal_name: spec.networkAlias,
-          // 4. Kein veroeffentlichter Host-Port. Leer heisst: der Container ist
-          //    nur im Docker-Netz erreichbar
-          //    (`ApplicationDeploymentJob.php:4785`, `:4902-4903`). Ein Wert
-          //    hier macht die App am Gateway vorbei erreichbar und das
-          //    Signatur-Modell aus Spec 3.2 wertlos.
-          ports_mappings: '',
-          // Der Port, auf dem die App lauscht — fuer Coolifys Healthcheck und
-          // sein `EXPOSE`. Unser Dienst nennt ihn ohnehin selbst in der URL.
-          ports_exposes: String(spec.port),
-          instant_deploy: false,
+      // Ein privates Repo kann Coolify nur ueber eine verbundene GitHub-App
+      // klonen. Ist keine genannt, bleibt der oeffentliche Weg — er scheitert
+      // an einem privaten Repo erst beim Klonen, deshalb steht der Hinweis in
+      // `infra/betrieb/README.md` und nicht hier.
+      const viaGithubApp = config.githubAppUuid !== undefined;
+      const created = await call<CoolifyApplication>(
+        viaGithubApp ? '/applications/private-github-app' : '/applications/public',
+        {
+          method: 'POST',
+          body: {
+            project_uuid: config.projectUuid,
+            server_uuid: config.serverUuid,
+            environment_name: config.environmentName,
+            name: spec.appName,
+            ...(viaGithubApp ? { github_app_uuid: config.githubAppUuid } : {}),
+            git_repository: spec.gitUrl,
+            // Ein Zweig, kein Tag: Geklont wird der Zweig, gebaut wird der
+            // Commit, den `deploy` vorher festnagelt. Der Tag aus dem Register
+            // (`spec.gitRef`) existiert in einem frischen Repo noch gar nicht.
+            git_branch: config.gitBranch,
+            build_pack: 'nixpacks',
+            // --- Die vier Zeilen, auf die es nach ADR 0008 ankommt ----------
+            //
+            // 1. **Keine Domain, und zwar ausdruecklich.** `autogenerate_domain`
+            //    ist in Coolifys API default `true`
+            //    (`ApplicationsController.php:1690`): Wer `domains` weglaesst,
+            //    bekommt trotzdem eine sslip.io-Domain — und mit ihr einen
+            //    Router **ohne** unsere Middlewares. Das Weglassen von `domains`
+            //    allein reicht also nicht.
+            autogenerate_domain: false,
+            // 2. Der Netz-Alias, unter dem unser Dienst die App anspricht. Der
+            //    Containername taugt dafuer nicht: Default ist
+            //    `<uuid>-<Zeitstempel>`, er aendert sich bei jedem Deploy
+            //    (`docker.php:670-686`).
+            custom_network_aliases: spec.networkAlias,
+            // 3. Zweiter Halt: ein stabiler Containername mit demselben Wert.
+            //    Dann traegt auch der Containername den Alias, falls
+            //    `custom_network_aliases` in einer Coolify-Fassung einmal nicht
+            //    greift.
+            is_consistent_container_name_enabled: true,
+            custom_internal_name: spec.networkAlias,
+            // 4. Kein veroeffentlichter Host-Port. Leer heisst: der Container ist
+            //    nur im Docker-Netz erreichbar
+            //    (`ApplicationDeploymentJob.php:4785`, `:4902-4903`). Ein Wert
+            //    hier macht die App am Gateway vorbei erreichbar und das
+            //    Signatur-Modell aus Spec 3.2 wertlos.
+            ports_mappings: '',
+            // Der Port, auf dem die App lauscht — fuer Coolifys Healthcheck und
+            // sein `EXPOSE`. Unser Dienst nennt ihn ohnehin selbst in der URL.
+            ports_exposes: String(spec.port),
+            instant_deploy: false,
+          },
         },
-      });
+      );
       if (created.uuid === undefined) {
         throw new Error('Deploy-Backend lieferte keine Referenz fuer die neue App');
       }
@@ -126,7 +138,11 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
         Object.entries(env).map(([key, value]) =>
           call(`/applications/${backendRef}/envs`, {
             method: 'POST',
-            body: { key, value, is_preview: false, is_build_time: false },
+            // `is_buildtime` bleibt beim Default `true`: Next backt
+            // OPENAPPS_APP_BASE_PATH in den Build (ADR 0007). Das Feld hiess
+            // hier frueher `is_build_time` — die API weist unbekannte Felder
+            // mit 422 ab, der Aufruf lief also nie durch.
+            body: { key, value, is_preview: false },
           }),
         ),
       );
@@ -141,6 +157,13 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
     },
 
     async deploy(request: BackendDeployRequest): Promise<BackendDeployResult> {
+      // Gebaut wird genau der Commit, den das Review-Gate gesehen hat — nicht
+      // „was gerade auf dem Zweig liegt". Sonst koennte zwischen Pruefung und
+      // Build ein ungepruefter Commit dazwischenrutschen.
+      await call(`/applications/${request.backendRef}`, {
+        method: 'PATCH',
+        body: { git_commit_sha: request.gitSha },
+      });
       const result = await call<CoolifyDeployment>(
         `/deploy?uuid=${encodeURIComponent(request.backendRef)}&force=false`,
         { method: 'GET' },

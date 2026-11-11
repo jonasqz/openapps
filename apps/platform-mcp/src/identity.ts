@@ -4,8 +4,8 @@
  * gilt fuer ihn dasselbe Rechtemodell, ohne Sonderfall.
  */
 
-import { createHash, timingSafeEqual } from 'node:crypto';
-import type { Actor, DomainContext } from '@openapps/control-plane/domain';
+import { timingSafeEqual } from 'node:crypto';
+import { hashAgentSecret, type Actor, type DomainContext } from '@openapps/control-plane/domain';
 
 export class UnauthenticatedError extends Error {
   constructor(message = 'unbekannter oder gesperrter Client') {
@@ -14,10 +14,12 @@ export class UnauthenticatedError extends Error {
   }
 }
 
-/** Secrets werden nur als Hash gespeichert und nur als Hash verglichen. */
-export function hashClientSecret(secret: string): string {
-  return createHash('sha256').update(secret).digest('hex');
-}
+/**
+ * Secrets werden nur als Hash gespeichert und nur als Hash verglichen. Die
+ * Funktion selbst liegt in der Domaene — dort entsteht das Secret, und
+ * Anlegen und Pruefen duerfen nicht auseinanderlaufen.
+ */
+export const hashClientSecret = hashAgentSecret;
 
 export async function actorForClient(
   ctx: DomainContext,

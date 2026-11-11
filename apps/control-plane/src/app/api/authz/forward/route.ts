@@ -46,6 +46,10 @@ const PUBLIC_PREFIXES = [
   '/api/authz/forward',
   '/healthz',
   '/_next/static/',
+  // Der Plattform-MCP (ADR 0009). Ohne Session erreichbar, aber nicht ohne
+  // Ausweis: Ein Agent hat keinen Browser und keinen Cookie, er weist sich
+  // mit seinem Token aus — und das prueft der MCP bei jedem Aufruf selbst.
+  '/mcp',
 ] as const;
 
 export function isPublicControlPlanePath(path: string): boolean {

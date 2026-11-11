@@ -22,6 +22,10 @@ export interface GitHubConfig {
   /** Tag, auf dem ein frisches Repo steht. */
   readonly initialTag: string;
   readonly requestTimeoutMs: number;
+  /** Zeitgrenze fuer das Holen eines Commits (Review-Gate). */
+  readonly checkoutTimeoutMs: number;
+  /** Obergrenze fuer das Archiv eines Commits. Ein App-Repo ist klein. */
+  readonly checkoutMaxBytes: number;
 }
 
 export function gitHubConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GitHubConfig {
@@ -33,6 +37,8 @@ export function gitHubConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GitHu
     private: (env.GITHUB_REPO_PRIVATE ?? 'true') !== 'false',
     initialTag: env.GITHUB_INITIAL_TAG ?? 'v0.0.0',
     requestTimeoutMs: Number(env.GITHUB_TIMEOUT_MS ?? '30000'),
+    checkoutTimeoutMs: Number(env.GITHUB_CHECKOUT_TIMEOUT_MS ?? '60000'),
+    checkoutMaxBytes: Number(env.GITHUB_CHECKOUT_MAX_BYTES ?? String(100 * 1024 * 1024)),
   };
 }
 

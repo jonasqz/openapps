@@ -315,6 +315,11 @@ describe('Forward-Auth mit Session', () => {
     expect(isPublicControlPlanePath('/login/%2e%2e/grants')).toBe(false);
     expect(isPublicControlPlanePath('/_next/static/../../grants')).toBe(false);
     expect(isPublicControlPlanePath('grants')).toBe(false);
+    // Der Plattform-MCP: genau dieser Pfad, kein Nachbar und kein Umweg.
+    expect(isPublicControlPlanePath('/mcp')).toBe(true);
+    expect(isPublicControlPlanePath('/mcp-admin')).toBe(false);
+    expect(isPublicControlPlanePath('/mcp/../grants')).toBe(false);
+    expect(isPublicControlPlanePath('/mcp/../api/agents')).toBe(false);
   });
 
   it('laesst die Control Plane mit Session durch, auch ohne App-Freigabe', async () => {

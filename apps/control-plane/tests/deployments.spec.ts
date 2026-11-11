@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp, requestDeploy, rollback } from '../src/domain';
 import { ConflictError } from '../src/domain/errors';
 import { createDefaultPipeline } from '../src/domain/review-gate';
-import { createCleanScanner } from '../src/infra/memory/doubles';
+import { createCleanScanner, createRecordingRepositoryBackend } from '../src/infra/memory/doubles';
 import {
   admin,
   createHarness,
@@ -84,6 +84,71 @@ describe('Rollback', () => {
   });
 
   it.todo('Rollback dauert auf einer echten Instanz unter 2 Minuten (Demo mit Mitschnitt)');
+});
+
+describe('Deploy ohne Arbeitskopie des Aufrufers', () => {
+  it('holt den Commit aus dem Repo im Register und raeumt danach auf', async () => {
+    const harness = await setup();
+    const app = await createApp(harness.ctx, {
+      actor: admin,
+      name: 'headless',
+      manifest: manifest('headless'),
+    });
+
+    const outcome = await requestDeploy(harness.ctx, {
+      actor: admin,
+      appIdOrName: app.name,
+      version: '1.0.0',
+      gitSha: 'aaaaaa1',
+      manifest: manifest('headless', '1.0.0'),
+      codeFacts: { tables: ['items'], tools: ['headless.list'], envVars: [] },
+    });
+
+    expect(outcome.deployment.status).toBe('live');
+    // Die URL stammt aus dem Register — der Aufrufer kann keine andere nennen.
+    expect(harness.repositories.checkouts).toEqual([{ gitUrl: app.source.git, gitSha: 'aaaaaa1' }]);
+    expect(harness.repositories.disposed).toEqual(['/checkout.test/aaaaaa1']);
+  });
+
+  it('holt nichts, wenn eine Arbeitskopie mitgegeben ist', async () => {
+    const harness = await setup();
+    const app = await createApp(harness.ctx, {
+      actor: admin,
+      name: 'lokal',
+      manifest: manifest('lokal'),
+    });
+    await deploy(harness, app.name, '1.0.0', 'aaaaaa1');
+
+    expect(harness.repositories.checkouts).toEqual([]);
+  });
+
+  it('deployt nicht, wenn der Commit nicht zu holen ist', async () => {
+    const harness = await setup();
+    const app = await createApp(harness.ctx, {
+      actor: admin,
+      name: 'ungepusht',
+      manifest: manifest('ungepusht'),
+    });
+    const ctx = {
+      ...harness.ctx,
+      repositories: createRecordingRepositoryBackend({ failCheckoutWith: '404 vom Repo-Backend' }),
+    };
+
+    await expect(
+      requestDeploy(ctx, {
+        actor: admin,
+        appIdOrName: app.name,
+        version: '1.0.0',
+        gitSha: 'aaaaaa1',
+        manifest: manifest('ungepusht', '1.0.0'),
+      }),
+    ).rejects.toThrow(/liess sich nicht holen.*404/);
+
+    // Ohne Arbeitskopie hat das Gate nichts geprueft — also laeuft auch nichts.
+    expect(harness.backend.calls.filter((call) => call.method === 'deploy')).toEqual([]);
+    const [versuch] = await harness.ctx.deployments.listByApp(app.id);
+    expect(versuch?.status).toBe('failed');
+  });
 });
 
 async function setup() {

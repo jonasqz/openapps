@@ -79,7 +79,7 @@ export default async function AppsPage() {
       />
       <p>
         Zurücksetzen, Deployen und Freigeben laufen über den Plattform-MCP — dort existiert jede
-        Aktion zuerst. <a href="/grants">Freigaben ansehen</a>
+        Aktion zuerst. <a href="/grants">Freigaben ansehen</a> · <a href="/agents">Agents</a>
       </p>
     </section>
   );

@@ -244,11 +244,25 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
     async findByName(name) {
       return [...agents.values()].find((a) => a.name === name) ?? null;
     },
+    // Wie in Postgres: Eine gesperrte Identitaet ist fuer die Anmeldung nicht
+    // mehr da. `findByName` und `list` zeigen sie weiter.
     async findByClientId(clientId) {
-      return [...agents.values()].find((a) => a.oauthClientId === clientId) ?? null;
+      return (
+        [...agents.values()].find((a) => a.oauthClientId === clientId && a.disabledAt === null) ??
+        null
+      );
     },
     async secretHashOf(clientId) {
+      const identity = [...agents.values()].find((a) => a.oauthClientId === clientId);
+      if (identity === undefined || identity.disabledAt !== null) return null;
       return agentSecrets.get(clientId) ?? null;
+    },
+    async disable(name, at) {
+      const identity = [...agents.values()].find((a) => a.name === name);
+      if (identity === undefined) throw new Error(`Agent "${name}" gibt es nicht`);
+      const disabled = { ...identity, disabledAt: identity.disabledAt ?? at };
+      agents.set(identity.id, disabled);
+      return disabled;
     },
     async touch(clientId, at) {
       const identity = [...agents.values()].find((a) => a.oauthClientId === clientId);
@@ -256,7 +270,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
       agents.set(identity.id, { ...identity, lastSeenAt: at });
     },
     async list() {
-      return [...agents.values()];
+      return [...agents.values()].sort((a, b) => a.name.localeCompare(b.name));
     },
   };
 

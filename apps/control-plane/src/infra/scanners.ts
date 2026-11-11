@@ -36,6 +36,9 @@ export function gitleaksScanner(binary = 'gitleaks'): ScannerProcess {
     command: binary,
     args: (repoDir) => [
       'detect',
+      // Die Arbeitskopie ist ein entpackter Commit ohne `.git`. Ohne diesen
+      // Schalter sucht gitleaks eine Historie und bricht ab.
+      '--no-git',
       '--no-banner',
       '--report-format',
       'json',

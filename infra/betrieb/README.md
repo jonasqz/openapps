@@ -77,7 +77,7 @@ CP=$(docker ps --format '{{.Names}}' | grep control-plane | head -1)
 
 # a) Migrationen gelaufen, Datei geschrieben
 docker logs "$CP" 2>&1 | grep -E 'angewendet|keine neue Migration|Gateway-Konfiguration|ALARM|WARN'
-#    erwartet: "angewendet: 0001_… 0013_…" und "Gateway-Konfiguration geschrieben: 2 Router."
+#    erwartet: "angewendet: 0001_… 0015_…" und "Gateway-Konfiguration geschrieben: 2 Router."
 #    (Control Plane und Catch-all; jede App bringt einen weiteren)
 
 # b) Die Datei liegt beim Proxy
@@ -111,12 +111,47 @@ Danach meldest du dich unter `https://<CONTROL_PLANE_HOST>` mit Google an.
 Steht deine Adresse in `AUTH_BOOTSTRAP_ADMINS`, landest du in
 `platform-admins`.
 
+## 5. Einen Agenten anschließen
+
+1. In der Control Plane unter **Agents** eine Identität anlegen (oder per API:
+   `POST /api/agents`). Das Token steht genau einmal da.
+2. Dem Agenten Freigaben geben. Ohne Freigabe sieht er nichts und darf nichts.
+3. Verbinden, hier mit Claude Code:
+
+```bash
+claude mcp add --transport http openapps https://<CONTROL_PLANE_HOST>/mcp --header "Authorization: Bearer <token>"
+```
+
+Jeder andere MCP-Client geht genauso, solange er einen festen Header setzt.
+Prüfen ohne Client:
+
+```bash
+curl -si https://<CONTROL_PLANE_HOST>/mcp -X POST -H 'content-type: application/json' -d '{}' | head -1
+#    erwartet: 401
+```
+
+Sperren wirkt beim nächsten Aufruf (`disable_agent` oder der Knopf auf der
+Seite).
+
+## 6. Die erste App
+
+Über MCP: `create_app`, pushen, `request_deploy` mit Version und Commit. Die
+Control Plane holt den Commit selbst vom Repo-Backend, prüft ihn und deployt.
+Ein Pfad auf dem Rechner des Aufrufers ist nicht nötig.
+
+- Der `GITHUB_TOKEN` braucht dafür Leserecht auf den Inhalt der App-Repos.
+- Private App-Repos kann Coolify nur klonen, wenn unter **Sources** eine
+  GitHub-App verbunden ist. Deren UUID gehört in `COOLIFY_GITHUB_APP_UUID`.
+  Leer heißt: nur öffentliche Repos.
+- `COOLIFY_GIT_BRANCH` ist der Zweig, den Coolify klont (Default `main`).
+  Gebaut wird immer genau der geprüfte Commit.
+
 ## Was hier bewusst noch fehlt
 
-- **Der Review-Gate kann auf dem Server noch keinen Code prüfen.**
-  `POST /api/apps/<app>/deploys` erwartet einen Pfad `repoDir` im Container
-  der Control Plane, und niemand legt dort einen Checkout an. Für DoD 2 stört
-  das nicht (geprüft wird der Weg zur Control Plane und der Catch-all), für
-  DoD 4 schon.
-- **Backups.** Das Volume `openapps-postgres` hält Rechte, Audit-Log und
-  Gruppen. Coolify sichert es nicht von selbst.
+- **Ein Lauf gegen ein echtes Coolify.** Der Adapter ist gegen den Quelltext
+  von Coolify v4.7.1 geschrieben und gegen Doubles getestet. Der erste echte
+  Deploy einer App ist der Beleg, der fehlt.
+- **Backups.** Das Volume `openapps-postgres` hält Rechte, Audit-Log, Gruppen
+  und Agent-Identitäten. Coolify sichert es nicht von selbst.
+- **OAuth für MCP.** Heute nur Bearer-Token im Header
+  ([ADR 0009](../../docs/decisions/0009-plattform-mcp-im-selben-container.md)).

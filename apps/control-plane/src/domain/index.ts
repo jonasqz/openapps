@@ -70,6 +70,15 @@ export {
   addGroupMember,
   removeGroupMember,
 } from './groups';
+export {
+  agentToken,
+  createAgentIdentity,
+  disableAgentIdentity,
+  hashAgentSecret,
+  listAgentIdentities,
+  parseAgentToken,
+  type CreatedAgentIdentity,
+} from './agents';
 export * as reviewGate from './review-gate';
 export type {
   BasePathFact,

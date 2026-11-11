@@ -26,8 +26,12 @@ export type Verb = 'read' | 'write' | 'execute';
  * `group` ist seit Migration 0011 dabei: Eine Gruppe ist Subjekt **und**
  * Ressource. `read` auf `group:<name>` heisst Mitglieder sehen, `write`
  * Mitglieder pflegen, `write` auf `group:*` zusaetzlich neue Gruppen anlegen.
+ *
+ * `agent` ist seit Migration 0014 dabei, nach demselben Muster: `read` auf
+ * `agent:<name>` heisst die Identitaet sehen, `write` sie sperren, `write`
+ * auf `agent:*` zusaetzlich neue anlegen (src/domain/agents.ts).
  */
-export type ResourceKind = 'app' | 'table' | 'view' | 'tool' | 'group';
+export type ResourceKind = 'app' | 'table' | 'view' | 'tool' | 'group' | 'agent';
 
 export interface ResourceRef {
   readonly kind: ResourceKind;

@@ -139,6 +139,15 @@ export async function seedBootstrapGrants(harness: Harness): Promise<void> {
       grantedBy: 'system:bootstrap',
     });
   }
+  // Migration 0015: und Agent-Identitaeten anlegen und sperren.
+  for (const verb of ['read', 'write'] as const) {
+    await harness.store.grants.insert({
+      subject: { kind: 'group', id: 'platform-admins' },
+      verb,
+      resource: { kind: 'agent', id: '*' },
+      grantedBy: 'system:bootstrap',
+    });
+  }
   // Migration 0009 legt diese Gruppe als Zeile an, leer.
   await harness.store.groups.create({
     name: 'platform-admins',

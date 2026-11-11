@@ -36,9 +36,9 @@ export async function POST(request: Request, { params }: RouteParams): Promise<R
     const actor = await currentActor(request);
     const { app } = await params;
     const body = await readJson<DeployBody>(request);
-    if (body.version === undefined || body.gitSha === undefined || body.repoDir === undefined) {
+    if (body.version === undefined || body.gitSha === undefined) {
       return jsonResponse(
-        { error: 'validation_failed', message: 'version, gitSha und repoDir sind nötig' },
+        { error: 'validation_failed', message: 'version und gitSha sind nötig' },
         422,
       );
     }
@@ -47,7 +47,8 @@ export async function POST(request: Request, { params }: RouteParams): Promise<R
       appIdOrName: app,
       version: body.version,
       gitSha: body.gitSha,
-      repoDir: body.repoDir,
+      // Ohne `repoDir` holt die Control Plane den Commit selbst.
+      ...(body.repoDir === undefined ? {} : { repoDir: body.repoDir }),
       ...(body.manifest === undefined ? {} : { manifest: body.manifest }),
       ...(body.uiActions === undefined ? {} : { uiActions: body.uiActions }),
       ...(body.codeFacts === undefined ? {} : { codeFacts: body.codeFacts }),

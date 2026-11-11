@@ -9,7 +9,18 @@
  * was damit passiert, bestimmt die Control Plane.
  */
 
-import type { CreatedRepository, NewRepositorySpec, RepositoryBackend } from '../../domain/ports';
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import type {
+  CreatedRepository,
+  NewRepositorySpec,
+  RepositoryBackend,
+  RepositoryCheckout,
+  RepositoryCheckoutRequest,
+} from '../../domain/ports';
 import type { GitHubConfig } from './config';
 
 interface GitHubRepo {
@@ -73,5 +84,85 @@ export function createGitHubRepositoryBackend(config: GitHubConfig): RepositoryB
         ...(created.html_url === undefined ? {} : { webUrl: created.html_url }),
       };
     },
+
+    /**
+     * Ein Commit als Tarball, entpackt in ein eigenes Temp-Verzeichnis. Kein
+     * `git clone`: Der Tarball braucht kein Git im Image, traegt keine
+     * Historie und keinen Token in einer Remote-URL.
+     */
+    async checkout(request: RepositoryCheckoutRequest): Promise<RepositoryCheckout> {
+      const slug = repositorySlug(request.gitUrl);
+      if (!/^[0-9a-f]{7,40}$/i.test(request.gitSha)) {
+        throw new Error(`"${request.gitSha}" ist kein Commit-Hash`);
+      }
+
+      const response = await fetch(`${config.apiBaseUrl}/repos/${slug}/tarball/${request.gitSha}`, {
+        headers: {
+          authorization: `Bearer ${config.token}`,
+          accept: 'application/vnd.github+json',
+          'x-github-api-version': '2022-11-28',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(config.checkoutTimeoutMs),
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(
+          `Repo-Backend lieferte den Commit ${request.gitSha} von ${slug} nicht ` +
+            `(${String(response.status)}): ${text.slice(0, 300)} — ist der Commit gepusht, ` +
+            'und hat der Token Leserecht auf den Inhalt des Repos?',
+        );
+      }
+
+      const archive = Buffer.from(await response.arrayBuffer());
+      if (archive.byteLength > config.checkoutMaxBytes) {
+        throw new Error(
+          `der Commit ist als Archiv ${String(archive.byteLength)} Bytes gross, erlaubt sind ` +
+            `${String(config.checkoutMaxBytes)} (GITHUB_CHECKOUT_MAX_BYTES)`,
+        );
+      }
+
+      const root = await mkdtemp(join(tmpdir(), 'openapps-checkout-'));
+      const dispose = async (): Promise<void> => {
+        await rm(root, { recursive: true, force: true });
+      };
+      try {
+        const file = join(root, 'source.tar.gz');
+        const dir = join(root, 'src');
+        await writeFile(file, archive);
+        // GitHub legt alles unter einen Ordner `<owner>-<repo>-<sha>/`; der
+        // faellt weg, damit `app.json` oben liegt.
+        await run('mkdir', ['-p', dir]);
+        await run('tar', ['-xzf', file, '-C', dir, '--strip-components=1', '--no-same-owner']);
+        await rm(file, { force: true });
+        return { dir, dispose };
+      } catch (cause) {
+        await dispose();
+        throw cause;
+      }
+    },
   };
+}
+
+const run = promisify(execFile);
+
+/**
+ * `owner/name` aus einer Git-URL. Nur diese Form geht an die API — eine URL,
+ * die auf einen anderen Host zeigt, wird nicht „irgendwie" aufgeloest.
+ */
+export function repositorySlug(gitUrl: string): string {
+  const match = /^(?:https:\/\/[^/]+\/|git@[^:]+:)([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(
+    gitUrl.trim(),
+  );
+  const dots = (part: string | undefined): boolean => part === '.' || part === '..';
+  if (
+    match === null ||
+    match[1] === undefined ||
+    match[2] === undefined ||
+    dots(match[1]) ||
+    dots(match[2])
+  ) {
+    throw new Error(`"${gitUrl}" ist keine Repo-URL der Form https://host/owner/name(.git)`);
+  }
+  return `${match[1]}/${match[2]}`;
 }

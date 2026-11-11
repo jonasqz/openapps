@@ -144,6 +144,11 @@ export interface AgentIdentityRepository {
   /** Hash des Secrets, um ihn zu pruefen; nie das Secret selbst. */
   secretHashOf(clientId: string): Promise<string | null>;
   touch(clientId: string, at: Date): Promise<void>;
+  /**
+   * Sperrt die Identitaet. Danach liefern `findByClientId` und `secretHashOf`
+   * nichts mehr — die Anmeldung scheitert beim naechsten Aufruf.
+   */
+  disable(name: string, at: Date): Promise<AgentIdentity>;
   list(): Promise<readonly AgentIdentity[]>;
 }
 
@@ -317,6 +322,26 @@ export interface CreatedRepository {
  */
 export interface RepositoryBackend {
   createFromTemplate(spec: NewRepositorySpec): Promise<CreatedRepository>;
+  /**
+   * Holt genau einen Commit als Arbeitskopie auf die Platte der Control Plane,
+   * damit die Scanner des Review-Gates darauf laufen koennen. Ohne das muesste
+   * der Aufrufer einen Pfad auf dem Server kennen — und ein Agent, der ueber
+   * MCP deployt, hat keinen.
+   */
+  checkout(input: RepositoryCheckoutRequest): Promise<RepositoryCheckout>;
+}
+
+export interface RepositoryCheckoutRequest {
+  /** Die Git-URL aus dem Register (`app.source.git`), nie eine vom Aufrufer. */
+  readonly gitUrl: string;
+  readonly gitSha: string;
+}
+
+export interface RepositoryCheckout {
+  /** Verzeichnis mit dem Stand des Commits, ohne `.git`. */
+  readonly dir: string;
+  /** Raeumt das Verzeichnis weg. Darf mehrfach gerufen werden. */
+  dispose(): Promise<void>;
 }
 
 /** Legt Schema und DB-Rolle an (ruft provision_app_schema aus Migration 0006). */

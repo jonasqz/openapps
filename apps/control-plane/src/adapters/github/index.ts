@@ -12,5 +12,5 @@ export function createConfiguredRepositoryBackend(): RepositoryBackend {
   return createGitHubRepositoryBackend(gitHubConfigFromEnv());
 }
 
-export { createGitHubRepositoryBackend } from './client';
+export { createGitHubRepositoryBackend, repositorySlug } from './client';
 export { gitHubConfigFromEnv, type GitHubConfig } from './config';

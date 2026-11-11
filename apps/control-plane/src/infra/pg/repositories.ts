@@ -523,6 +523,16 @@ export function createAgentIdentityRepository(db: Queryable): AgentIdentityRepos
         at,
       ]);
     },
+    async disable(name, at) {
+      // COALESCE: Der erste Zeitpunkt bleibt stehen, auch bei einem zweiten Aufruf.
+      const { rows } = await db.query<AgentRow>(
+        `UPDATE agent_identities SET disabled_at = COALESCE(disabled_at, $2)
+          WHERE name = $1
+          RETURNING ${AGENT_COLUMNS}`,
+        [name, at],
+      );
+      return toAgent(must(rows, `Agent "${name}" gibt es nicht`));
+    },
     async list() {
       const { rows } = await db.query<AgentRow>(
         `SELECT ${AGENT_COLUMNS} FROM agent_identities ORDER BY name`,

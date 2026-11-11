@@ -14,7 +14,7 @@ import { appPathFor, gatewayAliasFor } from './naming';
 import { ConflictError, NotFoundError, ReviewBlockedError } from './errors';
 import type { DomainContext } from './context';
 import type { GatewayDynamicConfig } from './gateway-config';
-import type { AppGatewayFacts } from './ports';
+import type { AppGatewayFacts, RepositoryCheckout } from './ports';
 import type { CodeFacts, ReviewResult } from './review-gate/types';
 import type { Actor, App, AppManifest, Deployment } from './types';
 
@@ -23,8 +23,13 @@ export interface RequestDeployInput {
   readonly appIdOrName: string;
   readonly version: string;
   readonly gitSha: string;
-  /** Arbeitskopie, in der die Scanner laufen. */
-  readonly repoDir: string;
+  /**
+   * Arbeitskopie, in der die Scanner laufen. Ohne Angabe — der Normalfall —
+   * holt die Control Plane den Commit selbst aus dem Repo der App
+   * (`RepositoryBackend.checkout`). Ein Pfad hier ist nur fuer Laeufe gedacht,
+   * die auf demselben Rechner wie die Control Plane stattfinden (Tests, CI).
+   */
+  readonly repoDir?: string;
   /**
    * Das `app.json` aus dieser Arbeitskopie. Ohne Angabe wird das zuletzt
    * gespeicherte Manifest geprueft — dann muss die Version dazu passen.
@@ -102,20 +107,47 @@ export async function requestDeploy(
 
       const manifest = input.manifest ?? app.manifest;
 
-      const review = await ctx.reviewGate.run({
-        appId: app.id,
-        deploymentId: deployment.id,
-        version: input.version,
-        gitSha: input.gitSha,
-        repoDir: input.repoDir,
-        manifest,
-        uiActions: input.uiActions ?? [],
-        codeFacts: input.codeFacts ?? { tables: [], tools: [], envVars: [] },
-        // Das Gateway-Ziel dieses Deploys. Der Port steht absichtlich nicht
-        // dabei: Der Konfigurations-Lint leitet ihn aus dem Manifest der Arbeitskopie
-        // ab, und ein unbrauchbarer Wert darin ist genau einer der Befunde.
-        gateway: { appName: app.name, domain: app.primaryDomain },
-      });
+      // Die Arbeitskopie: entweder mitgegeben oder aus dem Repo geholt, das im
+      // Register steht — nie aus einer URL des Aufrufers. Scheitert das Holen,
+      // endet der Versuch als `failed`; ein Gate, das nichts zu lesen hatte,
+      // hat nichts geprueft.
+      let checkout: RepositoryCheckout | null = null;
+      if (input.repoDir === undefined) {
+        try {
+          checkout = await ctx.repositories.checkout({
+            gitUrl: app.source.git,
+            gitSha: input.gitSha,
+          });
+        } catch (cause) {
+          await ctx.deployments.patch(deployment.id, { status: 'failed' });
+          throw new ConflictError(
+            `der Commit ${input.gitSha} liess sich nicht holen: ${
+              cause instanceof Error ? cause.message : String(cause)
+            }`,
+          );
+        }
+      }
+
+      let review: ReviewResult;
+      try {
+        review = await ctx.reviewGate.run({
+          appId: app.id,
+          deploymentId: deployment.id,
+          version: input.version,
+          gitSha: input.gitSha,
+          repoDir: checkout?.dir ?? input.repoDir ?? '',
+          manifest,
+          uiActions: input.uiActions ?? [],
+          codeFacts: input.codeFacts ?? { tables: [], tools: [], envVars: [] },
+          // Das Gateway-Ziel dieses Deploys. Der Port steht absichtlich nicht
+          // dabei: Der Konfigurations-Lint leitet ihn aus dem Manifest der Arbeitskopie
+          // ab, und ein unbrauchbarer Wert darin ist genau einer der Befunde.
+          gateway: { appName: app.name, domain: app.primaryDomain },
+        });
+      } finally {
+        // Auch bei einem Fehler im Gate: Der Quelltext bleibt nicht liegen.
+        await checkout?.dispose().catch(() => undefined);
+      }
 
       deployment = await ctx.deployments.patch(deployment.id, {
         status: review.decision === 'pass' ? 'deploying' : 'blocked',

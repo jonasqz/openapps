@@ -9,7 +9,8 @@
 #
 # Absichtlich einfach: Kein `output: standalone`, kein Pruning. Das Image ist
 # dadurch groesser, aber es enthaelt genau den Workspace, gegen den
-# `pnpm check` gruen war — und `tsx` fuer die Migrationen.
+# `pnpm check` gruen war — und `tsx` fuer die Migrationen und den
+# Plattform-MCP, der im selben Container mitlaeuft (start.sh).
 
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -23,7 +24,11 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 # Next liest beim Build keine Secrets; die Env kommt erst zur Laufzeit.
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter @openapps/control-plane build
+# Mit den drei Punkten: erst die Workspace-Pakete, von denen die Control Plane
+# abhaengt (@openapps/sdk und @openapps/app-manifest liefern `dist/`), dann sie
+# selbst. Ohne sie findet Next `@openapps/sdk` nicht — `dist/` steht in
+# .dockerignore und entsteht erst hier.
+RUN pnpm --filter "@openapps/control-plane..." build
 
 # --- Laufen ----------------------------------------------------------------
 FROM base AS runtime
@@ -51,8 +56,13 @@ RUN apt-get update \
 # gemountete /data/coolify/proxy/dynamic schreiben, ohne dass jemand auf dem
 # Host Rechte von Hand aufweicht, die das naechste Coolify-Update wieder
 # zuruecksetzt. Weicht die UID auf dem Host ab: Build-Argument setzen.
+#
+# Mit eigenem, beschreibbarem Home: semgrep legt beim Start `~/.semgrep` an.
+# Zeigt HOME auf /repo, scheitert das mit „Permission denied", der Scanner
+# endet mit Fehler — und das Gate blockiert dann jeden Deploy.
 ARG RUNTIME_UID=9999
-RUN useradd --uid "${RUNTIME_UID}" --home-dir /repo --no-create-home --shell /usr/sbin/nologin openapps
+RUN useradd --uid "${RUNTIME_UID}" --home-dir /home/openapps --create-home --shell /usr/sbin/nologin openapps
+ENV HOME=/home/openapps
 
 COPY --from=build --chown=openapps:openapps /repo /repo
 USER openapps
@@ -61,6 +71,6 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 EXPOSE 3000
 
-# Erst die Migrationen, dann der Server. Scheitert eine Migration, startet die
-# Control Plane nicht — lieber kein Dienst als einer auf halbem Schema.
-CMD ["sh", "-c", "node_modules/.bin/tsx src/infra/pg/migrate.ts && exec node_modules/.bin/next start --port 3000 --hostname 0.0.0.0"]
+# Migrationen, dann Control Plane und Plattform-MCP (start.sh, ADR 0009).
+# Scheitert eine Migration, startet nichts.
+CMD ["./start.sh"]

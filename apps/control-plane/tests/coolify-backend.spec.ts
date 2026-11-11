@@ -21,6 +21,7 @@ const config: CoolifyConfig = {
   projectUuid: 'prj-1',
   serverUuid: 'srv-1',
   environmentName: 'production',
+  gitBranch: 'main',
   requestTimeoutMs: 1000,
 };
 
@@ -30,7 +31,10 @@ interface Call {
   readonly body: Record<string, unknown>;
 }
 
-function backendWithRecorder(response: unknown = { uuid: 'app-uuid-1' }) {
+function backendWithRecorder(
+  response: unknown = { uuid: 'app-uuid-1' },
+  overrides: Partial<CoolifyConfig> = {},
+) {
   const calls: Call[] = [];
   const fetchDouble = async (input: unknown, init?: RequestInit): Promise<Response> => {
     calls.push({
@@ -47,7 +51,7 @@ function backendWithRecorder(response: unknown = { uuid: 'app-uuid-1' }) {
   const original = globalThis.fetch;
   globalThis.fetch = fetchDouble as typeof globalThis.fetch;
   return {
-    backend: createCoolifyBackend(config),
+    backend: createCoolifyBackend({ ...config, ...overrides }),
     calls,
     restore: () => {
       globalThis.fetch = original;
@@ -130,6 +134,95 @@ describe('App im Deploy-Backend anlegen (ADR 0008)', () => {
     } finally {
       restore();
     }
+  });
+});
+
+describe('was die Coolify-API wirklich annimmt', () => {
+  it('klont einen Zweig, nicht den Tag aus dem Register', async () => {
+    const body = await createApp();
+
+    // `v1.0.0` existiert in einem frischen Repo nicht. Gebaut wird ohnehin der
+    // Commit, den `deploy` festnagelt.
+    expect(body.git_branch).toBe('main');
+  });
+
+  it('nimmt ohne GitHub-App den oeffentlichen Endpunkt', async () => {
+    const { backend, calls, restore } = backendWithRecorder();
+    try {
+      await backend.createApp({
+        appName: 'crm',
+        gitUrl: 'https://example.invalid/acme/crm.git',
+        gitRef: 'v1',
+        networkAlias: gatewayAliasFor('crm'),
+        port: 3000,
+      });
+    } finally {
+      restore();
+    }
+    expect(calls[0]?.url).toBe('https://coolify.test/api/v1/applications/public');
+    expect(calls[0]?.body.github_app_uuid).toBeUndefined();
+  });
+
+  it('nimmt mit GitHub-App den Endpunkt fuer private Repos und nennt die App', async () => {
+    const { backend, calls, restore } = backendWithRecorder(
+      { uuid: 'app-uuid-1' },
+      { githubAppUuid: 'gh-app-1' },
+    );
+    try {
+      await backend.createApp({
+        appName: 'crm',
+        gitUrl: 'https://example.invalid/acme/crm.git',
+        gitRef: 'v1',
+        networkAlias: gatewayAliasFor('crm'),
+        port: 3000,
+      });
+    } finally {
+      restore();
+    }
+    expect(calls[0]?.url).toBe('https://coolify.test/api/v1/applications/private-github-app');
+    expect(calls[0]?.body.github_app_uuid).toBe('gh-app-1');
+    // Die vier Zeilen aus ADR 0008 gelten auf diesem Weg genauso.
+    expect(calls[0]?.body.autogenerate_domain).toBe(false);
+    expect(calls[0]?.body.ports_mappings).toBe('');
+  });
+
+  it('sendet beim Env-Setzen nur Felder, die die API kennt', async () => {
+    const { backend, calls, restore } = backendWithRecorder({ uuid: 'env-1' });
+    try {
+      await backend.setEnv('app-uuid-1', { DATABASE_SCHEMA: 'app_crm' });
+    } finally {
+      restore();
+    }
+    // Die API weist jedes unbekannte Feld mit 422 ab
+    // (`ApplicationsController`, `create_env`, `$allowedFields`).
+    const allowed = new Set([
+      'key',
+      'value',
+      'is_preview',
+      'is_literal',
+      'is_multiline',
+      'is_shown_once',
+      'is_runtime',
+      'is_buildtime',
+      'comment',
+    ]);
+    expect(Object.keys(calls[0]?.body ?? {}).filter((key) => !allowed.has(key))).toEqual([]);
+    expect(calls[0]?.body).toMatchObject({ key: 'DATABASE_SCHEMA', value: 'app_crm' });
+  });
+
+  it('nagelt vor dem Deploy genau den geprueften Commit fest', async () => {
+    const { backend, calls, restore } = backendWithRecorder({ deployment_uuid: 'dep-1' });
+    try {
+      const result = await backend.deploy({ backendRef: 'app-uuid-1', gitSha: 'abc1234' });
+      expect(result.ok).toBe(true);
+    } finally {
+      restore();
+    }
+    expect(calls.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual([
+      'PATCH /api/v1/applications/app-uuid-1',
+      'GET /api/v1/deploy',
+    ]);
+    expect(calls[0]?.body).toEqual({ git_commit_sha: 'abc1234' });
   });
 });
 

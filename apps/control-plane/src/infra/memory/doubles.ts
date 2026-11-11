@@ -15,6 +15,8 @@ import type {
   GatewayConfigStore,
   GatewayConfigVerification,
   NewRepositorySpec,
+  RepositoryCheckout,
+  RepositoryCheckoutRequest,
   PlatformAlarm,
   RepositoryBackend,
   SchemaProvisioner,
@@ -139,6 +141,10 @@ export function createRecordingProvisioner(): RecordingProvisioner {
 
 export interface RecordingRepositoryBackend extends RepositoryBackend {
   readonly created: readonly NewRepositorySpec[];
+  /** Jeder geholte Commit, in Reihenfolge. */
+  readonly checkouts: readonly RepositoryCheckoutRequest[];
+  /** Verzeichnisse, die wieder weggeraeumt wurden. */
+  readonly disposed: readonly string[];
 }
 
 /**
@@ -148,10 +154,30 @@ export interface RecordingRepositoryBackend extends RepositoryBackend {
  */
 export function createRecordingRepositoryBackend(options?: {
   failWith?: string;
+  failCheckoutWith?: string;
 }): RecordingRepositoryBackend {
   const created: NewRepositorySpec[] = [];
+  const checkouts: RepositoryCheckoutRequest[] = [];
+  const disposed: string[] = [];
   return {
     created,
+    checkouts,
+    disposed,
+    async checkout(request): Promise<RepositoryCheckout> {
+      if (options?.failCheckoutWith !== undefined) {
+        throw new Error(options.failCheckoutWith);
+      }
+      checkouts.push(request);
+      // Kein echtes Verzeichnis: Die Scanner sind in diesen Tests ebenfalls
+      // Doubles und lesen nichts von der Platte.
+      const dir = `/checkout.test/${request.gitSha}`;
+      return {
+        dir,
+        async dispose() {
+          disposed.push(dir);
+        },
+      };
+    },
     async createFromTemplate(spec): Promise<CreatedRepository> {
       if (options?.failWith !== undefined) {
         throw new Error(options.failWith);
