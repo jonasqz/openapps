@@ -45,6 +45,12 @@ export interface LokalConfig {
   readonly sourceDir: string;
   /** Wie lange `deploy` auf die erste Antwort der App wartet. */
   readonly startTimeoutMs?: number;
+  /**
+   * Die Vorlage fuer neue Apps (`templates/starter-app`). Ist sie gesetzt,
+   * legt `create_app` den Ordner `<sourceDir>/<app>` daraus an (ADR 0015).
+   * Ohne sie nimmt `create_app` nur Apps an, deren Ordner es schon gibt.
+   */
+  readonly templateDir?: string;
 }
 
 const APP_NAME = /^[a-z][a-z0-9-]{1,40}$/;
@@ -67,7 +73,63 @@ export function lokalConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LokalC
   ) {
     throw new Error('OPENAPPS_BACKEND=lokal braucht LOKAL_RUNTIME_DIR und LOKAL_SOURCE_DIR');
   }
-  return { runtimeDir, sourceDir };
+  const templateDir = env.LOKAL_TEMPLATE_DIR;
+  return {
+    runtimeDir,
+    sourceDir,
+    ...(templateDir === undefined || templateDir === '' ? {} : { templateDir }),
+  };
+}
+
+/** Was nicht aus der Vorlage in eine neue App kopiert wird. */
+const BUILD_ARTIFACTS = new Set([
+  'node_modules',
+  '.next',
+  '.turbo',
+  'dist',
+  'tsconfig.tsbuildinfo',
+]);
+
+/**
+ * Legt `<sourceDir>/<app>` aus der Vorlage an und setzt Name und Beschreibung
+ * in `app.json` und `package.json`. Ein vorhandener Ordner bleibt unberuehrt.
+ */
+export async function scaffoldFromTemplate(
+  config: Pick<LokalConfig, 'sourceDir' | 'templateDir'>,
+  spec: Pick<NewRepositorySpec, 'appName' | 'description'>,
+): Promise<'angelegt' | 'vorhanden'> {
+  const target = join(config.sourceDir, spec.appName);
+  const exists = await stat(join(target, 'app.json')).then(
+    () => true,
+    () => false,
+  );
+  if (exists) return 'vorhanden';
+  if (config.templateDir === undefined) {
+    throw new Error(
+      `lokal lassen sich ohne LOKAL_TEMPLATE_DIR nur vorhandene Apps anlegen (${config.sourceDir}/${spec.appName} fehlt)`,
+    );
+  }
+  await cp(config.templateDir, target, {
+    recursive: true,
+    errorOnExist: true,
+    force: false,
+    filter: (source) => !source.split('/').some((part) => BUILD_ARTIFACTS.has(part)),
+  });
+
+  const manifestPath = join(target, 'app.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, unknown>;
+  manifest.name = spec.appName;
+  manifest.displayName = spec.appName;
+  manifest.description = spec.description;
+  manifest.version = '0.1.0';
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const packagePath = join(target, 'package.json');
+  const pkg = JSON.parse(await readFile(packagePath, 'utf8')) as Record<string, unknown>;
+  pkg.name = `@openapps/app-${spec.appName}`;
+  pkg.description = spec.description;
+  await writeFile(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
+  return 'angelegt';
 }
 
 function appNameFromRef(backendRef: string): string {
@@ -210,11 +272,7 @@ export function createLokalRepositoryBackend(config: LokalConfig): RepositoryBac
   return {
     async createFromTemplate(spec: NewRepositorySpec): Promise<CreatedRepository> {
       if (!APP_NAME.test(spec.appName)) throw new Error(`ungueltiger App-Name "${spec.appName}"`);
-      await stat(join(config.sourceDir, spec.appName, 'app.json')).catch(() => {
-        throw new Error(
-          `lokal lassen sich nur vorhandene Apps anlegen (${config.sourceDir}/${spec.appName} fehlt)`,
-        );
-      });
+      await scaffoldFromTemplate(config, spec);
       return { gitUrl: `${GIT_PREFIX}${spec.appName}`, tag: 'lokal' };
     },
 

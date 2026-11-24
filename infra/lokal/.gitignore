@@ -1,2 +1,3 @@
 certs/
 .agents/
+docker-compose.apps.yml

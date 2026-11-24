@@ -1,17 +1,39 @@
 #!/usr/bin/env bash
-# Registriert und deployt die Standard-Apps und legt den Agenten `betrieb` an.
-# Laeuft gegen den Stapel aus docker-compose.yml (muss schon laufen).
+# Baut, registriert und deployt die Apps aus standard-apps/ und legt beim
+# ersten Mal den Agenten `betrieb` an (ADR 0011, ADR 0015).
+#
+#   ./infra/lokal/apps-ausrollen.sh            # alle Apps
+#   ./infra/lokal/apps-ausrollen.sh urlaub     # nur diese App neu bauen
+#
+# Eine neue App ist ein Ordner standard-apps/<name> mit app.json, etwa aus
+# create_app im Plattform-MCP. Ein geaenderter Stand braucht eine hoehere
+# "version" in app.json, wie auf dem Server.
 #
 # Das Token von `betrieb` landet nur in .agents/betrieb.token (Modus 0600,
 # gitignoriert) und in .agents/mcp-betrieb.json fuer `claude --mcp-config`.
 # Es wird nie angezeigt.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-compose=(docker compose -f "$here/docker-compose.yml" --env-file "$here/.env")
+repo="$(cd "$here/../.." && pwd)"
+lokal="$here/lokal.sh"
+
+# Eine neue App ist ein neues Workspace-Paket: Der Lockfile muss sie kennen,
+# sonst scheitert der Build im Container (--frozen-lockfile).
+(cd "$repo" && pnpm install --prefer-offline --reporter=silent)
+
+# Die Basis muss laufen; dann je App ihr Container.
+"$lokal" up -d control-plane ansehen >/dev/null
+services=()
+for app in "$@"; do services+=("app-$app"); done
+if [[ ${#services[@]} -eq 0 ]]; then
+  "$lokal" up -d --build --remove-orphans
+else
+  "$lokal" up -d --build "${services[@]}"
+fi
 
 umask 077
 mkdir -p "$here/.agents"
-out="$("${compose[@]}" exec -T control-plane node_modules/.bin/tsx src/infra/lokal-einrichten.ts)"
+out="$("$lokal" exec -T control-plane node_modules/.bin/tsx src/infra/lokal-einrichten.ts)"
 # Alles ausser der Token-Zeile anzeigen.
 grep -v '^BETRIEB_TOKEN=' <<<"$out" || true
 
@@ -31,3 +53,4 @@ if [[ -f "$here/.agents/betrieb.token" ]]; then
   ' "$here/.agents/betrieb.token" "$here/.agents/mcp-betrieb.json"
   echo "MCP-Konfiguration: $here/.agents/mcp-betrieb.json"
 fi
+echo "Apps: http://127.0.0.1:8090 · Verwaltung: http://127.0.0.1:8091"

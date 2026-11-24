@@ -83,6 +83,12 @@ describe.skipIf(!ok)('runMigrations und runSeeds', () => {
     expect(await count()).toBe(1);
   });
 
+  it('nimmt eine App ohne Ordner seeds/ hin', async () => {
+    await runMigrations(pool, migrations);
+    const none = await runSeeds(pool, join(root, 'gibt-es-nicht'), { OPENAPPS_SAMPLE_DATA: '1' });
+    expect(none).toEqual({ applied: [], skipped: [] });
+  });
+
   it('haelt Seed und Migration gleichen Dateinamens auseinander', async () => {
     const m = await runMigrations(pool, migrations);
     const s = await runSeeds(pool, seeds, { OPENAPPS_SAMPLE_DATA: '1' });

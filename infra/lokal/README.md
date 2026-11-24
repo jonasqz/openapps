@@ -24,7 +24,7 @@ Gleich wie auf dem Server:
 ```
 
 ```bash
-docker compose -f infra/lokal/docker-compose.yml --env-file infra/lokal/.env up -d --build
+./infra/lokal/lokal.sh up -d --build
 ```
 
 ```bash
@@ -33,7 +33,9 @@ docker compose -f infra/lokal/docker-compose.yml --env-file infra/lokal/.env up 
 
 - `einrichten.sh` legt `.env` mit Zufalls-Secrets und ein selbst signiertes
   Zertifikat an. Beides bleibt auf dem Rechner und ist gitignoriert.
-- `apps-ausrollen.sh` registriert und deployt die Apps aus `standard-apps/` und
+- `lokal.sh` ist `docker compose` für diesen Stapel. Es legt für jede App in
+  `standard-apps/` einen eigenen Container an (ADR 0015).
+- `apps-ausrollen.sh` baut, registriert und deployt die Apps aus `standard-apps/` und
   legt den Agenten `betrieb` an. Der darf, was die Gruppe `platform-admins`
   darf. Sein Token liegt danach in `infra/lokal/.agents/betrieb.token` (Modus 0600) und wird nie angezeigt.
 - Ein zweiter Lauf legt nichts doppelt an. Ein geänderter Stand einer App wird
@@ -53,6 +55,31 @@ nur die Tools, die er darf. Ruft er ein anderes trotzdem auf, wird er blockiert,
 und beides steht im Protokoll. Im MCP heißen App-Tools `<app>__<tool>` mit `__`
 statt Punkt, weil Clients keine Punkte im Namen annehmen.
 
+## Eine App ändern oder neu bauen lassen
+
+Mit deinem Claude Code im Repo, verbunden mit dem Plattform-MCP:
+
+```bash
+claude --mcp-config infra/lokal/.agents/mcp-betrieb.json
+```
+
+- **Neue App:** Zum Beispiel „Bau mir eine App für Urlaubsanträge“. Der
+  Assistent ruft dann `create_app` auf. Das legt `standard-apps/<name>` aus der
+  Vorlage an, mit Tool-Endpunkt, Migrationen und Beispieldaten. Dann schreibt
+  er den Code und rollt aus.
+- **App ändern:** Zum Beispiel „Füge im CRM ein Feld Lead-Quelle an Deals
+  hinzu“. Neue Spalten kommen als neue Migration. Danach erhöht der Assistent
+  `version` in `app.json` und rollt aus.
+
+Ausrollen, für eine App oder ohne Namen für alle:
+
+```bash
+./infra/lokal/apps-ausrollen.sh <name>
+```
+
+Danach ist die App unter <http://127.0.0.1:8090/name> zu sehen. Agents
+erreichen ihre Tools, sobald sie über `grant` freigegeben sind.
+
 ## Prüfen, dass Agents durchkommen
 
 ```bash
@@ -67,10 +94,6 @@ mehr herein. Der Test braucht kein Sprachmodell und liefert bei jedem Lauf
 dasselbe Ergebnis.
 
 ## Die Oberflächen ansehen
-
-```bash
-docker compose -f infra/lokal/docker-compose.yml --env-file infra/lokal/.env --profile ansehen up -d ansehen
-```
 
 - **Apps:** <http://127.0.0.1:8090>, angemeldet als `ansicht@local.test`
   (ADR 0013).
@@ -99,5 +122,5 @@ Beides umgeht den Google-Login und läuft deshalb nur lokal, nur am Loopback.
 ## Aufräumen
 
 ```bash
-docker compose -f infra/lokal/docker-compose.yml --env-file infra/lokal/.env down -v
+./infra/lokal/lokal.sh down -v
 ```

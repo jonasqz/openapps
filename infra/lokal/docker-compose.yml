@@ -2,8 +2,12 @@
 # mit drei Standard-Apps (wiki, crm, wissen). Anleitung: infra/lokal/README.md.
 #
 #   ./infra/lokal/einrichten.sh     # .env mit Zufalls-Secrets, Zertifikat
-#   docker compose -f infra/lokal/docker-compose.yml up -d --build
+#   ./infra/lokal/lokal.sh up -d --build
 #   ./infra/lokal/apps-ausrollen.sh # Apps anlegen, deployen, Agents einrichten
+#
+# Die Apps stehen nicht hier, sondern in docker-compose.apps.yml: einen Dienst
+# je Ordner in standard-apps/, erzeugt von apps-dienste.mjs (ADR 0015).
+# lokal.sh ruft docker compose mit beiden Dateien auf.
 #
 # Was gleich ist wie auf dem Server (infra/betrieb): Control Plane, Postgres,
 # Deny-Backend und Traefik mit Coolifys Kommandozeile; die Control Plane
@@ -12,19 +16,6 @@
 # Deploy-Backend ist `OPENAPPS_BACKEND=lokal` (ADR 0011).
 
 name: openapps-lokal
-
-x-app: &app
-  build:
-    context: ../..
-    dockerfile: infra/lokal/app.Dockerfile
-  restart: unless-stopped
-  depends_on:
-    init:
-      condition: service_completed_successfully
-  volumes:
-    - lokal-run:/lokal/run:ro
-  # Kein `ports:` und keine `traefik.*`-Labels — erreichbar nur ueber den
-  # Router, den die Control Plane schreibt.
 
 services:
   # Legt die gemeinsamen Volumes fuer UID 9999 an (wie Coolify /data/coolify).
@@ -71,6 +62,7 @@ services:
       OPENAPPS_BACKEND: lokal
       LOKAL_RUNTIME_DIR: /lokal/run
       LOKAL_SOURCE_DIR: /lokal/quellen
+      LOKAL_TEMPLATE_DIR: /lokal/vorlage
 
       DATABASE_URL: postgres://openapps_owner:${OPENAPPS_OWNER_PASSWORD:?}@openapps-postgres:5432/openapps
       APP_DATABASE_HOST: openapps-postgres:5432/openapps
@@ -98,7 +90,10 @@ services:
       AUTH_BOOTSTRAP_ADMINS: ${AUTH_BOOTSTRAP_ADMINS:-admin@example.com}
     volumes:
       - lokal-run:/lokal/run
-      - ../../standard-apps:/lokal/quellen:ro
+      # Schreibbar: create_app legt hier den Ordner einer neuen App aus der
+      # Vorlage an (ADR 0015). Weiter bearbeitet wird er auf dem Rechner.
+      - ../../standard-apps:/lokal/quellen
+      - ../../templates/starter-app:/lokal/vorlage:ro
       - traefik-dynamic:/traefik/dynamic
     networks:
       plattform:
@@ -181,26 +176,6 @@ services:
       plattform:
         aliases: [openapps-traefik]
 
-  wiki:
-    <<: *app
-    environment: { LOKAL_APP: wiki }
-    networks:
-      plattform:
-        aliases: [openapps-wiki]
-
-  crm:
-    <<: *app
-    environment: { LOKAL_APP: crm }
-    networks:
-      plattform:
-        aliases: [openapps-crm]
-
-  wissen:
-    <<: *app
-    environment: { LOKAL_APP: wissen }
-    networks:
-      plattform:
-        aliases: [openapps-wissen]
 
 networks:
   plattform:

@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLokalBackend, createLokalRepositoryBackend } from '../src/adapters/lokal';
+import { readFileSync as readText } from 'node:fs';
 
 let root: string;
 let config: { runtimeDir: string; sourceDir: string; startTimeoutMs: number };
@@ -122,5 +123,74 @@ describe('lokales Repo-Backend', () => {
     expect(existsSync(join(checkout.dir, 'node_modules'))).toBe(false);
     await checkout.dispose();
     expect(existsSync(checkout.dir)).toBe(false);
+  });
+
+  describe('neue App aus der Vorlage (ADR 0015)', () => {
+    const vorlage = () => {
+      const dir = join(root, 'vorlage');
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      mkdirSync(join(dir, 'node_modules', 'x'), { recursive: true });
+      writeFileSync(
+        join(dir, 'app.json'),
+        JSON.stringify({
+          name: 'starter-app',
+          displayName: 'Starter',
+          description: 'alt',
+          version: '9.9.9',
+        }),
+      );
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@openapps/starter-app' }));
+      writeFileSync(join(dir, 'src', 'page.tsx'), 'export {}');
+      writeFileSync(join(dir, 'tsconfig.tsbuildinfo'), '{}');
+      return dir;
+    };
+
+    it('legt den Ordner aus der Vorlage an, mit Name und Beschreibung, ohne Bauartefakte', async () => {
+      const repos = createLokalRepositoryBackend({ ...config, templateDir: vorlage() });
+      const created = await repos.createFromTemplate({
+        appName: 'urlaub',
+        description: 'Urlaubsantraege',
+        requestedBy: 'agent:betrieb',
+      });
+      expect(created.gitUrl).toBe('https://lokal.invalid/urlaub');
+
+      const dir = join(config.sourceDir, 'urlaub');
+      const manifest = JSON.parse(readText(join(dir, 'app.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      expect(manifest).toMatchObject({
+        name: 'urlaub',
+        description: 'Urlaubsantraege',
+        version: '0.1.0',
+      });
+      const pkg = JSON.parse(readText(join(dir, 'package.json'), 'utf8')) as { name: string };
+      expect(pkg.name).toBe('@openapps/app-urlaub');
+      expect(existsSync(join(dir, 'src', 'page.tsx'))).toBe(true);
+      expect(existsSync(join(dir, 'node_modules'))).toBe(false);
+      expect(existsSync(join(dir, 'tsconfig.tsbuildinfo'))).toBe(false);
+    });
+
+    it('ueberschreibt eine vorhandene App nie', async () => {
+      const repos = createLokalRepositoryBackend({ ...config, templateDir: vorlage() });
+      await repos.createFromTemplate({ appName: 'crm', description: 'neu', requestedBy: 'x' });
+      expect(readText(join(config.sourceDir, 'crm', 'app.json'), 'utf8')).toBe('{}');
+      expect(existsSync(join(config.sourceDir, 'crm', 'src', 'a.ts'))).toBe(true);
+    });
+
+    it('nimmt ohne Vorlage nur vorhandene Apps an, und keinen Pfad als Namen', async () => {
+      const repos = createLokalRepositoryBackend(config);
+      await expect(
+        repos.createFromTemplate({ appName: 'neu', description: '', requestedBy: 'x' }),
+      ).rejects.toThrow(/LOKAL_TEMPLATE_DIR/);
+      const mitVorlage = createLokalRepositoryBackend({ ...config, templateDir: vorlage() });
+      await expect(
+        mitVorlage.createFromTemplate({
+          appName: '../ausbruch',
+          description: '',
+          requestedBy: 'x',
+        }),
+      ).rejects.toThrow(/ungueltiger App-Name/);
+    });
   });
 });

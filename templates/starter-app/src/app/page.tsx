@@ -23,6 +23,13 @@ const toRow = (item: Item): ItemRow => ({
   angelegt: new Date(item.createdAt).toLocaleDateString('de-DE'),
 });
 
+/**
+ * Immer zur Laufzeit rendern. Ohne diese Zeile rendert Next die Seite schon
+ * beim Build, wenn es noch keine Datenbank gibt, und liefert danach fuer
+ * immer den Fehlerzustand aus.
+ */
+export const dynamic = 'force-dynamic';
+
 export default async function ItemsPage() {
   let items: Item[] = [];
   let failed = false;

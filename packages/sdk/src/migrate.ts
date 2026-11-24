@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import { SdkConfigurationError } from './errors.js';
@@ -57,6 +57,13 @@ export async function runSeeds(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<MigrationResult | null> {
   if (env.OPENAPPS_SAMPLE_DATA !== '1') return null;
+  // Eine App ohne Beispieldaten hat keinen Ordner `seeds/`. Das ist kein
+  // Fehler und darf ihren Start nicht verhindern.
+  try {
+    await stat(directory);
+  } catch {
+    return { applied: [], skipped: [] };
+  }
   return runSqlFiles(pool, directory, SEED_PREFIX);
 }
 
