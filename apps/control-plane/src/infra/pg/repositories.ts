@@ -90,8 +90,8 @@ export function createAppRepository(db: Queryable): AppRepository {
   return {
     async create(input: NewApp): Promise<App> {
       const { rows } = await db.query<AppRow>(
-        `INSERT INTO apps (name, display_name, category, manifest, source, schema_name, db_role, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO apps (name, display_name, category, manifest, source, schema_name, db_role, created_by, primary_domain)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING ${APP_COLUMNS}`,
         [
           input.name,
@@ -102,6 +102,7 @@ export function createAppRepository(db: Queryable): AppRepository {
           input.schemaName,
           input.dbRole,
           input.createdBy,
+          input.primaryDomain ?? null,
         ],
       );
       return toApp(must(rows, 'App konnte nicht angelegt werden'));

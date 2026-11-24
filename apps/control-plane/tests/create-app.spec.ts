@@ -55,6 +55,63 @@ describe('create_app legt das Repo aus dem Starter-Template an', () => {
     expect(harness.provisioner.provisioned).toEqual([]);
   });
 
+  it('registriert nichts, wenn Schema und Rolle nicht entstehen — und ein zweiter Versuch geht', async () => {
+    // Der Fall aus dem ersten lokalen Lauf (ADR 0012): Vorher stand die App
+    // schon im Register, als `provision` scheiterte, und jeder weitere
+    // Versuch endete in „gibt es schon".
+    const harness = await setup();
+    const failing = {
+      ...harness.ctx,
+      provisioner: {
+        ...harness.ctx.provisioner,
+        provision: () => Promise.reject(new Error('Postgres nicht erreichbar')),
+      },
+    };
+
+    await expect(
+      createApp(failing, {
+        actor: admin,
+        name: 'projektliste',
+        manifest: manifest('projektliste'),
+        source: gitSource('projektliste'),
+      }),
+    ).rejects.toThrow('Postgres nicht erreichbar');
+    expect(await harness.ctx.apps.findByName('projektliste')).toBeNull();
+
+    const app = await createApp(harness.ctx, {
+      actor: admin,
+      name: 'projektliste',
+      manifest: manifest('projektliste'),
+      source: gitSource('projektliste'),
+    });
+    expect(app.name).toBe('projektliste');
+  });
+
+  it('traegt die Domain schon beim Anlegen, nicht in einem zweiten Schritt', async () => {
+    const harness = createHarness({ appsDomain: 'example.test' });
+    await seedBootstrapGrants(harness);
+    let setLater = 0;
+    const ctx = {
+      ...harness.ctx,
+      apps: {
+        ...harness.ctx.apps,
+        setPrimaryDomain: async (...args: Parameters<typeof harness.ctx.apps.setPrimaryDomain>) => {
+          setLater += 1;
+          await harness.ctx.apps.setPrimaryDomain(...args);
+        },
+      },
+    };
+
+    const app = await createApp(ctx, {
+      actor: admin,
+      name: 'kanban',
+      manifest: manifest('kanban'),
+    });
+
+    expect(app.primaryDomain).not.toBeNull();
+    expect(setLater).toBe(0);
+  });
+
   it('legt kein Repo an, wenn eine Quelle mitgegeben wird', async () => {
     const harness = await setup();
 

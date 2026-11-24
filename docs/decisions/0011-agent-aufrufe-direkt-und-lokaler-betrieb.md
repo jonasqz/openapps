@@ -86,11 +86,12 @@ Fehler. Behoben sind:
 - **`list_grants` wurde nicht protokolliert**, auch nicht abgelehnt. Jetzt
   steht es im Audit-Log wie `list_apps`.
 
-Offen ist noch:
+Offen war danach noch:
 
-- **`createApp` ist nicht atomar.** Scheitert ein Schritt nach dem Eintrag im
-  Register, bleibt eine halbe App stehen, zum Beispiel ohne Domain. Sie blockiert
-  danach ihren Namen und jeden Deploy (`gateway.missing_domain`).
+- **`createApp` war nicht atomar.** Scheiterte ein Schritt nach dem Eintrag im
+  Register, blieb eine halbe App stehen, zum Beispiel ohne Domain. Sie
+  blockierte danach ihren Namen und jeden Deploy (`gateway.missing_domain`).
+  Behoben mit [ADR 0012](0012-app-anlegen-register-zuletzt.md).
 
 ## Alternativen
 

@@ -55,12 +55,15 @@ export interface CreateAppInput {
 }
 
 /**
- * Legt die App an: erst das Repo, dann das Register, dann Schema und DB-Rolle.
+ * Legt die App an: erst das Repo, dann Schema und DB-Rolle, zuletzt der
+ * Eintrag im Register (ADR 0012).
  *
- * Die Reihenfolge ist kein Zufall. Das Repo entsteht **vor** der Registrierung,
- * damit ein gescheiterter Anbieter keine App im Register hinterlaesst, die auf
- * ein Repo zeigt, das es nicht gibt. Scheitert das Anlegen, ist nichts
- * passiert.
+ * Die Reihenfolge ist kein Zufall. Der Register-Eintrag ist ein einziges
+ * INSERT, mit Domain, und kommt als letzter Schritt. Scheitert vorher etwas,
+ * steht keine App im Register — weder eine, die auf ein Repo zeigt, das es
+ * nicht gibt, noch eine ohne Schema oder ohne Domain, die jeden spaeteren
+ * Deploy blockiert. Was davor schon entstand, schadet nicht: Schema und Rolle
+ * legt `provision` idempotent an, ein zweiter Versuch nimmt sie einfach mit.
  *
  * Die Quelle setzt die Control Plane, nicht der Aufrufer: was im uebergebenen
  * Manifest unter `source` stand, wird durch das tatsaechlich angelegte Repo
@@ -102,6 +105,13 @@ export async function createApp(ctx: DomainContext, input: CreateAppInput): Prom
           requestedBy: `${actor.kind}:${actor.id}`,
         }));
 
+      // Eigenes Schema, eigene Rolle — die Grundlage von DoD 3. Vor dem
+      // Register, damit es keine registrierte App ohne Schema gibt.
+      await ctx.provisioner.provision({ schemaName, dbRole });
+
+      // Zuletzt das Register, in einem Schritt. Die Domain ist fuer jede App
+      // dieselbe (ADR 0007); erreichbar wird die App ueber ihren Pfad
+      // `appPathFor(name)`.
       const app = await ctx.apps.create({
         name,
         displayName,
@@ -112,17 +122,8 @@ export async function createApp(ctx: DomainContext, input: CreateAppInput): Prom
         schemaName,
         dbRole,
         createdBy: `${actor.kind}:${actor.id}`,
+        primaryDomain: ctx.appsDomain === undefined ? null : appsDomainFor(ctx.appsDomain),
       });
-
-      // Eigenes Schema, eigene Rolle — die Grundlage von DoD 3.
-      await ctx.provisioner.provision({ schemaName, dbRole });
-
-      // Die Domain ist fuer jede App dieselbe (ADR 0007); erreichbar wird die
-      // App ueber ihren Pfad `appPathFor(name)`. Kein Ableiten einer
-      // Subdomain mehr — es gibt keine.
-      if (ctx.appsDomain !== undefined) {
-        await ctx.apps.setPrimaryDomain(app.id, appsDomainFor(ctx.appsDomain));
-      }
 
       return {
         value: app,

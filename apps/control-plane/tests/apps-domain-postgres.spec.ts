@@ -79,4 +79,20 @@ describe.skipIf(!reachable)('gemeinsame App-Domain in Postgres', () => {
     await apps.create(input);
     await expect(apps.create(input)).rejects.toThrow();
   });
+
+  it('schreibt die Domain gleich beim Anlegen mit (ADR 0012)', async () => {
+    const app = await apps.create({
+      name: 'wiki',
+      displayName: 'wiki',
+      category: 'test',
+      manifest: manifest('wiki'),
+      source: { git: 'https://git.test/wiki', tag: 'v1' },
+      schemaName: 'app_wiki',
+      dbRole: 'app_wiki',
+      createdBy: 'user:test',
+      primaryDomain: 'apps.example.test',
+    });
+    expect(app.primaryDomain).toBe('apps.example.test');
+    expect((await apps.findByName('wiki'))?.primaryDomain).toBe('apps.example.test');
+  });
 });

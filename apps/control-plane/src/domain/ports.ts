@@ -31,6 +31,12 @@ export interface NewApp {
   readonly schemaName: string;
   readonly dbRole: string;
   readonly createdBy: string;
+  /**
+   * Gleich beim Anlegen mitgeschrieben, damit der Eintrag in einem Schritt
+   * vollstaendig ist — es gibt keinen Zwischenstand „registriert, aber ohne
+   * Domain" (ADR 0012).
+   */
+  readonly primaryDomain?: string | null;
 }
 
 export interface AppRepository {

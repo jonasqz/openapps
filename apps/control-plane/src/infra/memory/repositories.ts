@@ -77,7 +77,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
         source: input.source,
         schemaName: input.schemaName,
         dbRole: input.dbRole,
-        primaryDomain: null,
+        primaryDomain: input.primaryDomain ?? null,
         authSecretGeneration: 1,
         currentDeploymentId: null,
         previousDeploymentId: null,

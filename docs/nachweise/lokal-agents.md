@@ -37,7 +37,8 @@ zurück und korrigierte den Aufruf selbst.
 
 Gefunden haben die Läufe sechs Fehler der Plattform. Alle sind behoben, und
 für jeden gibt es einen Test (ADR 0011, Abschnitt „Was der erste lokale Lauf
-außerdem fand“). Offen ist nur, dass `createApp` nicht atomar ist.
+außerdem fand“). Der siebte, ein nicht atomares `createApp`, ist mit
+ADR 0012 behoben.
 
 ## Nicht geprüft
 
