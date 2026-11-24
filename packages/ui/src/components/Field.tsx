@@ -38,7 +38,10 @@ export function FieldShell({
     <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
       <label
         htmlFor={inputId}
-        className={cn('text-sm font-medium text-fg', hideLabel && 'sr-only')}
+        className={cn(
+          'font-mono text-2xs font-medium uppercase tracking-label text-fg-muted',
+          hideLabel && 'sr-only',
+        )}
       >
         {label}
         {required ? (
@@ -78,6 +81,7 @@ export function describedBy(ids: Array<string | false | undefined>): string | un
 
 export const controlBase =
   'w-full min-w-0 rounded-md border bg-bg px-3 text-sm text-fg placeholder:text-fg-subtle ' +
+  'transition-colors duration-150 hover:border-fg-muted ' +
   'disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-fg-subtle';
 
 export const controlBorder = (hasError: boolean): string =>

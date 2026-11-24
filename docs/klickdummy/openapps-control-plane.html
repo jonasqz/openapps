@@ -1,0 +1,1051 @@
+<title>openapps Control Plane</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Klickdummy der Control Plane im Design aus ADR 0010: Schwarz/Weiss, eine Akzentfarbe Blaugrau,
+   Haarlinien statt Schatten, Mono-Labels in Versalien, Serife nur fuer Seitentitel und grosse Zahlen.
+   Layout: App-Shell aus @openapps/ui -- Kopfzeile, Navigation links (15rem), Inhalt rechts;
+   unter 768px wird die Navigation zur Schublade.
+   Der Token-Block unten ist 1:1 aus packages/ui/src/tokens/tokens.css kopiert (generiert aus tokens.ts).
+   Alles darunter benutzt nur diese Variablen, keine eigenen Farbwerte. */
+/* Hell ist die Voreinstellung. */
+:root {
+  --oa-space-0: 0rem;
+  --oa-space-1: 0.25rem;
+  --oa-space-2: 0.5rem;
+  --oa-space-3: 0.75rem;
+  --oa-space-4: 1rem;
+  --oa-space-5: 1.25rem;
+  --oa-space-6: 1.5rem;
+  --oa-space-8: 2rem;
+  --oa-space-10: 2.5rem;
+  --oa-space-12: 3rem;
+  --oa-space-16: 4rem;
+  --oa-space-20: 5rem;
+  --oa-space-24: 6rem;
+  --oa-space-px: 0.0625rem;
+  --oa-space-0_5: 0.125rem;
+  --oa-space-1_5: 0.375rem;
+  --oa-space-2_5: 0.625rem;
+  --oa-size-nav: 15rem;
+  --oa-size-drawer: 18rem;
+  --oa-size-menu: 16rem;
+  --oa-size-panel: 20rem;
+  --oa-size-scroll: 20rem;
+  --oa-size-field: 12rem;
+  --oa-radius-none: 0rem;
+  --oa-radius-sm: 0.125rem;
+  --oa-radius-md: 0.1875rem;
+  --oa-radius-lg: 0.25rem;
+  --oa-radius-xl: 0.375rem;
+  --oa-radius-2xl: 0.5rem;
+  --oa-radius-full: 9999px;
+  --oa-font-sans: 'Helvetica Neue', Helvetica, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --oa-font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
+  --oa-font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', ui-serif, Georgia, 'Noto Serif', 'Times New Roman', serif;
+  --oa-text-2xs: 0.6875rem;
+  --oa-leading-2xs: 1rem;
+  --oa-text-xs: 0.75rem;
+  --oa-leading-xs: 1.125rem;
+  --oa-text-sm: 0.875rem;
+  --oa-leading-sm: 1.375rem;
+  --oa-text-base: 1rem;
+  --oa-leading-base: 1.5rem;
+  --oa-text-lg: 1.125rem;
+  --oa-leading-lg: 1.625rem;
+  --oa-text-xl: 1.25rem;
+  --oa-leading-xl: 1.75rem;
+  --oa-text-2xl: 1.5rem;
+  --oa-leading-2xl: 1.875rem;
+  --oa-text-3xl: 1.875rem;
+  --oa-leading-3xl: 2.25rem;
+  --oa-text-4xl: 2.25rem;
+  --oa-leading-4xl: 2.5rem;
+  --oa-text-5xl: 3rem;
+  --oa-leading-5xl: 3.125rem;
+  --oa-weight-normal: 400;
+  --oa-weight-medium: 500;
+  --oa-weight-semibold: 600;
+  --oa-weight-bold: 700;
+  --oa-tracking-display: -0.02em;
+  --oa-tracking-label: 0.08em;
+  --oa-tracking-loose: 0.14em;
+  --oa-screen-sm: 640px;
+  --oa-screen-md: 768px;
+  --oa-screen-lg: 1024px;
+  --oa-screen-xl: 1280px;
+  --oa-z-base: 0;
+  --oa-z-sticky: 10;
+  --oa-z-shell: 20;
+  --oa-z-dropdown: 30;
+  --oa-z-overlay: 40;
+  --oa-z-dialog: 50;
+  --oa-z-toast: 60;
+
+  --oa-color-bg: #ffffff;
+  --oa-color-bg-subtle: #f5f5f4;
+  --oa-color-surface: #fafafa;
+  --oa-color-surface-hover: #f1f1f0;
+  --oa-color-surface-muted: #ededec;
+  --oa-color-border: #e4e4e2;
+  --oa-color-border-strong: #8a8a88;
+  --oa-color-fg: #0b0b0c;
+  --oa-color-fg-muted: #55565a;
+  --oa-color-fg-subtle: #6a6b6f;
+  --oa-color-fg-inverted: #ffffff;
+  --oa-color-primary: #4c5d72;
+  --oa-color-primary-hover: #3b4859;
+  --oa-color-primary-fg: #ffffff;
+  --oa-color-primary-subtle: #edf0f4;
+  --oa-color-primary-subtle-fg: #38465a;
+  --oa-color-success: #22663e;
+  --oa-color-success-fg: #ffffff;
+  --oa-color-success-subtle: #ecf4ef;
+  --oa-color-success-subtle-fg: #1b5232;
+  --oa-color-warning: #83560f;
+  --oa-color-warning-fg: #ffffff;
+  --oa-color-warning-subtle: #f7f0e3;
+  --oa-color-warning-subtle-fg: #664208;
+  --oa-color-danger: #a3312b;
+  --oa-color-danger-hover: #842520;
+  --oa-color-danger-fg: #ffffff;
+  --oa-color-danger-subtle: #f8ecea;
+  --oa-color-danger-subtle-fg: #842520;
+  --oa-color-focus: #4c5d72;
+  --oa-color-overlay: rgb(11 11 12 / 0.40);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 0 0 rgb(11 11 12 / 0.04);
+  --oa-shadow-md: 0 1px 2px 0 rgb(11 11 12 / 0.04), 0 12px 32px -12px rgb(11 11 12 / 0.18);
+  --oa-shadow-lg: 0 2px 6px -2px rgb(11 11 12 / 0.06), 0 32px 64px -24px rgb(11 11 12 / 0.28);
+
+  color-scheme: light;
+}
+
+/* Dunkel, wenn das System es wünscht — es sei denn, hell ist erzwungen. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  --oa-color-bg: #0b0b0c;
+  --oa-color-bg-subtle: #070708;
+  --oa-color-surface: #131314;
+  --oa-color-surface-hover: #1a1a1c;
+  --oa-color-surface-muted: #202022;
+  --oa-color-border: #242426;
+  --oa-color-border-strong: #707074;
+  --oa-color-fg: #f2f2f0;
+  --oa-color-fg-muted: #a6a6a8;
+  --oa-color-fg-subtle: #8e8e92;
+  --oa-color-fg-inverted: #0b0b0c;
+  --oa-color-primary: #9cadc2;
+  --oa-color-primary-hover: #bac8d8;
+  --oa-color-primary-fg: #0b0e13;
+  --oa-color-primary-subtle: #171c23;
+  --oa-color-primary-subtle-fg: #c2cedc;
+  --oa-color-success: #7fc496;
+  --oa-color-success-fg: #06170c;
+  --oa-color-success-subtle: #0f1d14;
+  --oa-color-success-subtle-fg: #a9d9b8;
+  --oa-color-warning: #d6ae67;
+  --oa-color-warning-fg: #1d1404;
+  --oa-color-warning-subtle: #221a0c;
+  --oa-color-warning-subtle-fg: #e9d0a0;
+  --oa-color-danger: #ee8f88;
+  --oa-color-danger-hover: #f4b2ad;
+  --oa-color-danger-fg: #290907;
+  --oa-color-danger-subtle: #261211;
+  --oa-color-danger-subtle-fg: #f4beb9;
+  --oa-color-focus: #9cadc2;
+  --oa-color-overlay: rgb(0 0 0 / 0.66);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 0 0 rgb(0 0 0 / 0.5);
+  --oa-shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.6), 0 12px 32px -12px rgb(0 0 0 / 0.8);
+  --oa-shadow-lg: 0 2px 6px -2px rgb(0 0 0 / 0.7), 0 32px 64px -24px rgb(0 0 0 / 0.9);
+
+    color-scheme: dark;
+  }
+}
+
+/* Dunkel erzwungen. */
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  --oa-color-bg: #0b0b0c;
+  --oa-color-bg-subtle: #070708;
+  --oa-color-surface: #131314;
+  --oa-color-surface-hover: #1a1a1c;
+  --oa-color-surface-muted: #202022;
+  --oa-color-border: #242426;
+  --oa-color-border-strong: #707074;
+  --oa-color-fg: #f2f2f0;
+  --oa-color-fg-muted: #a6a6a8;
+  --oa-color-fg-subtle: #8e8e92;
+  --oa-color-fg-inverted: #0b0b0c;
+  --oa-color-primary: #9cadc2;
+  --oa-color-primary-hover: #bac8d8;
+  --oa-color-primary-fg: #0b0e13;
+  --oa-color-primary-subtle: #171c23;
+  --oa-color-primary-subtle-fg: #c2cedc;
+  --oa-color-success: #7fc496;
+  --oa-color-success-fg: #06170c;
+  --oa-color-success-subtle: #0f1d14;
+  --oa-color-success-subtle-fg: #a9d9b8;
+  --oa-color-warning: #d6ae67;
+  --oa-color-warning-fg: #1d1404;
+  --oa-color-warning-subtle: #221a0c;
+  --oa-color-warning-subtle-fg: #e9d0a0;
+  --oa-color-danger: #ee8f88;
+  --oa-color-danger-hover: #f4b2ad;
+  --oa-color-danger-fg: #290907;
+  --oa-color-danger-subtle: #261211;
+  --oa-color-danger-subtle-fg: #f4beb9;
+  --oa-color-focus: #9cadc2;
+  --oa-color-overlay: rgb(0 0 0 / 0.66);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 0 0 rgb(0 0 0 / 0.5);
+  --oa-shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.6), 0 12px 32px -12px rgb(0 0 0 / 0.8);
+  --oa-shadow-lg: 0 2px 6px -2px rgb(0 0 0 / 0.7), 0 32px 64px -24px rgb(0 0 0 / 0.9);
+
+  color-scheme: dark;
+}
+
+/* Hell erzwungen — gewinnt gegen die System-Voreinstellung. */
+:root[data-theme='light'],
+[data-theme='light'] {
+  --oa-color-bg: #ffffff;
+  --oa-color-bg-subtle: #f5f5f4;
+  --oa-color-surface: #fafafa;
+  --oa-color-surface-hover: #f1f1f0;
+  --oa-color-surface-muted: #ededec;
+  --oa-color-border: #e4e4e2;
+  --oa-color-border-strong: #8a8a88;
+  --oa-color-fg: #0b0b0c;
+  --oa-color-fg-muted: #55565a;
+  --oa-color-fg-subtle: #6a6b6f;
+  --oa-color-fg-inverted: #ffffff;
+  --oa-color-primary: #4c5d72;
+  --oa-color-primary-hover: #3b4859;
+  --oa-color-primary-fg: #ffffff;
+  --oa-color-primary-subtle: #edf0f4;
+  --oa-color-primary-subtle-fg: #38465a;
+  --oa-color-success: #22663e;
+  --oa-color-success-fg: #ffffff;
+  --oa-color-success-subtle: #ecf4ef;
+  --oa-color-success-subtle-fg: #1b5232;
+  --oa-color-warning: #83560f;
+  --oa-color-warning-fg: #ffffff;
+  --oa-color-warning-subtle: #f7f0e3;
+  --oa-color-warning-subtle-fg: #664208;
+  --oa-color-danger: #a3312b;
+  --oa-color-danger-hover: #842520;
+  --oa-color-danger-fg: #ffffff;
+  --oa-color-danger-subtle: #f8ecea;
+  --oa-color-danger-subtle-fg: #842520;
+  --oa-color-focus: #4c5d72;
+  --oa-color-overlay: rgb(11 11 12 / 0.40);
+
+  --oa-shadow-none: none;
+  --oa-shadow-sm: 0 1px 0 0 rgb(11 11 12 / 0.04);
+  --oa-shadow-md: 0 1px 2px 0 rgb(11 11 12 / 0.04), 0 12px 32px -12px rgb(11 11 12 / 0.18);
+  --oa-shadow-lg: 0 2px 6px -2px rgb(11 11 12 / 0.06), 0 32px 64px -24px rgb(11 11 12 / 0.28);
+
+  color-scheme: light;
+}
+
+/* ---------- Grundlage ---------- */
+*,*::before,*::after{box-sizing:border-box;border-color:var(--oa-color-border)}
+html{font-family:var(--oa-font-sans);-webkit-text-size-adjust:100%;background:var(--oa-color-bg)}
+html,body{height:100%}
+body{margin:0;background:var(--oa-color-bg);color:var(--oa-color-fg);font-size:var(--oa-text-sm);line-height:var(--oa-leading-sm);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--oa-color-bg)}
+::selection{background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg)}
+button,input,select{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--oa-color-focus);outline-offset:2px}
+.mono{font-family:var(--oa-font-mono);font-size:.8125rem;letter-spacing:0}
+.muted{color:var(--oa-color-fg-muted)}
+.subtle{color:var(--oa-color-fg-subtle)}
+/* Das Mono-Label: Versalien, weite Laufweite. Der wiederkehrende Akzent. */
+.label,.eyebrow,.crumbs,.navgroup h3,th,.card h2,.section h2,.pop h3,.field label,.appbrand .p,.kpi .k{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);font-weight:500;text-transform:uppercase;letter-spacing:var(--oa-tracking-label);color:var(--oa-color-fg-muted)}
+.x{color:var(--oa-color-fg-subtle);padding-inline:.35em}
+
+/* ---------- Hinweisband: Klickdummy ---------- */
+.demo{border-bottom:1px solid var(--oa-color-border);background:var(--oa-color-bg-subtle);color:var(--oa-color-fg-muted);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);letter-spacing:.02em;padding-block:var(--oa-space-2);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;gap:var(--oa-space-1) var(--oa-space-4);align-items:center}
+.demo strong{text-transform:uppercase;letter-spacing:var(--oa-tracking-label);color:var(--oa-color-fg);font-weight:500}
+.demo label{display:flex;gap:var(--oa-space-2);align-items:center;margin-left:auto;text-transform:uppercase;letter-spacing:var(--oa-tracking-label)}
+.demo select{background:var(--oa-color-bg);border:1px solid var(--oa-color-border-strong);border-radius:var(--oa-radius-full);padding:var(--oa-space-0_5) var(--oa-space-2);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg)}
+@media (max-width:640px){.demo label{margin-left:0}}
+
+/* ---------- Shell ---------- */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;height:3.5rem;display:flex;align-items:center;gap:var(--oa-space-2);border-bottom:1px solid var(--oa-color-border);background:var(--oa-color-bg);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+.brand{display:flex;gap:var(--oa-space-2);align-items:center;white-space:nowrap;font-family:var(--oa-font-mono);font-size:var(--oa-text-xs);font-weight:500;text-transform:uppercase;letter-spacing:var(--oa-tracking-loose);color:var(--oa-color-fg);text-decoration:none}
+.brand::before{content:"";width:.625rem;height:.625rem;background:var(--oa-color-primary);flex-shrink:0}
+.brand small{font-size:inherit;font-weight:400;color:var(--oa-color-fg-subtle);letter-spacing:var(--oa-tracking-label)}
+.top .spacer{flex:1}
+.iconbtn{width:2.25rem;height:2.25rem;border-radius:var(--oa-radius-full);border:1px solid transparent;background:none;display:grid;place-items:center;cursor:pointer;color:var(--oa-color-fg-muted);position:relative;transition:background-color .15s,color .15s}
+.iconbtn:hover{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
+.iconbtn svg{width:1.125rem;height:1.125rem}
+.dot{position:absolute;top:.4rem;right:.45rem;width:.4375rem;height:.4375rem;border-radius:var(--oa-radius-full);background:var(--oa-color-danger);box-shadow:0 0 0 2px var(--oa-color-bg)}
+.avatar{width:1.875rem;height:1.875rem;border-radius:var(--oa-radius-full);background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg);display:grid;place-items:center;font-family:var(--oa-font-mono);font-weight:500;font-size:var(--oa-text-2xs);letter-spacing:.04em}
+.menu-toggle{display:none}
+.layout{display:grid;grid-template-columns:var(--oa-size-nav) minmax(0,1fr);min-height:calc(100% - 3.5rem)}
+nav.side{border-right:1px solid var(--oa-color-border);background:var(--oa-color-bg);padding:var(--oa-space-6) var(--oa-space-3);display:flex;flex-direction:column;gap:var(--oa-space-8)}
+@media (min-width:768px){nav.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 3.5rem);align-self:start;height:calc(100vh - 3.5rem);overflow-y:auto}}
+.navgroup{display:flex;flex-direction:column;gap:1px}
+.navgroup h3{margin:0 0 var(--oa-space-2) var(--oa-space-3)}
+.navlink{display:flex;align-items:center;justify-content:space-between;gap:var(--oa-space-2);padding:var(--oa-space-2) var(--oa-space-3);border-radius:var(--oa-radius-sm);color:var(--oa-color-fg-muted);text-decoration:none;transition:background-color .15s,color .15s}
+.navlink:hover{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
+.navlink[aria-current="page"]{background:var(--oa-color-surface-hover);color:var(--oa-color-fg);font-weight:500;box-shadow:inset 2px 0 0 var(--oa-color-primary)}
+.navlink .count{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle);font-variant-numeric:tabular-nums}
+main{min-width:0;padding-block:var(--oa-space-10) var(--oa-space-16,4rem);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (min-width:768px){main{padding-left:var(--oa-space-12);padding-right:max(var(--oa-space-12),env(safe-area-inset-right,0px))}}
+.page{max-width:68rem;display:flex;flex-direction:column;gap:var(--oa-space-8)}
+
+@media (max-width:767px){
+  .menu-toggle{display:grid}
+  .layout{grid-template-columns:minmax(0,1fr)}
+  nav.side{position:fixed;z-index:40;top:0;bottom:0;left:0;width:min(var(--oa-size-nav),85vw);transform:translateX(-100%);transition:transform .2s ease;padding-top:calc(env(safe-area-inset-top,0px) + var(--oa-space-6));padding-left:max(var(--oa-space-3),env(safe-area-inset-left,0px));box-shadow:var(--oa-shadow-lg)}
+  body.nav-open nav.side{transform:none}
+  .scrim{position:fixed;inset:0;z-index:35;background:var(--oa-color-overlay)}
+  .hide-sm{display:none}
+  main{padding-top:var(--oa-space-8)}
+  .page{gap:var(--oa-space-6)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- Kopf einer Seite ---------- */
+.eyebrow{display:flex;align-items:center;gap:var(--oa-space-3);margin-bottom:calc(-1 * var(--oa-space-4))}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--oa-color-border)}
+.head{display:flex;flex-wrap:wrap;gap:var(--oa-space-4) var(--oa-space-6);align-items:flex-end;justify-content:space-between;padding-bottom:var(--oa-space-8);border-bottom:1px solid var(--oa-color-border)}
+.head > div:first-child{min-width:0;flex:1 1 24rem}
+.head h1{margin:0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-5xl);line-height:var(--oa-leading-5xl);letter-spacing:var(--oa-tracking-display);text-wrap:balance;display:flex;flex-wrap:wrap;align-items:center;gap:var(--oa-space-2) var(--oa-space-4)}
+.head h1 .badge{font-family:var(--oa-font-mono);letter-spacing:var(--oa-tracking-label)}
+.head p{margin:var(--oa-space-3) 0 0;color:var(--oa-color-fg-muted);max-width:60ch;font-size:var(--oa-text-base);line-height:var(--oa-leading-base);text-wrap:pretty}
+.crumbs{margin-bottom:var(--oa-space-3)}
+.crumbs a{color:inherit;text-decoration:none;border-bottom:1px solid var(--oa-color-border-strong)}
+.crumbs a:hover{color:var(--oa-color-fg);border-color:var(--oa-color-fg)}
+.actions{display:flex;flex-wrap:wrap;gap:var(--oa-space-2)}
+@media (max-width:640px){.head h1{font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl)}.head{padding-bottom:var(--oa-space-6)}.head p{font-size:var(--oa-text-sm);line-height:var(--oa-leading-sm)}}
+
+/* ---------- Knöpfe: Pillen ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--oa-space-1_5);min-height:2.375rem;padding:0 var(--oa-space-5);border-radius:var(--oa-radius-full);border:1px solid var(--oa-color-border-strong);background:var(--oa-color-bg);color:var(--oa-color-fg);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background-color .15s,border-color .15s,color .15s}
+.btn:hover{border-color:var(--oa-color-fg);background:var(--oa-color-surface)}
+.btn.primary{background:var(--oa-color-primary);border-color:var(--oa-color-primary);color:var(--oa-color-primary-fg)}
+.btn.primary:hover{background:var(--oa-color-primary-hover);border-color:var(--oa-color-primary-hover)}
+.btn.danger{background:var(--oa-color-danger);border-color:var(--oa-color-danger);color:var(--oa-color-danger-fg)}
+.btn.ghost{border-color:transparent;background:none;color:var(--oa-color-fg-muted)}
+.btn.ghost:hover{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
+.btn.sm{min-height:1.875rem;padding:0 var(--oa-space-3);font-size:var(--oa-text-xs)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn[disabled]:hover{border-color:var(--oa-color-border-strong);background:var(--oa-color-bg)}
+
+/* ---------- Badge: Mono in Versalien, Quadrat in Textfarbe ---------- */
+.badge{display:inline-flex;align-items:center;gap:var(--oa-space-1_5);border:1px solid var(--oa-color-border);background:var(--oa-color-surface);color:var(--oa-color-fg-muted);border-radius:var(--oa-radius-sm);padding:0 var(--oa-space-1_5);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);font-weight:500;line-height:1.25rem;letter-spacing:var(--oa-tracking-label);text-transform:uppercase;white-space:nowrap;vertical-align:middle}
+.badge.success{background:var(--oa-color-success-subtle);color:var(--oa-color-success-subtle-fg);border-color:var(--oa-color-success-subtle)}
+.badge.warning{background:var(--oa-color-warning-subtle);color:var(--oa-color-warning-subtle-fg);border-color:var(--oa-color-warning-subtle)}
+.badge.danger{background:var(--oa-color-danger-subtle);color:var(--oa-color-danger-subtle-fg);border-color:var(--oa-color-danger-subtle)}
+.badge.primary{background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg);border-color:var(--oa-color-primary-subtle)}
+.badge::before{content:"";width:.375rem;height:.375rem;background:currentColor;flex-shrink:0}
+.badge.plain::before{display:none}
+.head h1 .badge{font-size:var(--oa-text-2xs)}
+
+/* ---------- Tabelle ---------- */
+.tablewrap{overflow-x:auto;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg)}
+table{width:100%;border-collapse:collapse;text-align:left}
+th{border-bottom:1px solid var(--oa-color-border);padding:var(--oa-space-3) var(--oa-space-4);white-space:nowrap}
+td{border-bottom:1px solid var(--oa-color-border);padding:var(--oa-space-3_5,.875rem) var(--oa-space-4);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{transition:background-color .15s}
+tbody tr.link{cursor:pointer}
+tbody tr.link:hover{background:var(--oa-color-surface)}
+tbody tr.link:hover .title{text-decoration:underline;text-decoration-color:var(--oa-color-primary);text-underline-offset:4px}
+td .title{font-weight:500}
+td .sub{font-size:var(--oa-text-xs);color:var(--oa-color-fg-subtle);margin-top:1px}
+td .sub.mono{font-size:var(--oa-text-2xs)}
+.num{font-variant-numeric:tabular-nums}
+@media (max-width:640px){th,td{padding-inline:var(--oa-space-3)}td .badge{white-space:normal;line-height:var(--oa-leading-2xs);padding-block:var(--oa-space-0_5)}td .sub,td.mono{overflow-wrap:anywhere}td .title{overflow-wrap:anywhere}}
+.right{text-align:right}
+
+/* ---------- Leer- und Fehlerzustand ---------- */
+.state{border:1px dashed var(--oa-color-border-strong);border-radius:var(--oa-radius-lg);padding:var(--oa-space-16,4rem) var(--oa-space-6);text-align:center;display:flex;flex-direction:column;align-items:center;gap:var(--oa-space-3);background:var(--oa-color-bg)}
+.state::before{content:"[ \2205  leer ]";font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);letter-spacing:var(--oa-tracking-label);text-transform:uppercase;color:var(--oa-color-fg-subtle);margin-bottom:var(--oa-space-1)}
+.state h2{margin:0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl);letter-spacing:var(--oa-tracking-display);text-wrap:balance}
+.state p{margin:0;color:var(--oa-color-fg-muted);max-width:46ch;text-wrap:pretty}
+.state.error{border-style:solid;border-color:var(--oa-color-danger);background:var(--oa-color-danger-subtle);color:var(--oa-color-danger-subtle-fg)}
+.state.error::before{content:"[ ! Fehler ]";color:var(--oa-color-danger-subtle-fg)}
+.state.error p{color:var(--oa-color-danger-subtle-fg)}
+.state .btn{margin-top:var(--oa-space-3)}
+@media (max-width:640px){.state{padding:var(--oa-space-12) var(--oa-space-4)}.state h2{font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl)}}
+
+/* ---------- Karten im Haarlinien-Raster ---------- */
+.grid{display:grid;gap:1px;padding:1px;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr))}
+.card{background:var(--oa-color-bg);box-shadow:0 0 0 1px var(--oa-color-border);padding:var(--oa-space-5);display:flex;flex-direction:column;gap:var(--oa-space-3);min-width:0}
+.card h2{margin:0 0 var(--oa-space-1)}
+.card .step{font-family:var(--oa-font-display);font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl);letter-spacing:var(--oa-tracking-display);font-weight:400;margin:0;color:var(--oa-color-fg)}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--oa-space-2) var(--oa-space-5);margin:0}
+.kv dt{color:var(--oa-color-fg-subtle)}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.section{display:flex;flex-direction:column;gap:var(--oa-space-4)}
+.section h2{margin:0;display:flex;align-items:center;gap:var(--oa-space-3)}
+.section h2::after{content:"";flex:1;height:1px;background:var(--oa-color-border)}
+.kpi .v{font-family:var(--oa-font-display);font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl);letter-spacing:var(--oa-tracking-display);font-weight:400;font-variant-numeric:tabular-nums lining-nums}
+@media (max-width:640px){.kpi .v{font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl)}}
+
+/* ---------- Reiter ---------- */
+.tabs{display:flex;gap:var(--oa-space-6);border-bottom:1px solid var(--oa-color-border);overflow-x:auto;margin-top:calc(-1 * var(--oa-space-8));scrollbar-width:none}
+.tab{border:0;background:none;padding:var(--oa-space-3) 0;border-bottom:1px solid transparent;margin-bottom:-1px;color:var(--oa-color-fg-muted);cursor:pointer;font-weight:500;white-space:nowrap;transition:color .15s}
+.tab:hover{color:var(--oa-color-fg)}
+.tab[aria-selected="true"]{color:var(--oa-color-fg);border-bottom-color:var(--oa-color-fg)}
+.head + .tabs{border-top:0}
+@media (max-width:767px){.tabs{margin-top:calc(-1 * var(--oa-space-6))}}
+
+/* ---------- Review-Gate ---------- */
+.gate{display:flex;flex-direction:column;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);overflow:hidden;background:var(--oa-color-bg)}
+.gate .row{display:grid;grid-template-columns:1.25rem minmax(0,1fr) auto;gap:var(--oa-space-4);align-items:start;padding:var(--oa-space-3_5,.875rem) var(--oa-space-4);border-bottom:1px solid var(--oa-color-border)}
+.gate .row:last-child{border-bottom:0}
+.gate .row .what{font-family:var(--oa-font-mono);font-size:.8125rem;font-weight:500}
+.gate .row .why{font-size:var(--oa-text-xs);color:var(--oa-color-fg-muted);margin-top:1px}
+.mark{width:1.25rem;height:1.25rem;border-radius:var(--oa-radius-sm);display:grid;place-items:center;font-family:var(--oa-font-mono);font-size:.6875rem;font-weight:500;background:var(--oa-color-surface-muted);color:var(--oa-color-fg-subtle);margin-top:.0625rem}
+.mark.ok{background:var(--oa-color-success-subtle);color:var(--oa-color-success-subtle-fg)}
+.mark.fail{background:var(--oa-color-danger-subtle);color:var(--oa-color-danger-subtle-fg)}
+.mark.info{background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg)}
+.mark.run{border:1px solid var(--oa-color-primary);border-top-color:transparent;border-radius:var(--oa-radius-full);background:none;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- Formular, Dialog ---------- */
+.field{display:flex;flex-direction:column;gap:var(--oa-space-1_5)}
+.field .hint{font-size:var(--oa-text-xs);color:var(--oa-color-fg-subtle)}
+.field .err{font-size:var(--oa-text-xs);color:var(--oa-color-danger);font-weight:500}
+.input,.select{height:2.5rem;border:1px solid var(--oa-color-border-strong);border-radius:var(--oa-radius-md);background:var(--oa-color-bg);padding:0 var(--oa-space-3);width:100%;min-width:0;transition:border-color .15s}
+.input:hover,.select:hover{border-color:var(--oa-color-fg-muted)}
+.input::placeholder{color:var(--oa-color-fg-subtle)}
+.input[aria-invalid="true"]{border-color:var(--oa-color-danger)}
+dialog{border:1px solid var(--oa-color-border);padding:0;border-radius:var(--oa-radius-lg);background:var(--oa-color-bg);color:var(--oa-color-fg);box-shadow:var(--oa-shadow-lg);width:min(34rem,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:var(--oa-color-overlay)}
+dialog form{display:flex;flex-direction:column;gap:var(--oa-space-5);padding:var(--oa-space-8)}
+dialog h2{margin:0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl);letter-spacing:var(--oa-tracking-display);overflow-wrap:anywhere}
+dialog p{margin:calc(-1 * var(--oa-space-2)) 0 0;color:var(--oa-color-fg-muted)}
+dialog .section p{margin:0}
+.dialog-actions{display:flex;justify-content:flex-end;gap:var(--oa-space-2);flex-wrap:wrap;border-top:1px solid var(--oa-color-border);margin:var(--oa-space-2) calc(-1 * var(--oa-space-8)) calc(-1 * var(--oa-space-8));padding:var(--oa-space-5) var(--oa-space-8)}
+@media (max-width:640px){dialog form{padding:var(--oa-space-6) var(--oa-space-5)}.dialog-actions{margin:var(--oa-space-2) calc(-1 * var(--oa-space-5)) calc(-1 * var(--oa-space-6));padding:var(--oa-space-4) var(--oa-space-5)}dialog h2{font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl)}}
+.secret{display:flex;gap:var(--oa-space-2);align-items:stretch}
+.secret code{flex:1;min-width:0;overflow-wrap:anywhere;background:var(--oa-color-surface);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-md);padding:var(--oa-space-2) var(--oa-space-3);font-family:var(--oa-font-mono);font-size:.8125rem}
+.callout{border:1px solid var(--oa-color-border);border-left:2px solid var(--oa-color-warning);border-radius:var(--oa-radius-sm);padding:var(--oa-space-3) var(--oa-space-4);background:var(--oa-color-warning-subtle);color:var(--oa-color-warning-subtle-fg);font-size:var(--oa-text-xs);line-height:var(--oa-leading-xs)}
+.callout.info{border-left-color:var(--oa-color-primary);background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg)}
+.callout strong{font-weight:600}
+pre.code{margin:0;overflow-x:auto;background:var(--oa-color-surface);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);padding:var(--oa-space-4);font-family:var(--oa-font-mono);font-size:.8125rem;line-height:1.7}
+
+/* ---------- Apps im Betrieb ---------- */
+.appbrand{display:flex;flex-direction:column;gap:1px;line-height:1.15;min-width:0;text-decoration:none;color:inherit}
+.appbrand .p{font-size:.625rem;line-height:.875rem}
+.appbrand .n{font-weight:500;font-size:var(--oa-text-base);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.progress{display:flex;align-items:center;gap:var(--oa-space-3);min-width:7rem}
+.progress .bar{flex:1;height:2px;background:var(--oa-color-surface-muted);overflow:hidden}
+.progress .bar span{display:block;height:100%;background:var(--oa-color-primary)}
+.progress .num{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle)}
+.checklist{display:flex;flex-direction:column;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg)}
+.checklist label{display:flex;gap:var(--oa-space-3);align-items:center;padding:var(--oa-space-3_5,.875rem) var(--oa-space-4);border-bottom:1px solid var(--oa-color-border);cursor:pointer;transition:background-color .15s}
+.checklist label:hover{background:var(--oa-color-surface)}
+.checklist label:last-child{border-bottom:0}
+.checklist input{width:1rem;height:1rem;accent-color:var(--oa-color-primary);flex-shrink:0}
+.checklist .done{color:var(--oa-color-fg-subtle);text-decoration:line-through;text-decoration-color:var(--oa-color-border-strong)}
+.checklist .due{margin-left:auto;font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle);white-space:nowrap}
+.totals{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:var(--oa-space-2) var(--oa-space-8);font-variant-numeric:tabular-nums;min-width:min(18rem,100%)}
+.totals dt{color:var(--oa-color-fg-muted)}
+.totals dd{margin:0;text-align:right}
+.totals .sum{border-top:1px solid var(--oa-color-fg);padding-top:var(--oa-space-3);margin-top:var(--oa-space-1)}
+.totals dt.sum{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);text-transform:uppercase;letter-spacing:var(--oa-tracking-label);color:var(--oa-color-fg);align-self:end}
+.totals dd.sum{font-family:var(--oa-font-display);font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl);letter-spacing:var(--oa-tracking-display)}
+.toolnote{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);color:var(--oa-color-fg-subtle);margin:0}
+.toolnote::before{content:"\203A  "}
+.toolnote .mono{font-size:inherit;color:var(--oa-color-fg-muted)}
+.filters{display:flex;gap:var(--oa-space-1_5);flex-wrap:wrap}
+.chip{border:1px solid var(--oa-color-border);background:var(--oa-color-bg);border-radius:var(--oa-radius-full);padding:0 var(--oa-space-3_5,.875rem);height:1.875rem;cursor:pointer;color:var(--oa-color-fg-muted);font-weight:500;font-size:var(--oa-text-xs);transition:border-color .15s,color .15s,background-color .15s}
+.chip:hover{border-color:var(--oa-color-border-strong);color:var(--oa-color-fg)}
+.chip[aria-pressed="true"]{background:var(--oa-color-fg);border-color:var(--oa-color-fg);color:var(--oa-color-bg)}
+.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:var(--oa-space-4)}
+
+/* ---------- Toast ---------- */
+.toasts{position:fixed;z-index:60;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:flex-end;gap:var(--oa-space-2);max-width:calc(100vw - 32px)}
+.toast{background:var(--oa-color-fg);color:var(--oa-color-fg-inverted);border-radius:var(--oa-radius-full);padding:var(--oa-space-2_5) var(--oa-space-5);box-shadow:var(--oa-shadow-md);animation:rise .18s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(.375rem)}to{opacity:1;transform:none}}
+
+/* ---------- Login ---------- */
+.login{min-height:100%;display:grid;place-items:center;padding-block:var(--oa-space-12);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--oa-color-bg-subtle)}
+.login .card{width:min(26rem,100%);padding:var(--oa-space-10) var(--oa-space-8);gap:var(--oa-space-5);border:1px solid var(--oa-color-border);box-shadow:var(--oa-shadow-md);border-radius:var(--oa-radius-lg)}
+.login h1{margin:var(--oa-space-6) 0 0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-5xl);line-height:var(--oa-leading-5xl);letter-spacing:var(--oa-tracking-display)}
+.login .foot{border-top:1px solid var(--oa-color-border);padding-top:var(--oa-space-4);margin:0}
+.google{justify-content:center;min-height:2.75rem;width:100%}
+.google svg{width:1.125rem;height:1.125rem}
+@media (max-width:640px){.login .card{padding:var(--oa-space-8) var(--oa-space-5)}.login h1{font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl)}}
+
+/* ---------- Benachrichtigungen, Menü ---------- */
+.pop{position:absolute;top:3.25rem;right:max(12px,env(safe-area-inset-right,0px));width:min(var(--oa-size-panel),calc(100vw - 32px));background:var(--oa-color-bg);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);box-shadow:var(--oa-shadow-md);z-index:30;padding:var(--oa-space-1);animation:rise .15s ease-out}
+.pop .item{padding:var(--oa-space-2_5) var(--oa-space-3);border-radius:var(--oa-radius-sm);display:flex;flex-direction:column;gap:2px;text-decoration:none;color:inherit}
+.pop .item:hover{background:var(--oa-color-surface-hover)}
+.pop .item .t{font-weight:500}
+.pop .item .s{font-size:var(--oa-text-xs);color:var(--oa-color-fg-subtle)}
+.pop h3{margin:0;padding:var(--oa-space-2_5) var(--oa-space-3) var(--oa-space-2);border-bottom:1px solid var(--oa-color-border);margin-bottom:var(--oa-space-1)}
+.pop button.item{width:100%;border:0;background:none;text-align:left;cursor:pointer}
+.pop > .btn{margin:var(--oa-space-1) var(--oa-space-2) var(--oa-space-1)}
+</style>
+
+<div class="demo" role="note">
+  <strong>Klickdummy</strong><span>Beispieldaten, nichts wird gespeichert. Jede Aktion hier gibt es auch als MCP-Tool.</span>
+  <label for="demo-state">Listen zeigen:
+    <select id="demo-state"><option value="data">mit Daten</option><option value="empty">leer</option><option value="error">Fehler</option></select>
+  </label>
+</div>
+<div id="root"></div>
+<dialog id="dlg"></dialog>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+(function(){
+const I = {
+  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
+  grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  google:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>'
+};
+
+/* ---------- Beispieldaten ---------- */
+const S = {
+  user:{name:'Jonas Q.', email:'jonas@blyck.de', initials:'JQ', groups:['platform-admins']},
+  apps:[
+    {id:'projektliste', name:'Projektliste', status:'live', version:'v1.4.0', sha:'9f2c1ab', deployedAt:'heute, 09:12', by:'agent:claude-jonas', schema:'app_projektliste', tools:['projects.list','projects.get','projects.create','projects.update'], tables:['projects','milestones'],
+      deploys:[
+        {v:'v1.4.0', sha:'9f2c1ab', at:'heute, 09:12', by:'agent:claude-jonas', status:'live', gate:'grün'},
+        {v:'v1.3.2', sha:'41d0e77', at:'gestern, 17:40', by:'jonas@blyck.de', status:'abgelöst', gate:'grün'},
+        {v:'v1.3.1', sha:'c08a913', at:'gestern, 16:05', by:'agent:claude-jonas', status:'blockiert', gate:'gitleaks: 1 Secret'}
+      ]},
+    {id:'angebote', name:'Angebote', status:'degraded', version:'v0.9.1', sha:'7be44d0', deployedAt:'Mo, 14:30', by:'agent:codex-team', schema:'app_angebote', tools:['offers.list','offers.create','offers.send_draft'], tables:['offers','offer_items'],
+      deploys:[
+        {v:'v0.9.1', sha:'7be44d0', at:'Mo, 14:30', by:'agent:codex-team', status:'degraded', gate:'grün, Lint nach Deploy: Host-Port offen'},
+        {v:'v0.9.0', sha:'aa31f02', at:'Fr, 11:02', by:'lena@blyck.de', status:'abgelöst', gate:'grün'}
+      ]},
+    {id:'urlaubsantrag', name:'Urlaubsantrag', status:'neu', version:null, sha:null, deployedAt:null, by:null, schema:'app_urlaubsantrag', tools:['requests.list','requests.create','requests.approve'], tables:['requests'], deploys:[]}
+  ],
+  groups:[
+    {name:'platform-admins', desc:'Verwalten die Plattform', members:['jonas@blyck.de']},
+    {name:'vertrieb', desc:'Vertrieb und Angebote', members:['lena@blyck.de','tim@blyck.de']},
+    {name:'alle', desc:'Alle Mitarbeitenden', members:['jonas@blyck.de','lena@blyck.de','tim@blyck.de','mira@blyck.de']}
+  ],
+  agents:[
+    {name:'claude-jonas', display:'Claude Code (Jonas)', owner:'jonas@blyck.de', seen:'vor 4 Min.', disabled:false},
+    {name:'codex-team', display:'Codex Team-Bot', owner:'lena@blyck.de', seen:'Mo, 14:31', disabled:false},
+    {name:'alt-skript', display:'Altes Import-Skript', owner:'tim@blyck.de', seen:'vor 3 Wochen', disabled:true}
+  ],
+  grants:[
+    {id:1, subject:'group:alle', verb:'read', resource:'app:projektliste', by:'jonas@blyck.de', at:'12.11.'},
+    {id:2, subject:'group:vertrieb', verb:'write', resource:'app:angebote', by:'jonas@blyck.de', at:'14.11.'},
+    {id:3, subject:'agent:claude-jonas', verb:'execute', resource:'tool:projektliste.projects.*', by:'jonas@blyck.de', at:'18.11.'},
+    {id:4, subject:'agent:codex-team', verb:'write', resource:'app:angebote', by:'lena@blyck.de', at:'17.11.'},
+    {id:5, subject:'app:angebote', verb:'read', resource:'table:projektliste.projects', by:'jonas@blyck.de', at:'17.11.'},
+    {id:6, subject:'group:platform-admins', verb:'write', resource:'agent:*', by:'system:bootstrap', at:'11.11.'}
+  ],
+  audit:[
+    {at:'09:12', who:'agent:claude-jonas', what:'request_deploy', on:'app:projektliste', out:'allowed'},
+    {at:'09:10', who:'agent:codex-team', what:'grant', on:'app:projektliste', out:'denied'},
+    {at:'08:55', who:'jonas@blyck.de', what:'create_agent', on:'agent:claude-jonas', out:'allowed'},
+    {at:'gestern', who:'agent:claude-jonas', what:'request_deploy', on:'app:projektliste', out:'denied'}
+  ],
+  notes:[
+    {t:'Angebote: Deploy läuft, aber mit Befund', s:'Lint nach Deploy meldet einen offenen Host-Port', href:'#app-angebote'},
+    {t:'Projektliste v1.3.1 blockiert', s:'gitleaks hat ein Secret gefunden', href:'#app-projektliste'}
+  ],
+  projects:[
+    {id:'p1', name:'Relaunch Kundenportal', client:'Stadtwerke Nordhain', owner:'lena@blyck.de', status:'aktiv', due:'15.12.2026', ms:[['Workshop Anforderungen','03.11.',true],['Klickdummy abgenommen','14.11.',true],['Umsetzung Login und Profil','01.12.',false],['Go-live','15.12.',false]]},
+    {id:'p2', name:'KI-Schulung Vertrieb', client:'Holzbau Lindner', owner:'tim@blyck.de', status:'aktiv', due:'28.11.2026', ms:[['Termin festgelegt','05.11.',true],['Unterlagen fertig','24.11.',false],['Schulung','28.11.',false]]},
+    {id:'p3', name:'Prozessanalyse Buchhaltung', client:'Kanzlei Berger & Roth', owner:'jonas@blyck.de', status:'pausiert', due:'—', ms:[['Interviews','20.10.',true],['Bericht','—',false]]},
+    {id:'p4', name:'Angebotsvorlagen', client:'Bäckerei Kranz', owner:'mira@blyck.de', status:'abgeschlossen', due:'31.10.2026', ms:[['Vorlagen gebaut','24.10.',true],['Übergabe','31.10.',true]]}
+  ],
+  offers:[
+    {id:'a1', no:'A-2026-041', client:'Stadtwerke Nordhain', contact:'einkauf@stadtwerke-nordhain.example', status:'versendet', date:'18.11.2026', valid:'18.12.2026', items:[['Konzept und Klickdummy',1,'Pauschale',4800],['Umsetzung, Personentage',12,'PT',1150],['Betrieb, erster Monat',1,'Monat',390]]},
+    {id:'a2', no:'A-2026-040', client:'Holzbau Lindner', contact:'info@holzbau-lindner.example', status:'angenommen', date:'04.11.2026', valid:'04.12.2026', items:[['KI-Schulung, halber Tag',2,'Termin',1400],['Unterlagen',1,'Pauschale',600]]},
+    {id:'a3', no:'A-2026-042', client:'Kanzlei Berger & Roth', contact:'kanzlei@berger-roth.example', status:'entwurf', date:'21.11.2026', valid:'—', items:[['Prozessanalyse',3,'PT',1150]]},
+    {id:'a4', no:'A-2026-037', client:'Bäckerei Kranz', contact:'kranz@baeckerei-kranz.example', status:'abgelehnt', date:'12.10.2026', valid:'12.11.2026', items:[['Kassensystem-Anbindung',1,'Pauschale',3200]]}
+  ],
+  nextNo:43, projFilter:'alle',
+  nextGrant:7, loggedIn:true, appTab:'overview'
+};
+let listState = 'data';
+
+/* ---------- Helfer ---------- */
+const $ = (s, el=document) => el.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; $('#toasts').appendChild(t); setTimeout(()=>t.remove(),3200); }
+const STATUS = {live:['success','läuft'], degraded:['warning','läuft mit Befund'], neu:['plain','noch nicht deployt'], 'blockiert':['danger','blockiert'], 'abgelöst':['plain','abgelöst'], 'läuft':['primary','prüft …'], 'zurückgesetzt':['primary','zurückgesetzt']};
+function badge(status){ const [tone,label]=STATUS[status]||['plain',status]; return `<span class="badge ${tone}">${esc(label)}</span>`; }
+function verbBadge(v){ const tone={read:'plain',write:'primary',execute:'warning'}[v]||'plain'; const label={read:'lesen',write:'schreiben',execute:'ausführen'}[v]||v; return `<span class="badge plain ${tone==='plain'?'':tone}">${label}</span>`; }
+
+function listOr(rows, {emptyTitle, emptyText, emptyAction, errorTitle}){
+  if(listState==='error') return `<div class="state error" role="alert"><h2>${esc(errorTitle)}</h2><p>Die Control Plane hat nicht geantwortet (Zeitüberschreitung nach 30 s). Seite neu laden; hält der Fehler an, steht der Grund im Log des Containers.</p><button class="btn" data-act="retry">Erneut laden</button></div>`;
+  if(listState==='empty' || rows==='') return `<div class="state"><h2>${esc(emptyTitle)}</h2><p>${esc(emptyText)}</p>${emptyAction||''}</div>`;
+  return rows;
+}
+
+/* ---------- Shell ---------- */
+const NAV = [
+  {title:'Plattform', items:[['apps','Apps',()=>S.apps.length],['grants','Freigaben',()=>S.grants.length],['groups','Gruppen',()=>S.groups.length],['agents','Agents',()=>S.agents.filter(a=>!a.disabled).length]]},
+  {title:'Für Agents', items:[['connect','Agent verbinden'],['audit','Protokoll']]}
+];
+function shell(active, content, ctx){
+  const navDef = ctx ? ctx.nav : NAV;
+  const hit = navDef.flatMap(g=>g.items.map(it=>({g:g.title, id:it[0], l:it[1]}))).find(x=>x.id===active);
+  const eyebrow = hit && !content.includes('class="crumbs"') ? `<div class="eyebrow">${esc(hit.g)}<span class="x">×</span>${esc(hit.l)}</div>` : '';
+  const nav = navDef.map(g=>`<div class="navgroup"><h3>${g.title}</h3>${g.items.map(([id,label,count])=>`<a class="navlink" href="#${id}" ${active===id?'aria-current="page"':''}><span>${label}</span>${count?`<span class="count">${count()}</span>`:''}</a>`).join('')}</div>`).join('');
+  return `
+  <header class="top">
+    <button class="iconbtn menu-toggle" data-act="nav" aria-label="Navigation öffnen">${I.menu}</button>
+    ${ctx ? `<a class="appbrand" href="#run-${ctx.id}"><span class="p">openapps</span><span class="n">${esc(ctx.name)}</span></a>` : '<a class="brand" href="#apps">openapps<small class="hide-sm">/ Control Plane</small></a>'}
+    <div class="spacer"></div>
+    <button class="iconbtn" data-act="switcher" aria-label="App wechseln">${I.grid}</button>
+    <button class="iconbtn" data-act="notes" aria-label="Benachrichtigungen, ${S.notes.length} neu">${I.bell}${S.notes.length?'<span class="dot"></span>':''}</button>
+    <button class="iconbtn" data-act="user" aria-label="Profil"><span class="avatar">${S.user.initials}</span></button>
+    <div id="pop"></div>
+  </header>
+  <div class="layout">
+    <nav class="side" aria-label="Hauptnavigation">${nav}</nav>
+    <main id="main"><div class="page">${eyebrow}${content}</div></main>
+  </div>`;
+}
+
+/* ---------- Seiten ---------- */
+function pageApps(){
+  const rows = S.apps.map(a=>`<tr class="link" data-href="#app-${a.id}" tabindex="0">
+    <td><div class="title">${esc(a.name)}</div><div class="sub mono">apps.enaibler.ai/${esc(a.id)}</div></td>
+    <td>${badge(a.status)}</td>
+    <td class="hide-sm mono">${a.version?esc(a.version)+' · '+esc(a.sha):'—'}</td>
+    <td class="hide-sm">${a.deployedAt?esc(a.deployedAt)+'<div class="sub">'+esc(a.by)+'</div>':'<span class="subtle">—</span>'}</td>
+    <td class="hide-sm num">${a.tools.length}</td>
+    <td class="right">${a.status==='neu'?'':`<a class="btn sm" href="#run-${a.id}">Öffnen</a>`}</td></tr>`).join('');
+  return `
+  <div class="head"><div><h1>Apps</h1><p>Jede App hat ihr eigenes Schema, ihre eigene Rolle und liegt unter einem Pfad von apps.enaibler.ai. Neue Apps legt meist ein Agent an.</p></div>
+    <div class="actions"><button class="btn primary" data-act="new-app">App anlegen</button></div></div>
+  ${listOr(rows,{emptyTitle:'Noch keine App',emptyText:'Leg eine App aus dem Starter-Template an oder lass es deinen Agent tun: create_app.',emptyAction:'<button class="btn primary" data-act="new-app">App anlegen</button>',errorTitle:'Apps konnten nicht geladen werden'}).startsWith('<tr')
+    ? `<div class="tablewrap"><table><caption class="subtle" hidden>Apps</caption><thead><tr><th>Name</th><th>Status</th><th class="hide-sm">Version</th><th class="hide-sm">Zuletzt deployt</th><th class="hide-sm">Tools</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : listOr(rows,{emptyTitle:'Noch keine App',emptyText:'Leg eine App aus dem Starter-Template an oder lass es deinen Agent tun: create_app.',emptyAction:'<button class="btn primary" data-act="new-app">App anlegen</button>',errorTitle:'Apps konnten nicht geladen werden'})}`;
+}
+
+function gateRows(state){
+  const steps=[
+    ['gitleaks','Keine Secrets im Code','Sperrt'],
+    ['semgrep','Sicherheitsregeln (p/owasp-top-ten)','Sperrt'],
+    ['UI-Linter','Nur Komponenten und Tokens aus @openapps/ui','Sperrt'],
+    ['Manifest','app.json passt zu Code, Tabellen und Tools','Sperrt'],
+    ['gateway-config','Router mit Forward-Auth, kein Host-Port, kein zweites Netz','Sperrt'],
+    ['KI-Review','Bericht eines Frontier-Modells, eigener Schlüssel','Hinweis']
+  ];
+  return steps.map(([name,what,kind],i)=>{
+    const st = state[i]||'wait';
+    const mark = {ok:'<span class="mark ok">✓</span>',fail:'<span class="mark fail">!</span>',info:'<span class="mark info">i</span>',run:'<span class="mark run" aria-label="läuft"></span>',wait:'<span class="mark">·</span>'}[st];
+    const tag = kind==='Hinweis'?'<span class="badge primary plain">Hinweis, sperrt nicht</span>':'<span class="badge plain">sperrt</span>';
+    return `<div class="row">${mark}<div><div class="what">${name}</div><div class="why">${what}</div></div>${tag}</div>`;
+  }).join('');
+}
+
+function pageApp(id){
+  const a = S.apps.find(x=>x.id===id); if(!a) return pageApps();
+  const tab = S.appTab;
+  const tabs = [['overview','Übersicht'],['deploys','Deployments'],['access','Zugriff'],['tools','Tools']].map(([k,l])=>`<button class="tab" role="tab" aria-selected="${tab===k}" data-tab="${k}">${l}</button>`).join('');
+  let body='';
+  if(tab==='overview'){
+    body = `
+    ${a.status==='degraded'?'<div class="callout" role="status"><strong>Läuft mit Befund.</strong> Der Lint nach dem Deploy hat einen veröffentlichten Host-Port gefunden. Die App ist damit am Gateway vorbei erreichbar. Zurücksetzen oder einen neuen Commit ohne <span class="mono">ports:</span> deployen.</div>':''}
+    <div class="grid">
+      <div class="card"><h2>Laufende Version</h2><dl class="kv"><dt>Version</dt><dd class="mono">${esc(a.version||'—')}</dd><dt>Commit</dt><dd class="mono">${esc(a.sha||'—')}</dd><dt>Seit</dt><dd>${esc(a.deployedAt||'—')}</dd><dt>Von</dt><dd>${esc(a.by||'—')}</dd></dl></div>
+      <div class="card"><h2>Daten</h2><dl class="kv"><dt>Schema</dt><dd class="mono">${esc(a.schema)}</dd><dt>Rolle</dt><dd class="mono">${esc(a.schema)}</dd><dt>Tabellen</dt><dd>${a.tables.map(t=>'<span class="mono">'+esc(t)+'</span>').join(', ')}</dd><dt>Rechte</dt><dd>kein SUPERUSER, kein BYPASSRLS</dd></dl></div>
+      <div class="card"><h2>Adresse</h2><dl class="kv"><dt>URL</dt><dd class="mono">apps.enaibler.ai/${esc(a.id)}</dd><dt>Login</dt><dd>Google, über die Forward-Auth</dd><dt>Ohne Freigabe</dt><dd>403</dd></dl></div>
+    </div>
+    <div class="section"><h2>Review-Gate der laufenden Version</h2>${a.version?`<div class="gate">${gateRows(['ok','ok','ok','ok',a.status==='degraded'?'fail':'ok','info'])}</div>`:'<div class="state"><h2>Noch kein Deploy</h2><p>Das Gate läuft beim ersten request_deploy.</p></div>'}</div>`;
+  } else if(tab==='deploys'){
+    const rows = a.deploys.map((d,i)=>`<tr><td class="mono">${esc(d.v)}<div class="sub">${esc(d.sha)}</div></td><td>${badge(d.status)}</td><td class="hide-sm">${esc(d.gate)}</td><td class="hide-sm">${esc(d.at)}<div class="sub">${esc(d.by)}</div></td><td class="right">${d.status==='abgelöst'?`<button class="btn sm" data-act="rollback" data-i="${i}">Zurücksetzen</button>`:''}</td></tr>`).join('');
+    body = listOr(rows,{emptyTitle:'Noch kein Deployment',emptyText:'Push einen Commit und starte request_deploy, hier oder über MCP.',emptyAction:`<button class="btn primary" data-act="deploy">Deploy anfordern</button>`,errorTitle:'Deployments konnten nicht geladen werden'});
+    if(body.startsWith('<tr')) body = `<div class="tablewrap"><table><thead><tr><th>Version</th><th>Status</th><th class="hide-sm">Review-Gate</th><th class="hide-sm">Wann, wer</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  } else if(tab==='access'){
+    const mine = S.grants.filter(g=>g.resource===`app:${a.id}`||g.resource.startsWith(`tool:${a.id}.`)||g.resource.startsWith(`table:${a.id}.`));
+    const rows = mine.map(g=>grantRow(g)).join('');
+    body = `<p class="muted" style="margin:0">Wer diese App öffnen, ihre Daten lesen oder ihre Tools ausführen darf. Ohne Freigabe: nichts.</p>`+
+      (listOr(rows,{emptyTitle:'Niemand hat Zugriff',emptyText:'Default-Deny: Erst eine Freigabe öffnet die App, auch für dich als Admin im App-Pfad.',emptyAction:'<button class="btn primary" data-act="new-grant">Freigabe vergeben</button>',errorTitle:'Freigaben konnten nicht geladen werden'}).startsWith('<tr') ? grantTable(rows) : listOr(rows,{emptyTitle:'Niemand hat Zugriff',emptyText:'Default-Deny: Erst eine Freigabe öffnet die App.',emptyAction:'<button class="btn primary" data-act="new-grant">Freigabe vergeben</button>',errorTitle:'Freigaben konnten nicht geladen werden'}))+
+      `<div class="actions"><button class="btn" data-act="new-grant" data-res="app:${a.id}">Freigabe vergeben</button></div>`;
+  } else {
+    const rows = a.tools.map(t=>`<tr><td class="mono">${esc(a.id)}.${esc(t)}</td><td class="hide-sm">${esc(t.split('.').pop().replace('_',' '))}</td><td>${S.grants.some(g=>g.resource===`tool:${a.id}.${t}`||g.resource===`tool:${a.id}.${t.split('.')[0]}.*`)?'<span class="badge success">freigegeben</span>':'<span class="badge plain">gesperrt</span>'}</td></tr>`).join('');
+    body = `<p class="muted" style="margin:0">Aus der OpenAPI-Spec der App erzeugt. Ein Agent sieht ein Tool erst, wenn eine Freigabe es öffnet.</p>` + `<div class="tablewrap"><table><thead><tr><th>Tool</th><th class="hide-sm">Aktion</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  return `
+  <div class="head"><div><div class="crumbs"><a href="#apps">Apps</a><span class="x">/</span>${esc(a.name)}</div><h1>${esc(a.name)} ${badge(a.status)}</h1></div>
+    <div class="actions">${a.status==='neu'?'<button class="btn" disabled title="Noch nicht deployt">Öffnen</button>':`<a class="btn" href="#run-${a.id}">Öffnen</a>`}<button class="btn primary" data-act="deploy">Deploy anfordern</button></div></div>
+  <div class="tabs" role="tablist">${tabs}</div>
+  ${body}`;
+}
+
+function grantRow(g){
+  return `<tr><td class="mono">${esc(g.subject)}</td><td>${verbBadge(g.verb)}</td><td class="mono">${esc(g.resource)}</td><td class="hide-sm">${esc(g.at)}<div class="sub">${esc(g.by)}</div></td><td class="right">${g.by==='system:bootstrap'?'<span class="sub">System</span>':`<button class="btn sm ghost" data-act="revoke" data-id="${g.id}">Widerrufen</button>`}</td></tr>`;
+}
+function grantTable(rows){ return `<div class="tablewrap"><table><thead><tr><th>Wer</th><th>Darf</th><th>Worauf</th><th class="hide-sm">Seit</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`; }
+
+function pageGrants(){
+  const rows = S.grants.map(grantRow).join('');
+  const out = listOr(rows,{emptyTitle:'Keine Freigabe vergeben',emptyText:'Ohne Freigabe darf niemand etwas, weder Menschen noch Apps noch Agents.',emptyAction:'<button class="btn primary" data-act="new-grant">Freigabe vergeben</button>',errorTitle:'Freigaben konnten nicht geladen werden'});
+  return `<div class="head"><div><h1>Freigaben</h1><p>Ein Rechtemodell für alles: Wer (Mensch, Gruppe, App, Agent) darf was (lesen, schreiben, ausführen) worauf (App, Tabelle, Tool, Gruppe, Agent). Ein Widerruf wirkt beim nächsten Aufruf.</p></div>
+    <div class="actions"><button class="btn primary" data-act="new-grant">Freigabe vergeben</button></div></div>
+    ${out.startsWith('<tr')?grantTable(rows):out}`;
+}
+
+function pageGroups(){
+  const rows = S.groups.map(g=>`<tr><td><div class="title mono">${esc(g.name)}</div><div class="sub">${esc(g.desc)}</div></td><td class="num">${g.members.length}</td><td class="hide-sm">${g.members.slice(0,3).map(esc).join(', ')}${g.members.length>3?' …':''}</td><td class="right"><button class="btn sm" data-act="add-member" data-g="${esc(g.name)}">Person aufnehmen</button></td></tr>`).join('');
+  const out = listOr(rows,{emptyTitle:'Noch keine Gruppe',emptyText:'Gruppen bündeln Personen, damit Freigaben nicht pro Kopf vergeben werden müssen.',emptyAction:'<button class="btn primary" data-act="new-group">Gruppe anlegen</button>',errorTitle:'Gruppen konnten nicht geladen werden'});
+  return `<div class="head"><div><h1>Gruppen</h1><p>Mitgliedschaften liegen hier, nicht in Google. Wer eine Gruppe verlässt, verliert ihre Rechte beim nächsten Aufruf, ohne neuen Login.</p></div>
+    <div class="actions"><button class="btn primary" data-act="new-group">Gruppe anlegen</button></div></div>
+    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Gruppe</th><th>Mitglieder</th><th class="hide-sm">Wer</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:out}`;
+}
+
+function pageAgents(){
+  const rows = S.agents.map(a=>`<tr><td><div class="title">${esc(a.display)}</div><div class="sub mono">agent:${esc(a.name)}</div></td><td>${a.disabled?'<span class="badge danger">gesperrt</span>':'<span class="badge success">aktiv</span>'}</td><td class="hide-sm">${esc(a.owner)}</td><td class="hide-sm">${esc(a.seen)}</td><td class="right">${a.disabled?'':`<button class="btn sm ghost" data-act="disable-agent" data-n="${esc(a.name)}">Sperren</button>`}</td></tr>`).join('');
+  const out = listOr(rows,{emptyTitle:'Noch kein Agent',emptyText:'Ein Agent bekommt eine eigene Identität und ein Token. Er darf nichts, bis du ihm Freigaben gibst.',emptyAction:'<button class="btn primary" data-act="new-agent">Agent anlegen</button>',errorTitle:'Agents konnten nicht geladen werden'});
+  return `<div class="head"><div><h1>Agents</h1><p>Agents arbeiten mit denselben Rechten wie Menschen, aus demselben Modell. Jeder Aufruf wird geprüft und protokolliert. Sperren wirkt sofort.</p></div>
+    <div class="actions"><button class="btn primary" data-act="new-agent">Agent anlegen</button></div></div>
+    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Agent</th><th>Status</th><th class="hide-sm">Gehört</th><th class="hide-sm">Zuletzt aktiv</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:out}`;
+}
+
+function pageConnect(){
+  return `<div class="head"><div><h1>Agent verbinden</h1><p>Jeder MCP-Client, der einen festen Header setzen kann, kommt über denselben Weg herein. Erst Agent anlegen, dann Freigaben geben, dann verbinden.</p></div></div>
+  <div class="grid">
+    <div class="card"><h2>Schritt 01</h2><p class="step">Identität</p><p class="muted" style="margin:0">Unter Agents anlegen. Das Token steht genau einmal da.</p><div><a class="btn" href="#agents">Zu den Agents</a></div></div>
+    <div class="card"><h2>Schritt 02</h2><p class="step">Freigaben</p><p class="muted" style="margin:0">Ohne Freigabe sieht der Agent keine Tools und darf nichts.</p><div><a class="btn" href="#grants">Zu den Freigaben</a></div></div>
+    <div class="card"><h2>Schritt 03</h2><p class="step">Verbinden</p><p class="muted" style="margin:0">Adresse <span class="mono">https://cp.enaibler.ai/mcp</span>, Token als Bearer-Header.</p></div>
+  </div>
+  <div class="section"><h2>Claude Code</h2><pre class="code">claude mcp add --transport http openapps https://cp.enaibler.ai/mcp \\
+  --header "Authorization: Bearer &lt;token&gt;"</pre></div>
+  <div class="section"><h2>Was der Agent dann kann</h2>
+  <div class="tablewrap"><table><thead><tr><th>Tool</th><th>Wofür</th></tr></thead><tbody>
+  ${[['list_apps','Apps sehen, die er lesen darf'],['create_app','Repo aus dem Starter-Template anlegen'],['request_deploy','Commit prüfen lassen und deployen'],['rollback','auf die Vorversion zurück'],['grant · revoke · list_grants','Freigaben pflegen, soweit er selbst darf'],['list_groups · create_group · grant_group_member · revoke_group_member · list_group_members','Gruppen pflegen'],['create_agent · list_agents · disable_agent','andere Agents verwalten'],['<App>.<tool>','die Tools jeder App, wenn freigegeben']].map(([t,w])=>`<tr><td class="mono">${esc(t)}</td><td>${esc(w)}</td></tr>`).join('')}
+  </tbody></table></div></div>
+  <div class="callout info">claude.ai als Connector ohne festen Header braucht OAuth für MCP. Das ist geplant, aber noch nicht gebaut.</div>`;
+}
+
+function pageAudit(){
+  const rows = S.audit.map(e=>`<tr><td class="num">${esc(e.at)}</td><td class="mono">${esc(e.who)}</td><td class="mono">${esc(e.what)}</td><td class="mono hide-sm">${esc(e.on)}</td><td>${e.out==='allowed'?'<span class="badge success">erlaubt</span>':'<span class="badge danger">abgelehnt</span>'}</td></tr>`).join('');
+  const out = listOr(rows,{emptyTitle:'Noch nichts protokolliert',emptyText:'Jeder Aufruf, auch der abgelehnte, landet hier.',errorTitle:'Protokoll konnte nicht geladen werden'});
+  return `<div class="head"><div><h1>Protokoll</h1><p>Jeder Aufruf über API und MCP, mit Ergebnis. Abgelehnte Aufrufe stehen genauso drin wie erlaubte.</p></div></div>
+  ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Wann</th><th>Wer</th><th>Aktion</th><th class="hide-sm">Worauf</th><th>Ergebnis</th></tr></thead><tbody>${rows}</tbody></table></div>`:out}`;
+}
+
+function pageLogin(){
+  return `<div class="login"><div class="card"><div class="brand">openapps<small>/ Control Plane</small></div><h1>Anmelden</h1><p class="muted" style="margin:0">Mit deinem Google-Konto von blyck.de. Andere Domains kommen nicht herein.</p>
+  <button class="btn google" data-act="login">${I.google} Mit Google anmelden</button>
+  <p class="subtle foot" style="font-size:var(--oa-text-xs)">Agents melden sich nicht hier an, sondern mit ihrem Token über /mcp.</p></div></div>`;
+}
+
+/* ---------- Die Apps selbst ---------- */
+const eur = n => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
+const net = o => o.items.reduce((s,[,q,,p])=>s+q*p,0);
+const OFFER = {entwurf:['plain','Entwurf'], versendet:['primary','versendet'], angenommen:['success','angenommen'], abgelehnt:['danger','abgelehnt']};
+const PROJ = {aktiv:['primary','aktiv'], pausiert:['warning','pausiert'], abgeschlossen:['success','abgeschlossen']};
+const tone = (map,k) => { const [t,l]=map[k]||['plain',k]; return `<span class="badge ${t}">${esc(l)}</span>`; };
+const toolNote = t => `<p class="toolnote">Diese Aktion gibt es auch als Tool <span class="mono">${esc(t)}</span>, für Agents mit Freigabe.</p>`;
+const appNote = id => `<div class="callout info">Du siehst die App so, wie eine Person aus der Gruppe ${id==='angebote'?'vertrieb':'alle'} sie sieht: Login und Rechte kommen von der Plattform, die App selbst enthält keinen Auth-Code.</div>`;
+
+function runProjektliste(sub){
+  const ctx={id:'projektliste', name:'Projektliste', nav:[{title:'Projektliste', items:[['run-projektliste','Projekte',()=>S.projects.length]]},{title:'Plattform', items:[['apps','Zur Control Plane']]}]};
+  if(sub){
+    const p=S.projects.find(x=>x.id===sub);
+    if(p){
+      const done=p.ms.filter(m=>m[2]).length;
+      return shell('run-projektliste', `
+      <div class="head"><div><div class="crumbs"><a href="#run-projektliste">Projekte</a><span class="x">/</span>${esc(p.name)}</div><h1>${esc(p.name)} ${tone(PROJ,p.status)}</h1><p>${esc(p.client)}</p></div>
+        <div class="actions"><button class="btn" data-act="proj-status" data-id="${p.id}">${p.status==='abgeschlossen'?'Wieder öffnen':'Abschließen'}</button></div></div>
+      <div class="grid">
+        <div class="card"><h2>Eckdaten</h2><dl class="kv"><dt>Kunde</dt><dd>${esc(p.client)}</dd><dt>Verantwortlich</dt><dd>${esc(p.owner)}</dd><dt>Fällig</dt><dd>${esc(p.due)}</dd></dl></div>
+        <div class="card"><h2>Fortschritt</h2><div class="progress"><div class="bar"><span style="width:${p.ms.length?Math.round(done/p.ms.length*100):0}%"></span></div><span class="num">${done} von ${p.ms.length}</span></div><p class="muted" style="margin:0">Meilensteine abgehakt</p></div>
+      </div>
+      <div class="section"><h2>Meilensteine</h2>
+        ${p.ms.length?`<div class="checklist">${p.ms.map((m,i)=>`<label for="ms-${p.id}-${i}"><input type="checkbox" id="ms-${p.id}-${i}" data-ms="${i}" data-p="${p.id}" ${m[2]?'checked':''}><span class="${m[2]?'done':''}">${esc(m[0])}</span><span class="due">${esc(m[1])}</span></label>`).join('')}</div>`:'<div class="state"><h2>Noch kein Meilenstein</h2><p>Leg den ersten an, damit der Fortschritt sichtbar wird.</p></div>'}
+        <div class="actions" style="margin-top:var(--oa-space-3)"><button class="btn" data-act="add-ms" data-id="${p.id}">Meilenstein hinzufügen</button></div>
+        ${toolNote('projektliste.projects.update')}
+      </div>`, ctx);
+    }
+  }
+  const list = S.projects.filter(p=>S.projFilter==='alle'||p.status===S.projFilter);
+  const rows = list.map(p=>{ const d=p.ms.filter(m=>m[2]).length; return `<tr class="link" data-href="#run-projektliste-${p.id}" tabindex="0">
+    <td><div class="title">${esc(p.name)}</div><div class="sub">${esc(p.client)}</div></td>
+    <td>${tone(PROJ,p.status)}</td>
+    <td class="hide-sm"><div class="progress"><div class="bar"><span style="width:${p.ms.length?Math.round(d/p.ms.length*100):0}%"></span></div><span class="num">${d}/${p.ms.length}</span></div></td>
+    <td class="hide-sm">${esc(p.owner)}</td><td class="hide-sm num">${esc(p.due)}</td></tr>`; }).join('');
+  const filters = ['alle','aktiv','pausiert','abgeschlossen'].map(f=>`<button class="chip" aria-pressed="${S.projFilter===f}" data-act="proj-filter" data-f="${f}">${f[0].toUpperCase()+f.slice(1)}</button>`).join('');
+  const out = listOr(rows,{emptyTitle:S.projFilter==='alle'?'Noch kein Projekt':'Kein Projekt mit diesem Status',emptyText:S.projFilter==='alle'?'Leg das erste Projekt an. Meilensteine kommen danach.':'Wähle einen anderen Filter oder leg ein Projekt an.',emptyAction:'<button class="btn primary" data-act="new-project">Projekt anlegen</button>',errorTitle:'Projekte konnten nicht geladen werden'});
+  return shell('run-projektliste', `
+    <div class="head"><div><h1>Projekte</h1><p>Alle laufenden und abgeschlossenen Projekte, mit Meilensteinen.</p></div>
+      <div class="actions"><button class="btn primary" data-act="new-project">Projekt anlegen</button></div></div>
+    ${appNote('projektliste')}
+    <div class="filters" role="group" aria-label="Nach Status filtern">${filters}</div>
+    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Projekt</th><th>Status</th><th class="hide-sm">Meilensteine</th><th class="hide-sm">Verantwortlich</th><th class="hide-sm">Fällig</th></tr></thead><tbody>${rows}</tbody></table></div>`:out}
+    ${toolNote('projektliste.projects.list')}`, ctx);
+}
+
+function runAngebote(sub){
+  const ctx={id:'angebote', name:'Angebote', nav:[{title:'Angebote', items:[['run-angebote','Alle Angebote',()=>S.offers.length]]},{title:'Plattform', items:[['apps','Zur Control Plane']]}]};
+  if(sub){
+    const o=S.offers.find(x=>x.id===sub);
+    if(o){
+      const n=net(o), vat=Math.round(n*19)/100;
+      const rows=o.items.map(([t,q,u,pr],i)=>`<tr><td class="num">${i+1}</td><td>${esc(t)}</td><td class="num right">${q}</td><td class="hide-sm">${esc(u)}</td><td class="num right hide-sm">${eur(pr)}</td><td class="num right">${eur(q*pr)}</td></tr>`).join('');
+      const acts = o.status==='entwurf' ? `<button class="btn" data-act="offer-draft" data-id="${o.id}">E-Mail-Entwurf vorbereiten</button><button class="btn primary" data-act="offer-set" data-s="versendet" data-id="${o.id}">Als versendet markieren</button>`
+        : o.status==='versendet' ? `<button class="btn" data-act="offer-set" data-s="abgelehnt" data-id="${o.id}">Abgelehnt</button><button class="btn primary" data-act="offer-set" data-s="angenommen" data-id="${o.id}">Angenommen</button>` : '';
+      return shell('run-angebote', `
+      <div class="head"><div><div class="crumbs"><a href="#run-angebote">Angebote</a><span class="x">/</span>${esc(o.no)}</div><h1>${esc(o.no)} ${tone(OFFER,o.status)}</h1><p>${esc(o.client)}</p></div>
+        <div class="actions">${acts}</div></div>
+      <div class="grid">
+        <div class="card"><h2>Kunde</h2><dl class="kv"><dt>Firma</dt><dd>${esc(o.client)}</dd><dt>Kontakt</dt><dd class="mono">${esc(o.contact)}</dd></dl></div>
+        <div class="card"><h2>Angebot</h2><dl class="kv"><dt>Datum</dt><dd>${esc(o.date)}</dd><dt>Gültig bis</dt><dd>${esc(o.valid)}</dd><dt>Netto</dt><dd class="num">${eur(n)}</dd></dl></div>
+      </div>
+      <div class="section"><h2>Positionen</h2>
+        <div class="tablewrap"><table><thead><tr><th>Pos.</th><th>Leistung</th><th class="right">Menge</th><th class="hide-sm">Einheit</th><th class="right hide-sm">Einzelpreis</th><th class="right">Gesamt</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <dl class="totals" style="margin-top:var(--oa-space-4)"><dt>Netto</dt><dd>${eur(n)}</dd><dt>USt. 19 %</dt><dd>${eur(vat)}</dd><dt class="sum">Brutto</dt><dd class="sum">${eur(n+vat)}</dd></dl>
+      </div>
+      ${o.status==='entwurf'?toolNote('angebote.offers.send_draft')+'<p class="toolnote">Der Entwurf landet im Postfach der Person, versendet wird er dort von Hand.</p>':''}`, ctx);
+    }
+  }
+  const rows=S.offers.map(o=>`<tr class="link" data-href="#run-angebote-${o.id}" tabindex="0">
+    <td><div class="title mono">${esc(o.no)}</div><div class="sub">${esc(o.date)}</div></td>
+    <td>${esc(o.client)}</td><td>${tone(OFFER,o.status)}</td>
+    <td class="num right">${eur(net(o))}</td><td class="hide-sm num">${esc(o.valid)}</td></tr>`).join('');
+  const open = S.offers.filter(o=>o.status==='versendet').reduce((s,o)=>s+net(o),0);
+  const won = S.offers.filter(o=>o.status==='angenommen').reduce((s,o)=>s+net(o),0);
+  const out = listOr(rows,{emptyTitle:'Noch kein Angebot',emptyText:'Leg ein Angebot an. Es startet als Entwurf und geht erst raus, wenn du es versendest.',emptyAction:'<button class="btn primary" data-act="new-offer">Angebot anlegen</button>',errorTitle:'Angebote konnten nicht geladen werden'});
+  return shell('run-angebote', `
+    <div class="head"><div><h1>Angebote</h1><p>Angebote des Vertriebs, vom Entwurf bis zur Zusage. Beträge netto.</p></div>
+      <div class="actions"><button class="btn primary" data-act="new-offer">Angebot anlegen</button></div></div>
+    ${appNote('angebote')}
+    ${listState==='data'?`<div class="grid"><div class="card kpi"><span class="k">Offen · versendet</span><strong class="v">${eur(open)}</strong></div><div class="card kpi"><span class="k">Angenommen</span><strong class="v">${eur(won)}</strong></div><div class="card kpi"><span class="k">Entwürfe</span><strong class="v">${S.offers.filter(o=>o.status==='entwurf').length}</strong></div></div>`:''}
+    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Nummer</th><th>Kunde</th><th>Status</th><th class="right">Netto</th><th class="hide-sm">Gültig bis</th></tr></thead><tbody>${rows}</tbody></table></div>`:out}
+    ${toolNote('angebote.offers.list')}`, ctx);
+}
+
+function dlgNewProject(){
+  openDialog(`<h2>Projekt anlegen</h2>
+    <div class="field"><label for="pj-n">Name</label><input class="input" id="pj-n" placeholder="Website-Relaunch"><span class="err" id="pj-err" hidden></span></div>
+    <div class="field"><label for="pj-c">Kunde</label><input class="input" id="pj-c" placeholder="Firma"></div>
+    <div class="field-row"><div class="field"><label for="pj-o">Verantwortlich</label><select class="select" id="pj-o">${S.groups.find(g=>g.name==='alle').members.map(m=>`<option>${esc(m)}</option>`).join('')}</select></div>
+    <div class="field"><label for="pj-d">Fällig</label><input class="input" id="pj-d" placeholder="TT.MM.JJJJ"></div></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
+      const n=$('#pj-n',f).value.trim(), err=$('#pj-err',f);
+      if(n.length<3){ err.textContent='Bitte einen Namen mit mindestens drei Zeichen eingeben.'; err.hidden=false; $('#pj-n',f).setAttribute('aria-invalid','true'); $('#pj-n',f).focus(); return false; }
+      const id='p'+(S.projects.length+1)+rand(3).toLowerCase().replace(/[^a-z0-9]/g,'x');
+      S.projects.unshift({id, name:n, client:$('#pj-c',f).value.trim()||'—', owner:$('#pj-o',f).value, status:'aktiv', due:$('#pj-d',f).value.trim()||'—', ms:[]});
+      S.projFilter='alle'; location.hash='run-projektliste-'+id; toast('Projekt angelegt');
+    });
+}
+function dlgAddMs(id){
+  openDialog(`<h2>Meilenstein hinzufügen</h2>
+    <div class="field"><label for="ms-n">Was</label><input class="input" id="ms-n" placeholder="Entwurf abgestimmt"><span class="err" id="ms-err" hidden></span></div>
+    <div class="field"><label for="ms-d">Bis wann</label><input class="input" id="ms-d" placeholder="TT.MM."></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Hinzufügen</button></div>`, f=>{
+      const n=$('#ms-n',f).value.trim(); if(!n){ const e=$('#ms-err',f); e.textContent='Bitte beschreiben, was erreicht sein soll.'; e.hidden=false; $('#ms-n',f).setAttribute('aria-invalid','true'); return false; }
+      S.projects.find(p=>p.id===id).ms.push([n,$('#ms-d',f).value.trim()||'—',false]); render();
+    });
+}
+function dlgNewOffer(){
+  openDialog(`<h2>Angebot anlegen</h2><p>Startet als Entwurf mit der Nummer A-2026-0${S.nextNo}. Weitere Positionen kommen in der Detailansicht dazu.</p>
+    <div class="field"><label for="of-c">Kunde</label><input class="input" id="of-c" placeholder="Firma"><span class="err" id="of-err" hidden></span></div>
+    <div class="field"><label for="of-m">Kontakt (E-Mail)</label><input class="input" id="of-m" type="email" placeholder="einkauf@firma.example"></div>
+    <div class="field"><label for="of-t">Erste Position</label><input class="input" id="of-t" placeholder="Beratung"></div>
+    <div class="field-row"><div class="field"><label for="of-q">Menge</label><input class="input" id="of-q" inputmode="decimal" value="1"></div>
+    <div class="field"><label for="of-u">Einheit</label><input class="input" id="of-u" value="PT"></div>
+    <div class="field"><label for="of-p">Einzelpreis (€)</label><input class="input" id="of-p" inputmode="decimal" placeholder="1150"></div></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Als Entwurf anlegen</button></div>`, f=>{
+      const c=$('#of-c',f).value.trim(), q=parseFloat($('#of-q',f).value.replace(',','.')), pr=parseFloat($('#of-p',f).value.replace(',','.')), err=$('#of-err',f);
+      let msg=''; if(!c) msg='Bitte den Kunden angeben.'; else if(!(q>0)||!(pr>=0)) msg='Menge und Einzelpreis müssen Zahlen sein, die Menge größer als null.';
+      if(msg){ err.textContent=msg; err.hidden=false; return false; }
+      const id='a'+(S.nextNo); S.offers.unshift({id, no:'A-2026-0'+S.nextNo++, client:c, contact:$('#of-m',f).value.trim()||'—', status:'entwurf', date:'heute', valid:'—', items:[[$('#of-t',f).value.trim()||'Leistung',q,$('#of-u',f).value.trim()||'Stück',pr]]});
+      location.hash='run-angebote-'+id; toast('Angebot als Entwurf angelegt');
+    });
+}
+
+/* ---------- Dialoge ---------- */
+const dlg = $('#dlg');
+function openDialog(html, onSubmit){
+  dlg.innerHTML = `<form method="dialog" novalidate>${html}</form>`;
+  const f = $('form', dlg);
+  f.addEventListener('submit', e=>{ e.preventDefault(); const btn=e.submitter; if(btn && btn.value==='cancel'){ dlg.close(); return; } if(onSubmit(f)!==false) dlg.close(); });
+  dlg.showModal(); const first = $('input,select', dlg); if(first) first.focus();
+}
+const cancelBtn = '<button class="btn" value="cancel" formnovalidate>Abbrechen</button>';
+
+function dlgNewAgent(){
+  openDialog(`<h2>Agent anlegen</h2><p>Der Agent bekommt eine eigene Identität. Er darf nichts, bis du ihm Freigaben gibst.</p>
+    <div class="field"><label for="ag-name">Kennung</label><input class="input mono" id="ag-name" placeholder="claude-lena" autocomplete="off"><span class="hint">Kleinbuchstaben, Ziffern, Bindestrich. Steht in Freigaben als agent:&lt;kennung&gt;.</span><span class="err" id="ag-err" hidden></span></div>
+    <div class="field"><label for="ag-display">Anzeigename</label><input class="input" id="ag-display" placeholder="Claude Code (Lena)"></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
+      const n=$('#ag-name',f).value.trim(), d=$('#ag-display',f).value.trim()||n, err=$('#ag-err',f), inp=$('#ag-name',f);
+      let msg='';
+      if(!/^[a-z][a-z0-9-]{1,62}$/.test(n)) msg='Bitte mit einem Kleinbuchstaben beginnen, mindestens zwei Zeichen, nur a–z, 0–9 und Bindestrich.';
+      else if(S.agents.some(a=>a.name===n)) msg='Diese Kennung gibt es schon.';
+      if(msg){ err.textContent=msg; err.hidden=false; inp.setAttribute('aria-invalid','true'); inp.focus(); return false; }
+      S.agents.unshift({name:n, display:d, owner:S.user.email, seen:'noch nie', disabled:false});
+      S.audit.unshift({at:'jetzt', who:S.user.email, what:'create_agent', on:'agent:'+n, out:'allowed'});
+      setTimeout(()=>dlgToken(n),0); render();
+    });
+}
+function dlgToken(n){
+  const tok = 'oac_'+rand(16)+'.'+rand(43);
+  openDialog(`<h2>Token für agent:${esc(n)}</h2><p>Dieses Token wird nur jetzt angezeigt. Gespeichert ist nur sein Hash; verlierst du es, legst du den Agent neu an.</p>
+    <div class="secret"><code id="tok">${tok}</code><button class="btn" type="button" id="copy">Kopieren</button></div>
+    <div class="callout">Beispielwert aus dem Klickdummy, nicht verwendbar. Ein echtes Token gehört nur in die Konfiguration deines MCP-Clients, nicht in einen Chat oder ein Repo.</div>
+    <pre class="code">claude mcp add --transport http openapps https://cp.enaibler.ai/mcp \\
+  --header "Authorization: Bearer ${tok.slice(0,12)}…"</pre>
+    <div class="dialog-actions"><a class="btn" href="#grants" id="to-grants">Freigaben geben</a><button class="btn primary" value="ok">Fertig</button></div>`, ()=>true);
+  $('#copy',dlg).addEventListener('click',()=>{ navigator.clipboard?.writeText(tok).then(()=>toast('Kopiert'),()=>{ const r=document.createRange(); r.selectNodeContents($('#tok',dlg)); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Markiert, mit Cmd+C kopieren'); }); });
+  $('#to-grants',dlg).addEventListener('click',()=>dlg.close());
+}
+function rand(n){ const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'; let s=''; for(let i=0;i<n;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+
+function dlgNewGrant(res){
+  const subjects = [...S.groups.map(g=>'group:'+g.name), ...S.agents.filter(a=>!a.disabled).map(a=>'agent:'+a.name), ...S.apps.map(a=>'app:'+a.id)];
+  const resources = [...S.apps.map(a=>'app:'+a.id), ...S.apps.flatMap(a=>a.tables.map(t=>`table:${a.id}.${t}`)), ...S.apps.flatMap(a=>a.tools.map(t=>`tool:${a.id}.${t}`)), 'group:*', 'agent:*'];
+  openDialog(`<h2>Freigabe vergeben</h2><p>Gilt ab dem nächsten Aufruf. Widerrufen geht jederzeit.</p>
+    <div class="field"><label for="gr-s">Wer</label><select class="select" id="gr-s">${subjects.map(s=>`<option>${esc(s)}</option>`).join('')}</select></div>
+    <div class="field"><label for="gr-v">Darf</label><select class="select" id="gr-v"><option value="read">lesen</option><option value="write">schreiben</option><option value="execute">ausführen</option></select></div>
+    <div class="field"><label for="gr-r">Worauf</label><select class="select" id="gr-r">${resources.map(r=>`<option ${r===res?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Freigeben</button></div>`, f=>{
+      const g={id:S.nextGrant++, subject:$('#gr-s',f).value, verb:$('#gr-v',f).value, resource:$('#gr-r',f).value, by:S.user.email, at:'heute'};
+      S.grants.unshift(g); S.audit.unshift({at:'jetzt', who:S.user.email, what:'grant', on:g.resource, out:'allowed'});
+      render(); toast(`Freigegeben: ${g.subject} → ${g.resource}`);
+    });
+}
+function dlgNewGroup(){
+  openDialog(`<h2>Gruppe anlegen</h2>
+    <div class="field"><label for="gp-n">Name</label><input class="input mono" id="gp-n" placeholder="marketing"><span class="hint">Kleinbuchstaben und Bindestrich. Steht im Header X-Auth-Groups, deshalb kein Komma.</span><span class="err" id="gp-err" hidden></span></div>
+    <div class="field"><label for="gp-d">Beschreibung</label><input class="input" id="gp-d" placeholder="Marketing-Team"></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
+      const n=$('#gp-n',f).value.trim(), err=$('#gp-err',f);
+      if(!/^[a-z][a-z0-9-]*[a-z0-9]$/.test(n)||n.length<3){ err.textContent='Mindestens drei Zeichen, nur a–z, 0–9 und Bindestrich, nicht am Rand.'; err.hidden=false; $('#gp-n',f).setAttribute('aria-invalid','true'); return false; }
+      if(S.groups.some(g=>g.name===n)){ err.textContent='Diese Gruppe gibt es schon.'; err.hidden=false; return false; }
+      S.groups.push({name:n, desc:$('#gp-d',f).value.trim(), members:[]}); render(); toast('Gruppe angelegt: '+n);
+    });
+}
+function dlgAddMember(g){
+  openDialog(`<h2>In ${esc(g)} aufnehmen</h2><p>Die Person bekommt die Rechte der Gruppe beim nächsten Aufruf.</p>
+    <div class="field"><label for="mb-e">E-Mail</label><input class="input" id="mb-e" type="email" placeholder="name@blyck.de"><span class="err" id="mb-err" hidden></span></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Aufnehmen</button></div>`, f=>{
+      const e=$('#mb-e',f).value.trim().toLowerCase(), err=$('#mb-err',f);
+      if(!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(e)){ err.textContent='Bitte eine E-Mail-Adresse ohne Komma eingeben.'; err.hidden=false; $('#mb-e',f).setAttribute('aria-invalid','true'); return false; }
+      if(!e.endsWith('@blyck.de')){ err.textContent='Nur Adressen von blyck.de dürfen sich anmelden (AUTH_ALLOWED_EMAIL_DOMAINS).'; err.hidden=false; return false; }
+      const grp=S.groups.find(x=>x.name===g); if(!grp.members.includes(e)) grp.members.push(e); render(); toast(`${e} ist jetzt in ${g}`);
+    });
+}
+function dlgNewApp(){
+  openDialog(`<h2>App anlegen</h2><p>Legt ein Repo aus dem Starter-Template an, dazu Schema und Rolle. Live ist die App erst nach dem ersten grünen Review-Gate.</p>
+    <div class="field"><label for="ap-n">Name</label><input class="input mono" id="ap-n" placeholder="reisekosten"><span class="hint">Wird zum Pfad apps.enaibler.ai/&lt;name&gt; und zum Schema app_&lt;name&gt;.</span><span class="err" id="ap-err" hidden></span></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
+      const n=$('#ap-n',f).value.trim(), err=$('#ap-err',f);
+      if(!/^[a-z][a-z0-9-]{1,40}$/.test(n)){ err.textContent='Kleinbuchstaben, Ziffern und Bindestrich, mindestens zwei Zeichen.'; err.hidden=false; $('#ap-n',f).setAttribute('aria-invalid','true'); return false; }
+      if(S.apps.some(a=>a.id===n)){ err.textContent='Diese App gibt es schon.'; err.hidden=false; return false; }
+      S.apps.push({id:n, name:n[0].toUpperCase()+n.slice(1), status:'neu', version:null, sha:null, deployedAt:null, by:null, schema:'app_'+n.replace(/-/g,'_'), tools:['items.list','items.create'], tables:['items'], deploys:[]});
+      S.audit.unshift({at:'jetzt', who:S.user.email, what:'create_app', on:'app:'+n, out:'allowed'});
+      location.hash='app-'+n; toast('Repo angelegt: blyck/'+n);
+    });
+}
+function dlgDeploy(a){
+  const ver = a.version ? a.version.replace(/(\d+)$/, m=>String(+m+1)) : 'v0.1.0';
+  openDialog(`<h2>Deploy anfordern: ${esc(a.name)}</h2><p>Die Control Plane holt den Commit selbst von GitHub und prüft ihn. Ein lokaler Pfad ist nicht nötig.</p>
+    <div class="field"><label for="dp-v">Version</label><input class="input mono" id="dp-v" value="${ver}"></div>
+    <div class="field"><label for="dp-s">Commit</label><input class="input mono" id="dp-s" value="${rand(7).toLowerCase().replace(/[^a-f0-9]/g,'e')}"></div>
+    <div class="field"><label for="dp-x">Ergebnis im Klickdummy</label><select class="select" id="dp-x"><option value="ok">Gate grün, wird deployt</option><option value="secret">gitleaks findet ein Secret</option></select><span class="hint">Nur im Dummy, um beide Wege zu sehen.</span></div>
+    <div class="section"><div class="gate" id="dp-gate">${gateRows([])}</div></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok" id="dp-go">Prüfen und deployen</button></div>`, f=>{
+      const go=$('#dp-go',f); if(go.dataset.done){ return true; }
+      go.disabled=true; const fail=$('#dp-x',f).value==='secret';
+      const v=$('#dp-v',f).value.trim(), sha=$('#dp-s',f).value.trim();
+      const st=[]; let i=0;
+      const tick=()=>{
+        if(i>0) st[i-1] = (fail && i-1===0) ? 'fail' : (i-1===5 ? 'info' : 'ok');
+        if(fail && i===1){ $('#dp-gate',f).innerHTML=gateRows(st); finish(false); return; }
+        if(i===6){ $('#dp-gate',f).innerHTML=gateRows(st); finish(true); return; }
+        st[i]='run'; $('#dp-gate',f).innerHTML=gateRows(st); i++; setTimeout(tick,450);
+      };
+      const finish=(ok)=>{
+        a.deploys.forEach(d=>{ if(ok && (d.status==='live'||d.status==='degraded')) d.status='abgelöst'; });
+        a.deploys.unshift({v, sha, at:'gerade eben', by:S.user.email, status: ok?'live':'blockiert', gate: ok?'grün':'gitleaks: 1 Secret in src/config.ts:12'});
+        if(ok){ Object.assign(a,{status:'live', version:v, sha, deployedAt:'gerade eben', by:S.user.email}); }
+        S.audit.unshift({at:'jetzt', who:S.user.email, what:'request_deploy', on:'app:'+a.id, out: ok?'allowed':'denied'});
+        go.disabled=false; go.dataset.done='1'; go.textContent='Schließen'; const c=$('[value="cancel"]',f); if(c) c.remove();
+        toast(ok?`${a.name} ${v} ist live`:`${a.name} ${v} blockiert: Secret im Code`); S.appTab='deploys';
+        dlg.addEventListener('close',render,{once:true});
+      };
+      tick(); return false;
+    });
+}
+
+/* ---------- Popover ---------- */
+function popover(kind){
+  const p=$('#pop'); if(!p) return;
+  if(p.dataset.kind===kind){ p.innerHTML=''; p.dataset.kind=''; return; }
+  p.dataset.kind=kind;
+  if(kind==='notes') p.innerHTML=`<div class="pop" role="dialog" aria-label="Benachrichtigungen"><h3>Benachrichtigungen</h3>${S.notes.length?S.notes.map(n=>`<a class="item" href="${n.href}" style="text-decoration:none;color:inherit"><span class="t">${esc(n.t)}</span><span class="s">${esc(n.s)}</span></a>`).join(''):'<div class="item"><span class="s">Nichts Neues.</span></div>'}${S.notes.length?'<button class="btn sm ghost" data-act="read-all">Alle als gelesen markieren</button>':''}</div>`;
+  if(kind==='user') p.innerHTML=`<div class="pop" role="menu"><div class="item"><span class="t">${esc(S.user.name)}</span><span class="s">${esc(S.user.email)} · platform-admins</span></div><button class="item" data-act="theme" role="menuitem"><span class="t">Hell / dunkel umschalten</span></button><button class="item" data-act="logout" role="menuitem"><span class="t">Abmelden</span></button></div>`;
+  if(kind==='switcher') p.innerHTML=`<div class="pop" role="menu"><h3>Apps</h3><a class="item" href="#apps" style="text-decoration:none;color:inherit"><span class="t">Control Plane</span><span class="s">cp.enaibler.ai</span></a>${S.apps.filter(a=>a.status!=='neu').map(a=>`<a class="item" href="#run-${a.id}" style="text-decoration:none;color:inherit"><span class="t">${esc(a.name)}</span><span class="s">apps.enaibler.ai/${esc(a.id)}</span></a>`).join('')}</div>`;
+}
+
+/* ---------- Router ---------- */
+function route(){
+  const h=(location.hash||'#apps').slice(1);
+  if(!S.loggedIn && h!=='login'){ location.hash='login'; return {html:pageLogin(), bare:true}; }
+  if(h==='login') return {html:pageLogin(), bare:true};
+  if(h.startsWith('run-')){ const rest=h.slice(4); const [id,...sub]=rest.split('-'); const st=S.apps.find(a=>a.id===id);
+    if(st && st.status==='neu') return {html:shell('apps', `<div class="state"><h2>${esc(st.name)} ist noch nicht deployt</h2><p>Die App läuft erst nach dem ersten grünen Review-Gate.</p><a class="btn primary" href="#app-${st.id}">Zur App</a></div>`)};
+    if(id==='projektliste') return {html:runProjektliste(sub.join('-'))};
+    if(id==='angebote') return {html:runAngebote(sub.join('-'))}; }
+  if(h.startsWith('app-')) return {html:shell('apps', pageApp(h.slice(4))), id:h.slice(4)};
+  const pages={apps:pageApps, grants:pageGrants, groups:pageGroups, agents:pageAgents, connect:pageConnect, audit:pageAudit};
+  return {html:shell(pages[h]?h:'apps', (pages[h]||pageApps)())};
+}
+let currentApp=null;
+function render(){
+  const r=route(); currentApp=r.id||null;
+  $('#root').innerHTML=r.html; document.body.classList.remove('nav-open'); $('.scrim')?.remove();
+}
+window.addEventListener('hashchange',()=>{ S.appTab='overview'; render(); window.scrollTo(0,0); });
+
+document.addEventListener('click', e=>{
+  const tr=e.target.closest('tr[data-href]'); if(tr && !e.target.closest('button,a')){ location.hash=tr.dataset.href.slice(1); return; }
+  const tab=e.target.closest('[data-tab]'); if(tab){ S.appTab=tab.dataset.tab; render(); return; }
+  const el=e.target.closest('[data-act]'); if(!el) { if(!e.target.closest('.pop,.iconbtn')){ const p=$('#pop'); if(p){p.innerHTML='';p.dataset.kind='';} } return; }
+  const act=el.dataset.act; const app=S.apps.find(a=>a.id===currentApp);
+  switch(act){
+    case 'nav': document.body.classList.add('nav-open'); { const s=document.createElement('div'); s.className='scrim'; s.addEventListener('click',()=>{document.body.classList.remove('nav-open'); s.remove();}); document.body.appendChild(s); $('nav.side a')?.focus(); } break;
+    case 'notes': case 'user': case 'switcher': popover(act); break;
+    case 'read-all': S.notes=[]; render(); break;
+    case 'theme': { const d=document.documentElement; const dark = d.dataset.theme ? d.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; d.dataset.theme = dark?'light':'dark'; popover('user'); } break;
+    case 'logout': S.loggedIn=false; location.hash='login'; render(); break;
+    case 'login': S.loggedIn=true; location.hash='apps'; render(); toast('Angemeldet als '+S.user.email); break;
+    case 'retry': document.getElementById('demo-state').value='data'; listState='data'; render(); break;
+    case 'new-agent': dlgNewAgent(); break;
+    case 'disable-agent': { const a=S.agents.find(x=>x.name===el.dataset.n); a.disabled=true; S.audit.unshift({at:'jetzt', who:S.user.email, what:'disable_agent', on:'agent:'+a.name, out:'allowed'}); render(); toast(`agent:${a.name} gesperrt. Der nächste Aufruf bekommt 401.`); } break;
+    case 'new-grant': dlgNewGrant(el.dataset.res); break;
+    case 'revoke': { const g=S.grants.find(x=>x.id===+el.dataset.id); S.grants=S.grants.filter(x=>x!==g); S.audit.unshift({at:'jetzt', who:S.user.email, what:'revoke', on:g.resource, out:'allowed'}); render(); toast(`Widerrufen: ${g.subject} → ${g.resource}`); } break;
+    case 'new-group': dlgNewGroup(); break;
+    case 'add-member': dlgAddMember(el.dataset.g); break;
+    case 'new-app': dlgNewApp(); break;
+    case 'deploy': if(app) dlgDeploy(app); break;
+    case 'proj-filter': S.projFilter=el.dataset.f; render(); break;
+    case 'new-project': dlgNewProject(); break;
+    case 'add-ms': dlgAddMs(el.dataset.id); break;
+    case 'proj-status': { const p=S.projects.find(x=>x.id===el.dataset.id); p.status = p.status==='abgeschlossen'?'aktiv':'abgeschlossen'; render(); toast(p.status==='abgeschlossen'?'Projekt abgeschlossen':'Projekt wieder geöffnet'); } break;
+    case 'new-offer': dlgNewOffer(); break;
+    case 'offer-set': { const o=S.offers.find(x=>x.id===el.dataset.id); o.status=el.dataset.s; if(o.status==='versendet'){ o.date='heute'; o.valid='in 30 Tagen'; } render(); toast(`${o.no}: ${OFFER[o.status][1]}`); } break;
+    case 'offer-draft': { const o=S.offers.find(x=>x.id===el.dataset.id); toast(`Entwurf an ${o.contact} liegt in deinem Postfach. Im Dummy wird nichts gesendet.`); } break;
+    case 'open-app': e.preventDefault(); toast(app && app.status!=='neu' ? `Öffnet apps.enaibler.ai/${app.id} (im Dummy nicht verfügbar)` : 'Die App ist noch nicht deployt'); break;
+    case 'rollback': { const d=app.deploys[+el.dataset.i]; app.deploys.forEach(x=>{ if(x.status==='live'||x.status==='degraded') x.status='abgelöst'; }); d.status='live'; Object.assign(app,{status:'live', version:d.v, sha:d.sha, deployedAt:'gerade eben', by:S.user.email}); S.audit.unshift({at:'jetzt', who:S.user.email, what:'rollback', on:'app:'+app.id, out:'allowed'}); render(); toast(`${app.name} läuft wieder mit ${d.v}`); } break;
+  }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ const tr=e.target.closest?.('tr[data-href]'); if(tr) location.hash=tr.dataset.href.slice(1); }
+  if(e.key==='Escape' && document.body.classList.contains('nav-open')){ document.body.classList.remove('nav-open'); $('.scrim')?.remove(); }
+});
+document.addEventListener('change', e=>{ const cb=e.target.closest?.('input[data-ms]'); if(!cb) return; const p=S.projects.find(x=>x.id===cb.dataset.p); p.ms[+cb.dataset.ms][2]=cb.checked; render(); $('#'+cb.id)?.focus(); });
+document.getElementById('demo-state').addEventListener('change', e=>{ listState=e.target.value; render(); });
+render();
+})();
+</script>

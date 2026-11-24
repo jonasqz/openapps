@@ -94,14 +94,17 @@ export function Dialog({
         tabIndex={-1}
         className={cn(
           'relative flex max-h-[90vh] w-full min-w-0 animate-oa-slide-in flex-col',
-          'rounded-t-xl border border-border bg-bg shadow-lg sm:rounded-xl',
+          'rounded-t-xl border border-border bg-bg shadow-lg sm:rounded-lg',
           SIZE[size],
           className,
         )}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
           <div className="min-w-0">
-            <h2 id={`${baseId}-title`} className="text-base font-semibold text-fg [overflow-wrap:anywhere]">
+            <h2
+              id={`${baseId}-title`}
+              className="font-display text-2xl font-normal tracking-display text-fg [overflow-wrap:anywhere]"
+            >
               {title}
             </h2>
             {description === undefined ? null : (
@@ -114,7 +117,7 @@ export function Dialog({
             type="button"
             onClick={onClose}
             className={cn(
-              'shrink-0 rounded-md p-1 text-fg-muted hover:bg-surface-hover hover:text-fg',
+              'shrink-0 rounded-full px-2 py-1 text-fg-muted hover:bg-surface-hover hover:text-fg',
               focusRing,
             )}
           >
@@ -123,10 +126,10 @@ export function Dialog({
           </button>
         </div>
         {children === undefined ? null : (
-          <div className="min-w-0 overflow-y-auto p-4">{children}</div>
+          <div className="min-w-0 overflow-y-auto px-6 py-5">{children}</div>
         )}
         {footer === undefined ? null : (
-          <div className="flex flex-wrap justify-end gap-2 border-t border-border p-4">{footer}</div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border px-6 py-4">{footer}</div>
         )}
       </div>
     </div>

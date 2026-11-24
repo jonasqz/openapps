@@ -70,9 +70,17 @@ Weil das Preset Tailwinds Paletten **ersetzt**, gibt es `bg-blue-500` gar nicht.
 Ebenso wenig `w-60`: die Abstandsskala endet bei `6rem`. Layout-Breiten heißen
 `w-nav`, `w-drawer`, `w-menu`, `w-panel`, `max-h-scroll`, `max-w-field`.
 
-**Schrift:** nur der System-Stack. Keine selbst gehostete und keine von Google
+**Schrift:** nur System-Stacks. Keine selbst gehostete und keine von Google
 geladene Schrift — das wäre Betrieb, den v1 nicht tragen muss, und ein
-Google-Fonts-Abruf wäre Netzwerkverkehr am Gateway vorbei (Regel 7).
+Google-Fonts-Abruf wäre Netzwerkverkehr am Gateway vorbei (Regel 7). Drei
+Rollen: `font-sans` (Grotesk, alles Lesbare), `font-mono` (Kennungen, Zahlen,
+Labels in Versalien) und `font-display` (Serife, nur Seitentitel und große
+Zahlen).
+
+**Richtung** ([ADR 0010](../../docs/decisions/0010-design-schwarz-weiss-blaugrau.md)):
+Schwarz/Weiß mit genau einer Akzentfarbe Blaugrau (`primary`). Flächen sind
+fast eckig und durch Haarlinien (`border`) getrennt, nicht durch Schatten.
+Knöpfe sind Pillen. Mono-Labels: `font-mono text-2xs uppercase tracking-label`.
 
 ## Kontrast (nachgerechnet, nicht behauptet)
 
@@ -82,26 +90,26 @@ Gerechnet mit `contrastRatio()` aus diesem Paket, festgehalten in
 
 | Paar | hell | dunkel |
 | --- | --- | --- |
-| `fg` auf `bg` | 18,16:1 | 16,34:1 |
-| `fg` auf `surface` | 16,94:1 | 14,85:1 |
-| `fg-muted` auf `bg` | 6,99:1 | 8,26:1 |
-| `fg-muted` auf `surface` | 6,52:1 | 7,51:1 |
-| `fg-subtle` auf `bg` | 5,14:1 | 6,33:1 |
-| `fg-subtle` auf `surface` | 4,79:1 | 5,75:1 |
-| `primary` auf `bg` | 6,83:1 | 8,17:1 |
-| `primary-fg` auf `primary` | 6,83:1 | 7,79:1 |
-| `primary-subtle-fg` auf `primary-subtle` | 8,51:1 | 10,09:1 |
-| `success-fg` auf `success` | 6,51:1 | 9,27:1 |
-| `success-subtle-fg` auf `success-subtle` | 7,92:1 | 10,85:1 |
-| `warning-fg` auf `warning` | 6,33:1 | 8,79:1 |
-| `warning-subtle-fg` auf `warning-subtle` | 7,73:1 | 10,53:1 |
-| `danger` auf `bg` | 6,53:1 | 9,46:1 |
-| `danger-fg` auf `danger` | 6,53:1 | 9,09:1 |
-| `danger-subtle-fg` auf `danger-subtle` | 7,69:1 | 10,79:1 |
-| `border-strong` auf `bg` (3:1 genügt) | 4,04:1 | 4,17:1 |
-| `border-strong` auf `surface` (3:1 genügt) | 3,77:1 | 3,79:1 |
-| `focus` auf `bg` (3:1 genügt) | 6,83:1 | 8,17:1 |
-| `focus` auf `surface` (3:1 genügt) | 6,37:1 | 7,43:1 |
+| `fg` auf `bg` | 19,67:1 | 17,55:1 |
+| `fg` auf `surface` | 18,85:1 | 16,57:1 |
+| `fg-muted` auf `bg` | 7,33:1 | 8,10:1 |
+| `fg-muted` auf `surface` | 7,02:1 | 7,64:1 |
+| `fg-subtle` auf `bg` | 5,32:1 | 6,03:1 |
+| `fg-subtle` auf `surface` | 5,10:1 | 5,69:1 |
+| `primary` auf `bg` | 6,74:1 | 8,59:1 |
+| `primary-fg` auf `primary` | 6,74:1 | 8,44:1 |
+| `primary-subtle-fg` auf `primary-subtle` | 8,38:1 | 10,72:1 |
+| `success-fg` auf `success` | 6,91:1 | 9,02:1 |
+| `success-subtle-fg` auf `success-subtle` | 8,16:1 | 11,03:1 |
+| `warning-fg` auf `warning` | 6,36:1 | 8,76:1 |
+| `warning-subtle-fg` auf `warning-subtle` | 7,89:1 | 11,46:1 |
+| `danger` auf `bg` | 6,93:1 | 8,36:1 |
+| `danger-fg` auf `danger` | 6,93:1 | 7,85:1 |
+| `danger-subtle-fg` auf `danger-subtle` | 8,02:1 | 10,97:1 |
+| `border-strong` auf `bg` (3:1 genügt) | 3,46:1 | 3,99:1 |
+| `border-strong` auf `surface` (3:1 genügt) | 3,31:1 | 3,77:1 |
+| `focus` auf `bg` (3:1 genügt) | 6,74:1 | 8,59:1 |
+| `focus` auf `surface` (3:1 genügt) | 6,46:1 | 8,11:1 |
 
 `border` (die ruhige Trennlinie) ist bewusst kontrastarm und trägt nie
 Information — Bedienelemente benutzen `border-strong`.

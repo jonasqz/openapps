@@ -36,7 +36,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
           aria-invalid={hasError || undefined}
           aria-describedby={describedBy([hint !== undefined && ids.hintId, hasError && ids.errorId])}
           className={cn(
-            'mt-0.5 h-4 w-4 shrink-0 rounded-sm border accent-primary',
+            'mt-0.5 h-4 w-4 shrink-0 rounded-sm border accent-fg',
             hasError ? 'border-danger' : 'border-border-strong',
             'disabled:cursor-not-allowed disabled:opacity-50',
             focusRing,

@@ -103,7 +103,7 @@ export function AppShell({
       {nav.map((group, groupIndex) => (
         <div key={group.title ?? `oa-nav-${groupIndex}`} className="min-w-0">
           {group.title === undefined ? null : (
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+            <p className="px-3 pb-2 font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">
               {group.title}
             </p>
           )}
@@ -135,7 +135,7 @@ export function AppShell({
                   )}
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   {item.badge === undefined ? null : (
-                    <span className="shrink-0 rounded-full bg-surface-muted px-1.5 text-xs text-fg-muted">
+                    <span className="shrink-0 font-mono text-2xs tabular-nums text-fg-subtle">
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   )}
@@ -162,7 +162,7 @@ export function AppShell({
           {strings.shell.skipToContent}
         </a>
 
-        <header className="sticky top-0 z-shell flex min-w-0 items-center gap-2 border-b border-border bg-bg-subtle px-3 py-2">
+        <header className="sticky top-0 z-shell flex min-h-14 min-w-0 items-center gap-2 border-b border-border bg-bg px-3 py-2 sm:px-4">
           {hasNav ? (
             <button
               ref={menuButtonRef}
@@ -170,7 +170,7 @@ export function AppShell({
               aria-expanded={drawerOpen}
               aria-controls={`${baseId}-drawer`}
               onClick={() => setDrawerOpen(true)}
-              className={cn('rounded-md p-2 text-fg-muted hover:bg-surface-hover hover:text-fg md:hidden', focusRing)}
+              className={cn('rounded-full p-2 text-fg-muted hover:bg-surface-hover hover:text-fg md:hidden', focusRing)}
             >
               <svg
                 aria-hidden="true"
@@ -187,7 +187,7 @@ export function AppShell({
             </button>
           ) : null}
 
-          <span className="hidden shrink-0 text-sm font-semibold text-fg sm:inline">{product}</span>
+          <span className="hidden shrink-0 font-mono text-xs font-medium uppercase tracking-loose text-fg sm:inline">{product}</span>
           <span aria-hidden="true" className="hidden shrink-0 text-fg-subtle sm:inline">
             /
           </span>
@@ -212,7 +212,7 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1">
           {hasNav ? (
-            <aside className="hidden w-nav min-w-0 shrink-0 overflow-hidden border-r border-border bg-bg-subtle p-3 md:block">
+            <aside className="hidden w-nav min-w-0 shrink-0 overflow-hidden border-r border-border bg-bg px-3 py-5 md:block">
               {navList}
             </aside>
           ) : null}
@@ -220,7 +220,7 @@ export function AppShell({
           <main
             id={`${baseId}-main`}
             tabIndex={-1}
-            className="min-w-0 flex-1 p-4 outline-none sm:p-6"
+            className="min-w-0 flex-1 p-4 outline-none sm:p-8 lg:p-10"
           >
             {children}
           </main>
@@ -242,11 +242,11 @@ export function AppShell({
               className="relative flex h-full w-drawer max-w-[85vw] animate-oa-slide-in flex-col gap-4 border-r border-border bg-bg p-3"
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-fg">{product}</span>
+                <span className="font-mono text-xs font-medium uppercase tracking-loose text-fg">{product}</span>
                 <button
                   type="button"
                   onClick={() => setDrawerOpen(false)}
-                  className={cn('rounded-md p-1 text-fg-muted hover:bg-surface-hover hover:text-fg', focusRing)}
+                  className={cn('rounded-full px-2 py-1 text-fg-muted hover:bg-surface-hover hover:text-fg', focusRing)}
                 >
                   <span aria-hidden="true">✕</span>
                   <span className="sr-only">{strings.shell.closeNavigation}</span>

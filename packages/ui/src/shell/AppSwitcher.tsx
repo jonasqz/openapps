@@ -89,8 +89,8 @@ export function AppSwitcher({ apps, currentName, onNavigate, className }: AppSwi
           }
         }}
         className={cn(
-          'flex min-w-0 max-w-full items-center gap-2 rounded-md border border-border bg-surface',
-          'px-3 py-1.5 text-sm font-medium text-fg hover:bg-surface-hover',
+          'flex min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-bg',
+          'px-3.5 py-1.5 text-sm font-medium text-fg hover:border-border-strong hover:bg-surface',
           focusRing,
         )}
       >
@@ -126,7 +126,7 @@ export function AppSwitcher({ apps, currentName, onNavigate, className }: AppSwi
           ) : (
             groups.map(([category, list]) => (
               <div key={category} role="group" aria-label={category}>
-                <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                <p className="px-3 pb-1 pt-2 font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">
                   {category}
                 </p>
                 {list.map((app) => (

@@ -55,7 +55,7 @@ export interface DetailPatternProps {
  * Label/Wert-Paaren. Auf Phone-Breite einspaltig, ab `sm` zweispaltig.
  */
 const BACK_CLASS =
-  'self-start rounded-md text-sm font-medium text-primary underline-offset-2 hover:underline outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+  'self-start rounded-sm font-mono text-2xs font-medium uppercase tracking-label text-fg-muted hover:text-fg outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
 export function DetailPattern({
   title,
@@ -96,9 +96,9 @@ export function DetailPattern({
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow === undefined ? null : (
-            <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">{eyebrow}</p>
+            <p className="font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">{eyebrow}</p>
           )}
-          <h1 className="mt-0.5 text-2xl font-semibold text-fg [overflow-wrap:anywhere]">{title}</h1>
+          <h1 className="mt-2 font-display text-3xl font-normal tracking-display text-fg sm:text-4xl [overflow-wrap:anywhere]">{title}</h1>
           {meta === undefined ? null : <div className="mt-2 flex flex-wrap gap-2">{meta}</div>}
         </div>
         {actions === undefined ? null : <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
@@ -120,7 +120,7 @@ export function DetailPattern({
                     key={field.label}
                     className={cn('min-w-0', field.wide === true && 'sm:col-span-2')}
                   >
-                    <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+                    <dt className="font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">
                       {field.label}
                     </dt>
                     <dd className="mt-1 text-sm text-fg [overflow-wrap:anywhere]">{field.value}</dd>

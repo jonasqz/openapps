@@ -83,7 +83,7 @@ export function Tabs({
         aria-label={label}
         aria-orientation="horizontal"
         onKeyDown={onKeyDown}
-        className="-mx-1 flex min-w-0 gap-1 overflow-x-auto border-b border-border px-1"
+        className="-mx-1 flex min-w-0 gap-5 overflow-x-auto border-b border-border px-1"
       >
         {items.map((item) => {
           const selected = item.id === active;
@@ -99,17 +99,17 @@ export function Tabs({
               disabled={item.disabled}
               onClick={() => select(item.id)}
               className={cn(
-                'shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium',
+                '-mb-px shrink-0 whitespace-nowrap border-b px-0.5 py-2.5 text-sm font-medium',
                 focusRingInset,
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 selected
-                  ? 'border-primary text-primary'
+                  ? 'border-fg text-fg'
                   : 'border-transparent text-fg-muted hover:text-fg',
               )}
             >
               {item.label}
               {item.count === undefined ? null : (
-                <span className="ml-1.5 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs text-fg-muted">
+                <span className="ml-1.5 font-mono text-2xs text-fg-subtle">
                   {item.count}
                 </span>
               )}
