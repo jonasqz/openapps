@@ -22,6 +22,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
+import type { LokalAuth } from './lokal-ansehen-cp';
 import {
   appContainerPort,
   appPathFor,
@@ -236,6 +237,28 @@ async function main(): Promise<void> {
     listApps: () => apps.listAll(),
   }).listen(port, '0.0.0.0', () => {
     console.log(`[ansehen] http://127.0.0.1:${String(port)} (nur lokal)`);
+  });
+
+  // Die Control Plane (ADR 0014): Sessions ueber Better Auth mit den echten
+  // Hooks, nur der Schritt bei Google faellt weg.
+  const { createAuth } = await import('../lib/auth');
+  const { readAuthEnv } = await import('../lib/env');
+  const cp = await import('./lokal-ansehen-cp');
+  const authEnv = readAuthEnv();
+  const auth = createAuth({ pool: getPool(), env: authEnv });
+  const cpPort = Number(process.env.ANSEHEN_CP_PORT ?? '8091');
+  cp.createCpAnsichtServer({
+    cpOrigin: authEnv.baseUrl,
+    upstream: process.env.CONTROL_PLANE_SERVICE_URL ?? 'http://openapps-control-plane:3000',
+    sessionFuer: (rolle) =>
+      cp.lokaleSession(
+        // Better Auth typisiert `$context` breiter; gebraucht wird nur der
+        // Ausschnitt aus `LokalAuth` (findUserByEmail, createUser, createSession).
+        auth as unknown as LokalAuth,
+        cp.emailFuerRolle(rolle, authEnv),
+      ),
+  }).listen(cpPort, '0.0.0.0', () => {
+    console.log(`[ansehen] Control Plane: http://127.0.0.1:${String(cpPort)} (nur lokal)`);
   });
 }
 

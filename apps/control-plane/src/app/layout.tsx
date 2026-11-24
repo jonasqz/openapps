@@ -2,11 +2,9 @@
  * Die Wurzel der Control Plane. Sie bringt keine eigenen Farbwerte mit — alles
  * kommt aus den Tokens von `@openapps/ui` (docs/05-ui-guide.md, Weg A).
  *
- * Bewusst **ohne** eigene Navigation: Die kommt aus `AppShell` von
- * `@openapps/ui`, damit die Control Plane dieselbe Hülle trägt wie jede App.
- * Sie steht hier noch nicht, weil die Login-Seite außerhalb der Shell liegen
- * muss — ein Navigationsmenü vor der Anmeldung wäre falsch. Nachzuziehen über
- * eine Routengruppe.
+ * Bewusst **ohne** eigene Navigation: Die `AppShell` aus `@openapps/ui`
+ * steht in der Routengruppe `(verwaltung)`, damit die Login-Seite außerhalb
+ * bleibt. Ein Navigationsmenü vor der Anmeldung wäre falsch.
  */
 
 import type { ReactNode } from 'react';

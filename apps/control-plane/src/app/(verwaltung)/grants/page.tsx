@@ -7,10 +7,11 @@
 import { Table, type TableColumn } from '@openapps/ui';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { listGrants } from '../../domain';
-import type { Grant } from '../../domain/types';
-import { currentActorOrNull } from '../../lib/actor';
-import { domainContext } from '../../lib/runtime';
+import { can, listGrants } from '../../../domain';
+import type { Grant } from '../../../domain/types';
+import { currentActorOrNull } from '../../../lib/actor';
+import { domainContext } from '../../../lib/runtime';
+import { PageHeader } from '../page-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,26 +55,41 @@ export default async function GrantsPage() {
   const actor = await currentActorOrNull(request);
   if (actor === null) redirect('/login?next=%2Fgrants');
 
+  // Wer alle Freigaben lesen darf (read auf app:*), sieht alle; jeder andere
+  // seine eigenen. Wie `list_grants` im MCP und `GET /api/grants`.
   let grants: readonly Grant[] = [];
+  let all = false;
   let failure: string | undefined;
   try {
-    grants = await listGrants(domainContext(), { actor });
+    const ctx = domainContext();
+    all = await can(ctx, actor, 'read', { kind: 'app', id: '*' });
+    grants = await listGrants(
+      ctx,
+      all ? { actor } : { actor, subject: { kind: actor.kind, id: actor.id } },
+    );
   } catch (error) {
     failure = error instanceof Error ? error.message : 'unbekannter Fehler';
   }
 
   return (
     <section>
-      <h1>Freigaben</h1>
+      <PageHeader
+        title="Freigaben"
+        description={
+          all
+            ? 'Wer darf was auf welcher Ressource. Vergeben und widerrufen läuft über grant und revoke im Plattform-MCP.'
+            : 'Deine eigenen Freigaben. Alle Freigaben sieht nur, wer Lese-Recht auf alle Apps hat.'
+        }
+      />
       <Table
-        caption="Wer darf was auf welcher Ressource"
+        caption={all ? 'Alle Freigaben' : 'Deine Freigaben'}
         columns={COLUMNS}
         rows={grants.map(toRow)}
         {...(failure === undefined
           ? {}
           : { error: { title: 'Freigaben konnten nicht geladen werden', description: failure } })}
         empty={{
-          title: 'Keine Freigabe vergeben',
+          title: all ? 'Keine Freigabe vergeben' : 'Du hast noch keine Freigabe',
           description: 'Ohne Freigabe ist alles gesperrt. Das ist der gewollte Ausgangszustand.',
         }}
       />

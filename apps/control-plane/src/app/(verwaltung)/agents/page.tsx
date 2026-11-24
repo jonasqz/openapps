@@ -11,11 +11,12 @@
 import { Table, type TableColumn } from '@openapps/ui';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { listAgentIdentities } from '../../domain';
-import type { AgentIdentity } from '../../domain/types';
-import { currentActorOrNull } from '../../lib/actor';
-import { domainContext } from '../../lib/runtime';
+import { listAgentIdentities } from '../../../domain';
+import type { AgentIdentity } from '../../../domain/types';
+import { currentActorOrNull } from '../../../lib/actor';
+import { domainContext } from '../../../lib/runtime';
 import { CreateAgentForm } from './create-agent-form';
+import { PageHeader } from '../page-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,8 +72,11 @@ export default async function AgentsPage() {
   const mcpUrl = host === undefined || host === '' ? '/mcp' : `https://${host}/mcp`;
 
   return (
-    <section>
-      <h1>Agents</h1>
+    <section className="flex flex-col gap-8">
+      <PageHeader
+        title="Agents"
+        description="Jeder Agent hat eine eigene Identität und darf nur, was ihm freigegeben ist. In den Apps steht er als Urheber."
+      />
       <Table
         caption="Agent-Identitäten dieser Instanz"
         columns={COLUMNS}
@@ -87,9 +91,8 @@ export default async function AgentsPage() {
         }}
       />
       <CreateAgentForm mcpUrl={mcpUrl} />
-      <p>
-        Sperren läuft über das MCP-Tool disable_agent oder DELETE /api/agents/&lt;name&gt;.{' '}
-        <a href="/grants">Freigaben ansehen</a> · <a href="/">Apps</a>
+      <p className="text-sm text-fg-muted">
+        Sperren läuft über das MCP-Tool disable_agent oder DELETE /api/agents/&lt;name&gt;.
       </p>
     </section>
   );

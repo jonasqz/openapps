@@ -72,9 +72,15 @@ dasselbe Ergebnis.
 docker compose -f infra/lokal/docker-compose.yml --env-file infra/lokal/.env --profile ansehen up -d ansehen
 ```
 
-Dann öffnest du <http://127.0.0.1:8090>. Der Proxy zeigt die deployten Apps,
-angemeldet als `ansicht@local.test`, ohne Google und ohne `/etc/hosts`. Er
-umgeht die Forward-Auth und läuft deshalb nur lokal (ADR 0013).
+- **Apps:** <http://127.0.0.1:8090>, angemeldet als `ansicht@local.test`
+  (ADR 0013).
+- **Verwaltung (Control Plane):** <http://127.0.0.1:8091>. Dort verwaltest du
+  Apps, Agents und Freigaben (ADR 0014). Standard ist der lokale Admin. Als
+  Nutzer ohne Freigaben schaust du über
+  <http://127.0.0.1:8091/_lokal/als/nutzer>, zurück geht es über
+  <http://127.0.0.1:8091/_lokal/als/admin>.
+
+Beides umgeht den Google-Login und läuft deshalb nur lokal, nur am Loopback.
 
 ## Was lokal fehlt
 
@@ -82,9 +88,8 @@ umgeht die Forward-Auth und läuft deshalb nur lokal (ADR 0013).
   Zugangsdaten (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env`, Redirect
   `https://cp.local.test:8443/api/auth/callback/google`) sowie in `/etc/hosts`
   die Einträge `cp.local.test` und `apps.local.test` auf `127.0.0.1`. Ohne das
-  bleiben die Oberfläche der Control Plane und der Weg über
-  `apps.local.test` hinter der Forward-Auth. Die Apps selbst zeigt der
-  Ansehen-Proxy.
+  bleibt der Weg über `cp.local.test` und `apps.local.test` hinter dem
+  Login. Apps und Verwaltung zeigt der Ansehen-Proxy auch ohne ihn.
 - **Ein Inventar des Backends.** Ob ein App-Container Ports oder
   Traefik-Labels hat, kann der lokale Adapter nicht messen. Er meldet „nicht
   erreichbar“ statt „sauber“.

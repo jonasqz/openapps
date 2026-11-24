@@ -10,10 +10,11 @@
 import { Table, type TableColumn } from '@openapps/ui';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { listApps } from '../domain';
-import type { App } from '../domain/types';
-import { currentActorOrNull } from '../lib/actor';
-import { domainContext } from '../lib/runtime';
+import { listApps } from '../../domain';
+import type { App } from '../../domain/types';
+import { currentActorOrNull } from '../../lib/actor';
+import { domainContext } from '../../lib/runtime';
+import { PageHeader } from './page-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,10 @@ export default async function AppsPage() {
 
   return (
     <section>
-      <h1>Apps</h1>
+      <PageHeader
+        title="Apps"
+        description="Jede App hat ihr eigenes Schema und ihre eigene Rolle. Du siehst nur Apps, auf die du eine Lese-Freigabe hast."
+      />
       <Table
         caption="Apps dieser Instanz"
         columns={COLUMNS}
@@ -77,9 +81,9 @@ export default async function AppsPage() {
           description: 'Apps entstehen über das MCP-Tool create_app, nicht hier.',
         }}
       />
-      <p>
-        Zurücksetzen, Deployen und Freigeben laufen über den Plattform-MCP — dort existiert jede
-        Aktion zuerst. <a href="/grants">Freigaben ansehen</a> · <a href="/agents">Agents</a>
+      <p className="mt-6 text-sm text-fg-muted">
+        Anlegen, Deployen und Zurücksetzen laufen über den Plattform-MCP. Dort existiert jede Aktion
+        zuerst.
       </p>
     </section>
   );

@@ -114,7 +114,8 @@ services:
       start_period: 60s
       retries: 30
 
-  # Oberflaechen der Apps ansehen, ohne Google-Login (ADR 0013). Nur mit
+  # Oberflaechen der Apps (8090) und der Control Plane (8091) ansehen, ohne
+  # Google-Login (ADR 0013, 0014). Nur mit
   # `--profile ansehen`, nur am Loopback, nur mit OPENAPPS_BACKEND=lokal.
   # Signiert jede Anfrage als `ansicht@local.test` und umgeht damit die
   # Forward-Auth — gehoert deshalb nie auf einen Server.
@@ -130,8 +131,18 @@ services:
       OPENAPPS_BACKEND: lokal
       DATABASE_URL: postgres://openapps_owner:${OPENAPPS_OWNER_PASSWORD:?}@openapps-postgres:5432/openapps
       OPENAPPS_AUTH_MASTER_SECRET: ${OPENAPPS_AUTH_MASTER_SECRET:?}
+      # Fuer die Control Plane auf 8091 (ADR 0014): dieselben Werte wie oben
+      # bei control-plane, damit Sessions und Hooks gleich sind.
+      CONTROL_PLANE_SERVICE_URL: http://openapps-control-plane:3000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      BETTER_AUTH_URL: https://cp.local.test:8443
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-lokal-ohne-google}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-lokal-ohne-google}
+      AUTH_ALLOWED_EMAIL_DOMAINS: ${AUTH_ALLOWED_EMAIL_DOMAINS:-example.com}
+      AUTH_BOOTSTRAP_ADMINS: ${AUTH_BOOTSTRAP_ADMINS:-admin@example.com}
     ports:
       - '127.0.0.1:8090:8090'
+      - '127.0.0.1:8091:8091'
     networks: [plattform]
 
   deny-backend:
