@@ -2,8 +2,7 @@
 # mit drei Standard-Apps (wiki, crm, wissen). Anleitung: infra/lokal/README.md.
 #
 #   ./infra/lokal/einrichten.sh     # .env mit Zufalls-Secrets, Zertifikat
-#   ./infra/lokal/lokal.sh up -d --build
-#   ./infra/lokal/apps-ausrollen.sh # Apps anlegen, deployen, Agents einrichten
+#   ./infra/lokal/apps-ausrollen.sh # bauen, starten, Apps deployen, Agent betrieb
 #
 # Die Apps stehen nicht hier, sondern in docker-compose.apps.yml: einen Dienst
 # je Ordner in standard-apps/, erzeugt von apps-dienste.mjs (ADR 0015).
@@ -63,6 +62,9 @@ services:
       LOKAL_RUNTIME_DIR: /lokal/run
       LOKAL_SOURCE_DIR: /lokal/quellen
       LOKAL_TEMPLATE_DIR: /lokal/vorlage
+      # Die Adresse des MCP, wie ein Assistent auf diesem Rechner sie sieht
+      # (Seite Loslegen, Prompt loslegen, Agents-Seite).
+      OPENAPPS_PUBLIC_MCP_URL: http://localhost:8080/mcp
 
       DATABASE_URL: postgres://openapps_owner:${OPENAPPS_OWNER_PASSWORD:?}@openapps-postgres:5432/openapps
       APP_DATABASE_HOST: openapps-postgres:5432/openapps

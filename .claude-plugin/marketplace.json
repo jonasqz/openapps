@@ -1,0 +1,16 @@
+{
+  "name": "openapps",
+  "owner": {
+    "name": "openapps"
+  },
+  "metadata": {
+    "description": "Plugins für die openapps-Plattform, den App-Layer neben Coolify."
+  },
+  "plugins": [
+    {
+      "name": "openapps",
+      "source": "./plugins/openapps",
+      "description": "Apps auf der openapps-Plattform bauen und ändern, mit deinem eigenen Assistenten."
+    }
+  ]
+}

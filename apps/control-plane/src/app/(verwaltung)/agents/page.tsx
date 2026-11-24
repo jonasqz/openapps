@@ -15,6 +15,7 @@ import { listAgentIdentities } from '../../../domain';
 import type { AgentIdentity } from '../../../domain/types';
 import { currentActorOrNull } from '../../../lib/actor';
 import { domainContext } from '../../../lib/runtime';
+import { publicMcpUrl } from '../../../lib/loslegen';
 import { CreateAgentForm } from './create-agent-form';
 import { PageHeader } from '../page-header';
 
@@ -65,11 +66,9 @@ export default async function AgentsPage() {
     failure = error instanceof Error ? error.message : 'unbekannter Fehler';
   }
 
-  // Die Adresse, unter der ein Agent den Plattform-MCP erreicht. Aus der
-  // eigenen Domain abgeleitet, nicht aus dem Request: Hinter dem Proxy steht
-  // im Host-Header nicht verlaesslich, was aussen gilt.
-  const host = process.env.CONTROL_PLANE_HOST?.trim();
-  const mcpUrl = host === undefined || host === '' ? '/mcp' : `https://${host}/mcp`;
+  // Die Adresse, unter der ein Agent den Plattform-MCP erreicht (dieselbe wie
+  // auf der Seite Loslegen).
+  const mcpUrl = publicMcpUrl();
 
   return (
     <section className="flex flex-col gap-8">

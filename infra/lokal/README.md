@@ -24,10 +24,6 @@ Gleich wie auf dem Server:
 ```
 
 ```bash
-./infra/lokal/lokal.sh up -d --build
-```
-
-```bash
 ./infra/lokal/apps-ausrollen.sh
 ```
 
@@ -35,7 +31,8 @@ Gleich wie auf dem Server:
   Zertifikat an. Beides bleibt auf dem Rechner und ist gitignoriert.
 - `lokal.sh` ist `docker compose` für diesen Stapel. Es legt für jede App in
   `standard-apps/` einen eigenen Container an (ADR 0015).
-- `apps-ausrollen.sh` baut, registriert und deployt die Apps aus `standard-apps/` und
+- `apps-ausrollen.sh` baut die Images nacheinander, startet den Stapel,
+  registriert und deployt die Apps aus `standard-apps/` und
   legt den Agenten `betrieb` an. Der darf, was die Gruppe `platform-admins`
   darf. Sein Token liegt danach in `infra/lokal/.agents/betrieb.token` (Modus 0600) und wird nie angezeigt.
 - Ein zweiter Lauf legt nichts doppelt an. Ein geänderter Stand einer App wird

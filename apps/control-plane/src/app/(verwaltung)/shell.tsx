@@ -8,6 +8,7 @@ const NAV = [
   { id: 'apps', label: 'Apps', href: '/' },
   { id: 'agents', label: 'Agents', href: '/agents' },
   { id: 'grants', label: 'Freigaben', href: '/grants' },
+  { id: 'loslegen', label: 'Loslegen', href: '/loslegen' },
 ] as const;
 
 function isCurrent(href: string, pathname: string): boolean {

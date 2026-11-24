@@ -37,6 +37,27 @@ Retrieval-Hälfte eines RAG). Anleitung: [`infra/lokal/README.md`](infra/lokal/R
 Was echte Agents damit gemacht haben, steht in
 [`docs/nachweise/lokal-agents.md`](docs/nachweise/lokal-agents.md).
 
+## Apps mit dem eigenen Assistenten bauen
+
+Apps baut und ändert dein eigener Claude Code, verbunden mit dem
+Plattform-MCP. Das Plugin [`plugins/openapps`](plugins/openapps/README.md)
+bringt drei Dinge mit:
+
+- die Verbindung zum MCP, mit Adresse und Token aus der Umgebung;
+- die Regeln der Plattform als Skill;
+- die Befehle `/openapps:neue-app`, `/openapps:app-aendern` und
+  `/openapps:status`.
+
+Installieren in Claude Code:
+
+```text
+/plugin marketplace add jonasqz/openapps
+/plugin install openapps@openapps
+```
+
+Wie man sich verbindet, steht in der Verwaltung unter „Loslegen“. Für
+Assistenten ohne Browser steht dasselbe im MCP-Prompt `loslegen`.
+
 ## Auf einen Server bringen
 
 Ein Server mit Coolify, eine Compose-Datei, eine Liste von Variablen:

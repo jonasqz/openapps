@@ -1,0 +1,7 @@
+{
+  "name": "openapps",
+  "version": "0.1.0",
+  "description": "Apps auf der openapps-Plattform bauen und ändern, mit deinem eigenen Assistenten: Verbindung zum Plattform-MCP, die Regeln der Plattform als Skill und Befehle für neue Apps und Änderungen.",
+  "author": { "name": "openapps" },
+  "keywords": ["openapps", "apps", "mcp", "coolify"]
+}

@@ -112,8 +112,12 @@ async function main(): Promise<void> {
       version: manifest.version,
       gitSha,
     });
+    // `unreachable` heisst lokal nur: Der Adapter kann das Gateway nicht
+    // messen (kein Backend-Inventar). Als Fehler gelesen, fuehrt es in die Irre.
+    const gateway =
+      outcome.gateway.state === 'unreachable' ? 'lokal nicht messbar' : outcome.gateway.state;
     console.log(
-      `App ${name}: ${outcome.deployment.status} (Review ${outcome.review.decision}, Gateway ${outcome.gateway.state})`,
+      `App ${name}: ${outcome.deployment.status} (Review ${outcome.review.decision}, Gateway ${gateway})`,
     );
   }
 

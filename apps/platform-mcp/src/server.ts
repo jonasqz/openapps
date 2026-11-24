@@ -14,7 +14,14 @@ import {
 } from '@openapps/control-plane/domain';
 import { z } from 'zod';
 import { callAppTool, listAppTools, type AppToolInvoker } from './app-tools';
-import { HOW_TO_BUILD_APP, HOW_TO_BUILD_APP_DESCRIPTION, readAgentsMd } from './prompts';
+import { loslegenAlsText } from '@openapps/control-plane/loslegen';
+import {
+  HOW_TO_BUILD_APP,
+  HOW_TO_BUILD_APP_DESCRIPTION,
+  LOSLEGEN,
+  LOSLEGEN_DESCRIPTION,
+  readAgentsMd,
+} from './prompts';
 import { platformTools, runTool, type AnyToolDefinition } from './tools';
 
 export interface PlatformServerOptions {
@@ -98,6 +105,13 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
       },
     );
   }
+
+  // Dieselbe Anleitung wie die Seite /loslegen der Verwaltung, aus einer Quelle.
+  server.prompt(LOSLEGEN, LOSLEGEN_DESCRIPTION, () => ({
+    messages: [
+      { role: 'user' as const, content: { type: 'text' as const, text: loslegenAlsText() } },
+    ],
+  }));
 
   server.prompt(HOW_TO_BUILD_APP, HOW_TO_BUILD_APP_DESCRIPTION, async () => {
     const text = await readAgentsMd();

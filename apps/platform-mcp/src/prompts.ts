@@ -11,6 +11,11 @@ import path from 'node:path';
 
 export const HOW_TO_BUILD_APP = 'how_to_build_app';
 
+export const LOSLEGEN = 'loslegen';
+
+export const LOSLEGEN_DESCRIPTION =
+  'Wie man sich mit dem eigenen Assistenten verbindet und Apps baut oder aendert: Plugin, eigener Agent-Zugang, Adresse und Token, Beispiel-Auftraege, was danach passiert.';
+
 export const HOW_TO_BUILD_APP_DESCRIPTION =
   'Die Regeln der Plattform fuer Agents, die eine App bauen: Login ueber Header, eigenes Schema, API vor UI, Manifest pflegen, keine Secrets, nur das Design System, nichts am Gateway vorbei.';
 

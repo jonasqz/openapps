@@ -13,7 +13,8 @@
     "./infra/pg": "./src/infra/pg/index.ts",
     "./infra/scanners": "./src/infra/scanners.ts",
     "./adapters/coolify": "./src/adapters/coolify/index.ts",
-    "./runtime": "./src/lib/runtime.ts"
+    "./runtime": "./src/lib/runtime.ts",
+    "./loslegen": "./src/lib/loslegen.ts"
   },
   "scripts": {
     "dev": "next dev --port 3000",

@@ -58,6 +58,10 @@ die Lebendprüfung nie bestanden.
 - Neue Apps sind neue Workspace-Pakete, deshalb ändert sich der Lockfile.
   Wer eine App behalten will, committet beides.
 - Die Container der Standard-Apps heißen jetzt `app-<name>`, etwa `app-crm`.
+- `apps-ausrollen.sh` baut die Images nacheinander. Parallel ging Docker Desktop beim ersten
+  Lauf auf frischem Stand der Speicher aus (`cannot allocate memory`), weil jeder Build den ganzen Workspace
+  installiert. Eingerichtet wird der lokale Betrieb damit in zwei Befehlen:
+  `einrichten.sh` und `apps-ausrollen.sh`.
 - Tests: `tests/lokal-backend.spec.ts` (Vorlage, kein Überschreiben, kein
   Pfad als Name) und `packages/sdk/test/migrate.test.ts` (App ohne `seeds/`).
 

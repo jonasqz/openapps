@@ -2,7 +2,7 @@
 # Baut, registriert und deployt die Apps aus standard-apps/ und legt beim
 # ersten Mal den Agenten `betrieb` an (ADR 0011, ADR 0015).
 #
-#   ./infra/lokal/apps-ausrollen.sh            # alle Apps
+#   ./infra/lokal/apps-ausrollen.sh            # alles bauen und starten
 #   ./infra/lokal/apps-ausrollen.sh urlaub     # nur diese App neu bauen
 #
 # Eine neue App ist ein Ordner standard-apps/<name> mit app.json, etwa aus
@@ -21,15 +21,20 @@ lokal="$here/lokal.sh"
 # sonst scheitert der Build im Container (--frozen-lockfile).
 (cd "$repo" && pnpm install --prefer-offline --reporter=silent)
 
-# Die Basis muss laufen; dann je App ihr Container.
-"$lokal" up -d control-plane ansehen >/dev/null
+# Images nacheinander bauen, nicht parallel: Jeder Build installiert den
+# ganzen Workspace, und mehrere zugleich sprengen den Speicher von Docker
+# Desktop (beim ersten Lauf auf einem frischen Rechner gesehen).
 services=()
 for app in "$@"; do services+=("app-$app"); done
 if [[ ${#services[@]} -eq 0 ]]; then
-  "$lokal" up -d --build --remove-orphans
-else
-  "$lokal" up -d --build "${services[@]}"
+  services=(control-plane)
+  while read -r svc; do services+=("$svc"); done < <("$lokal" config --services 2>/dev/null | grep '^app-')
 fi
+for svc in "${services[@]}"; do
+  echo "Baue $svc"
+  "$lokal" build --quiet "$svc"
+done
+"$lokal" up -d --remove-orphans >/dev/null
 
 umask 077
 mkdir -p "$here/.agents"
