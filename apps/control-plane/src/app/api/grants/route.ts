@@ -1,4 +1,9 @@
-/** `GET /api/grants` und `POST /api/grants` — das Rechtemodell ueber HTTP. */
+/**
+ * `GET /api/grants` und `POST /api/grants` — das Rechtemodell ueber HTTP.
+ *
+ * GET: ohne Angabe die eigenen Freigaben, `?all=true` alle, mit
+ * `resourceKind`/`resourceId` die auf eine Ressource. Gleich wie `list_grants`.
+ */
 
 import { grant, listGrants } from '../../../domain';
 import type { ResourceKind, SubjectKind, Verb } from '../../../domain/types';
@@ -12,12 +17,15 @@ export async function GET(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const resourceKind = url.searchParams.get('resourceKind');
     const resourceId = url.searchParams.get('resourceId');
-    const grants = await listGrants(domainContext(), {
-      actor,
-      ...(resourceKind !== null && resourceId !== null
+    // Wie `list_grants` im MCP: ohne Angabe die eigenen, `?all=true` alle
+    // (braucht read auf app:*), mit Ressource die auf diese Ressource.
+    const scope =
+      resourceKind !== null && resourceId !== null
         ? { resource: { kind: resourceKind as ResourceKind, id: resourceId } }
-        : {}),
-    });
+        : url.searchParams.get('all') === 'true'
+          ? {}
+          : { subject: { kind: actor.kind, id: actor.id } };
+    const grants = await listGrants(domainContext(), { actor, ...scope });
     return jsonResponse({ grants });
   } catch (error) {
     return errorResponse(error);

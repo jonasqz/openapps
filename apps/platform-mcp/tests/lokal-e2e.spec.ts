@@ -139,6 +139,20 @@ describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () =
     ).rejects.toThrow(/not found/i);
   });
 
+  it('zeigt einem Agent seine eigenen Freigaben, aber nicht alle', async () => {
+    // Zweiter Agent-Lauf: Der Praktikant bekam hier permission_denied.
+    const own = await call(leserClient, 'list_grants', {});
+    expect(own.ok, JSON.stringify(own.error)).toBe(true);
+    const ids = (own.value as { grants: { resource: { id: string } }[] }).grants
+      .map((g) => g.resource.id)
+      .sort();
+    expect(ids).toEqual(['wiki.pages.list', 'wiki.pages.search']);
+
+    const all = await call(leserClient, 'list_grants', { all: true });
+    expect(all.ok).toBe(false);
+    expect(all.error?.code).toBe('permission_denied');
+  });
+
   it('lehnt eine Selbstfreigabe ab', async () => {
     const self = await call(leserClient, 'grant', {
       subjectKind: 'agent',

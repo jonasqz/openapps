@@ -54,6 +54,36 @@ ADR 0012 behoben.
   `seeds/`. Das SDK spielt sie nur mit `OPENAPPS_SAMPLE_DATA=1` ein, und das
   setzt nur der lokale Adapter.
 
+## Zweiter Lauf, auf frisch gebautem Stapel
+
+Alle vier Agents sind noch einmal gelaufen, gegen einen aus dem Repo frisch
+gebauten Stapel mit Seeds statt Beispieldaten-Migrationen. Die Ergebnisse
+decken sich mit dem ersten Lauf:
+
+- 30 von 30 Freigaben.
+- Die Rabattregel ist mit Quelle notiert.
+- Die Pipeline steht bei 117.500 €, gewichtet 44.750 €.
+- Die Fahrtkosten betragen 108 €.
+- Der Assistent konnte die Stage nicht ändern.
+- Der Praktikant konnte nur lesen.
+
+Neu gefunden:
+
+- **`list_grants` ohne Angabe** sollte laut Beschreibung die eigenen Freigaben
+  zeigen. Stattdessen fiel der Aufruf in „alle Freigaben“ und verlangte
+  Admin-Rechte, also bekam der Praktikant `permission_denied`. Behoben in MCP
+  und REST (`?all=true` für alle). Abgedeckt durch `tests/list-grants.spec.ts`
+  und den lokalen E2E-Test, und der echte Agent sieht seine drei Freigaben.
+- **Offen:** Ein gesperrter Agent behält seine Freigaben. Das ist harmlos,
+  weil sein Token sofort abgelehnt wird, macht die Liste aber unübersichtlich.
+- **Offen:** Plattform-Tools wie `grant` oder `create_agent` sieht jeder
+  Agent, auch ohne Recht. Abgewiesen werden sie beim Aufruf. App-Tools sieht
+  ein Agent dagegen nur mit Freigabe.
+
+Beim Prüfen vor diesem Lauf fiel außerdem ein eigener Fehler auf, gefunden
+von den DB-Tests der Apps: Die alten Beispieldaten-Migrationen waren
+versehentlich wieder im Repo (behoben in 1ebb6f1).
+
 ## Nicht geprüft
 
 - Die Oberfläche der Control Plane. Sie braucht weiter den Google-Login.

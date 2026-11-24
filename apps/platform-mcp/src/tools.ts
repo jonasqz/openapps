@@ -218,17 +218,26 @@ export const listGrantsTool = defineTool({
   name: 'list_grants',
   title: 'Freigaben ansehen',
   description:
-    'Listet Freigaben. Ohne Angabe die eigenen; mit Ressource die Freigaben auf diese Ressource, sofern der Aufrufer sie lesen darf.',
+    'Listet Freigaben. Ohne Angabe die eigenen — das darf jeder. Mit Ressource die Freigaben auf diese Ressource, sofern der Aufrufer sie lesen darf. Mit all: true alle Freigaben der Plattform (braucht read auf app:*).',
   schema: z.object({
     resourceKind: resourceKind.optional(),
     resourceId: z.string().optional(),
+    all: z.boolean().optional(),
   }),
-  async handler({ ctx, actor }, input) {
+  async handler({ ctx, actor, correlationId }, input) {
+    const scope =
+      input.resourceKind !== undefined && input.resourceId !== undefined
+        ? { resource: { kind: input.resourceKind, id: input.resourceId } }
+        : input.all === true
+          ? {}
+          : // Ohne Angabe die eigenen, wie beschrieben. Vorher fiel das in
+            // "alle" und brauchte Admin-Rechte: Ein Agent konnte nie
+            // nachsehen, was er selbst darf (zweiter Agent-Lauf, ADR 0011).
+            { subject: { kind: actor.kind, id: actor.id } };
     const grants = await listGrants(ctx, {
       actor,
-      ...(input.resourceKind !== undefined && input.resourceId !== undefined
-        ? { resource: { kind: input.resourceKind, id: input.resourceId } }
-        : {}),
+      ...scope,
+      ...(correlationId === undefined ? {} : { correlationId }),
     });
     return { grants };
   },
