@@ -1,0 +1,350 @@
+# Die Wahrheit über die Funktionen dieser App.
+# Aus dieser Datei erzeugt die Plattform die MCP-Tools. Eine UI-Aktion ohne
+# passende Operation hier blockiert das Review-Gate.
+#
+# Jedes Tool ist `POST /tools/<name>` mit den Argumenten als JSON-Body
+# (`createToolRoute` aus @openapps/sdk). Fehler kommen einheitlich:
+#   400 {error: 'invalid', message, issues}  — Argumente passen nicht
+#   401 {error: 'unauthorized'}              — nicht über das Gateway
+#   404 {error: 'not_found', message}        — Seite gibt es nicht
+#   404 {error: 'unknown_tool', tool}        — Tool gibt es nicht
+#   500 {error: 'internal'}                  — Einzelheiten nur im Log
+openapi: 3.1.0
+info:
+  title: Wiki
+  version: 0.1.0
+  description: >-
+    Wissensseiten mit Seitenbaum, Markdown, Volltextsuche (deutsch) und
+    Verlauf jeder Änderung. Menschen und Agents nutzen dieselben Operationen.
+servers:
+  # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
+  # `basePath` setzt die Control Plane pro Deployment in OPENAPPS_APP_BASE_PATH.
+  - url: '{basePath}/api'
+    description: Diese App hinter dem Gateway.
+    variables:
+      basePath:
+        default: /wiki
+        description: Pfad der App, byte-gleich mit OPENAPPS_APP_BASE_PATH.
+paths:
+  /tools/pages.list:
+    post:
+      operationId: listPages
+      summary: Listet Seiten ohne Inhalt
+      description: >-
+        Nicht archivierte Seiten, nach Titel sortiert, höchstens 500. Für
+        Suche im Inhalt `searchPages`, für den Text `getPage`.
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                q: { type: string, maxLength: 200, description: Text, der im Titel vorkommen muss }
+                parentId: { type: string, format: uuid, description: Nur direkte Unterseiten dieser Seite }
+                tag: { $ref: '#/components/schemas/Tag' }
+      responses:
+        '200':
+          description: Seitenliste
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pages, truncated]
+                properties:
+                  pages:
+                    type: array
+                    items: { $ref: '#/components/schemas/PageSummary' }
+                  truncated:
+                    type: boolean
+                    description: Mehr als 500 Seiten passen; Filter enger stellen.
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/pages.get:
+    post:
+      operationId: getPage
+      summary: Liest eine Seite mit Inhalt und Unterseiten
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Die Seite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Page' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/pages.search:
+    post:
+      operationId: searchPages
+      summary: Volltextsuche in Titel und Inhalt
+      description: >-
+        Deutsche Stammformen (`websearch_to_tsquery('german', …)`). Syntax wie
+        eine Websuche: "genaue Phrase", -ausschließen, or. Bester Treffer
+        zuerst, mit Rang und Ausschnitt.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [query]
+              properties:
+                query: { type: string, minLength: 1, maxLength: 200 }
+                limit: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200':
+          description: Treffer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hits]
+                properties:
+                  hits:
+                    type: array
+                    items: { $ref: '#/components/schemas/SearchHit' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/pages.create:
+    post:
+      operationId: createPage
+      summary: Legt eine Seite an
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, contentMd]
+              properties:
+                title: { $ref: '#/components/schemas/Title' }
+                contentMd: { $ref: '#/components/schemas/ContentMd' }
+                parentId:
+                  type: string
+                  format: uuid
+                  description: Nicht archivierte Elternseite. Ohne parentId liegt die Seite oben.
+                tags: { $ref: '#/components/schemas/Tags' }
+      responses:
+        '200':
+          description: Die neue Seite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Page' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/pages.update:
+    post:
+      operationId: updatePage
+      summary: Ändert eine Seite oder hängt Inhalt an
+      description: >-
+        Mindestens eins von title, contentMd, appendMd, tags. contentMd
+        ersetzt den Inhalt, appendMd hängt nach einer Leerzeile an; beide
+        zusammen sind ein Fehler. Schreibt eine Revision, wenn sich etwas
+        ändert.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+                title: { $ref: '#/components/schemas/Title' }
+                contentMd: { $ref: '#/components/schemas/ContentMd' }
+                appendMd: { type: string, minLength: 1, maxLength: 200000 }
+                tags: { $ref: '#/components/schemas/Tags' }
+      responses:
+        '200':
+          description: Die Seite nach der Änderung
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Page' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/pages.archive:
+    post:
+      operationId: archivePage
+      summary: Archiviert eine Seite
+      description: >-
+        Abgelehnt (400), solange die Seite nicht archivierte Unterseiten hat.
+        Idempotent.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Archiviert
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, archivedAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  archivedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/pages.history:
+    post:
+      operationId: getPageHistory
+      summary: Verlauf einer Seite
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+                limit: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Revisionen, neueste zuerst
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pageId, title, revisions]
+                properties:
+                  pageId: { type: string, format: uuid }
+                  title: { type: string }
+                  revisions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Revision' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  responses:
+    Invalid:
+      description: Argumente passen nicht zum Tool
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, message]
+            properties:
+              error: { const: invalid }
+              message: { type: string }
+              issues: { type: array, items: {} }
+    Unauthorized:
+      description: Kein gültiger Gateway-Aufruf
+    NotFound:
+      description: Seite gibt es nicht
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, message]
+            properties:
+              error: { const: not_found }
+              message: { type: string }
+  schemas:
+    Title: { type: string, minLength: 1, maxLength: 200 }
+    ContentMd: { type: string, maxLength: 200000, description: Markdown }
+    Tag:
+      type: string
+      minLength: 1
+      maxLength: 40
+      pattern: '^[\p{L}\p{N}][\p{L}\p{N}_-]*$'
+      description: Wird klein geschrieben gespeichert.
+    Tags:
+      type: array
+      maxItems: 20
+      items: { $ref: '#/components/schemas/Tag' }
+    PageRef:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+    PageSummary:
+      type: object
+      required: [id, parentId, title, tags, updatedAt, updatedBy]
+      properties:
+        id: { type: string, format: uuid }
+        parentId: { type: [string, 'null'], format: uuid }
+        title: { type: string }
+        tags: { type: array, items: { type: string } }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string, description: Personen-Id oder agent:<name> }
+    Page:
+      allOf:
+        - $ref: '#/components/schemas/PageSummary'
+        - type: object
+          required: [contentMd, createdAt, createdBy, archivedAt, parent, children]
+          properties:
+            contentMd: { type: string }
+            createdAt: { type: string, format: date-time }
+            createdBy: { type: string }
+            archivedAt: { type: [string, 'null'], format: date-time }
+            parent:
+              oneOf:
+                - { $ref: '#/components/schemas/PageRef' }
+                - { type: 'null' }
+            children:
+              type: array
+              items: { $ref: '#/components/schemas/PageRef' }
+    SearchHit:
+      type: object
+      required: [id, parentId, title, tags, updatedAt, rank, snippet]
+      properties:
+        id: { type: string, format: uuid }
+        parentId: { type: [string, 'null'], format: uuid }
+        title: { type: string }
+        tags: { type: array, items: { type: string } }
+        updatedAt: { type: string, format: date-time }
+        rank: { type: number }
+        snippet: { type: string, description: 'Einzeiliger Ausschnitt, Treffer in « und » eingefasst' }
+    Revision:
+      type: object
+      required: [id, change, title, contentMd, tags, editedBy, editedAt]
+      properties:
+        id: { type: string }
+        change: { type: string, enum: [create, update, archive] }
+        title: { type: string }
+        contentMd: { type: string }
+        tags: { type: array, items: { type: string } }
+        editedBy: { type: string }
+        editedAt: { type: string, format: date-time }

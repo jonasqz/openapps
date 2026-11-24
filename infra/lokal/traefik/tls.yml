@@ -1,0 +1,8 @@
+# Nur lokal: Standard-Zertifikat fuer den Entrypoint https (selbst signiert,
+# erzeugt von einrichten.sh). Gehoert nicht auf einen Server.
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/traefik/local-certs/local.crt
+        keyFile: /etc/traefik/local-certs/local.key

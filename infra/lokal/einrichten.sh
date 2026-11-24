@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Einmal vor dem ersten `docker compose up`: .env mit Zufalls-Secrets und ein
+# selbst signiertes Zertifikat. Beides bleibt auf diesem Rechner (gitignoriert).
+# Ein zweiter Lauf aendert nichts, was schon da ist.
+set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ ! -f "$here/.env" ]]; then
+  rnd() { openssl rand -hex 32; }
+  umask 077
+  cat > "$here/.env" <<ENV
+# Lokale Wegwerf-Secrets, erzeugt von einrichten.sh. Nicht committen.
+POSTGRES_SUPERUSER_PASSWORD=$(rnd)
+OPENAPPS_OWNER_PASSWORD=$(rnd)
+OPENAPPS_AUTH_MASTER_SECRET=$(rnd)
+BETTER_AUTH_SECRET=$(rnd)
+ENV
+  echo ".env angelegt"
+fi
+
+mkdir -p "$here/certs"
+if [[ ! -f "$here/certs/local.crt" ]]; then
+  openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
+    -keyout "$here/certs/local.key" -out "$here/certs/local.crt" \
+    -subj '/CN=local.test' \
+    -addext 'subjectAltName=DNS:local.test,DNS:*.local.test' >/dev/null 2>&1
+  echo "Zertifikat erzeugt"
+fi

@@ -30,3 +30,15 @@ export {
   DATABASE_URL_ENV,
   type AppPoolOptions,
 } from './db.js';
+
+export {
+  createToolRoute,
+  parseArgs,
+  ToolInputError,
+  ToolNotFoundError,
+  type ToolContext,
+  type ToolHandler,
+  type ToolRouteOptions,
+} from './tools.js';
+
+export { MIGRATIONS_TABLE, runMigrations, type MigrationResult } from './migrate.js';

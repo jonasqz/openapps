@@ -7,7 +7,11 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { Actor, DomainContext } from '@openapps/control-plane/domain';
+import {
+  PermissionDeniedError,
+  type Actor,
+  type DomainContext,
+} from '@openapps/control-plane/domain';
 import { z } from 'zod';
 import { callAppTool, listAppTools, type AppToolInvoker } from './app-tools';
 import { HOW_TO_BUILD_APP, HOW_TO_BUILD_APP_DESCRIPTION, readAgentsMd } from './prompts';
@@ -45,21 +49,34 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
 
   // App-Tools: nur die freigegebenen werden ueberhaupt angemeldet. Der Aufruf
   // prueft trotzdem noch einmal — Ausblenden ist keine Durchsetzung.
+  const taken = new Set<string>(platformTools.map((tool) => tool.name));
   for (const appTool of await listAppTools(options.ctx, options.actor)) {
+    const mcpName = mcpToolName(appTool.resourceId, taken);
+    taken.add(mcpName);
     server.registerTool(
-      appTool.resourceId,
+      mcpName,
       {
-        description:
-          appTool.description ?? `Tool "${appTool.toolName}" der App "${appTool.appName}"`,
-        inputSchema: {},
+        description: `${appTool.appName}: ${
+          appTool.description ?? `Tool "${appTool.toolName}" der App "${appTool.appName}"`
+        }\n\nArgumente als Objekt im Feld "args" uebergeben.`,
+        // Die Argumente beschreibt die App in ihrer OpenAPI-Spec und in der
+        // Tool-Beschreibung; die Plattform reicht sie unveraendert durch. Ein
+        // leeres Schema hier wuerde sie stillschweigend verwerfen (zod
+        // entfernt unbekannte Schluessel), deshalb ein offenes Feld.
+        inputSchema: {
+          args: z
+            .record(z.unknown())
+            .optional()
+            .describe('Argumente des Tools, wie in der Beschreibung genannt'),
+        },
         annotations: { title: `${appTool.appName}: ${appTool.toolName}` },
       },
-      async (args: unknown) => {
+      async (input: { args?: Record<string, unknown> | undefined }) => {
         try {
           const value = await callAppTool(options.ctx, {
             actor: options.actor,
             toolResourceId: appTool.resourceId,
-            args: (args ?? {}) as Record<string, unknown>,
+            args: input.args ?? {},
             invoker: options.invoker,
             ...(options.correlationId === undefined
               ? {}
@@ -70,7 +87,10 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
           return toContent({
             ok: false,
             error: {
-              code: 'permission_denied',
+              // Nur eine verweigerte Freigabe heisst so. Ein Fehler der App
+              // (falsche Argumente, nicht gefunden) traegt ihre Meldung, damit
+              // der Agent seinen Aufruf korrigieren kann.
+              code: error instanceof PermissionDeniedError ? 'permission_denied' : 'app_error',
               message: error instanceof Error ? error.message : String(error),
             },
           });
@@ -108,4 +128,17 @@ function toContent(result: unknown): {
     content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     ...(failed ? { isError: true } : {}),
   };
+}
+
+/**
+ * Der Name, unter dem ein App-Tool im MCP erscheint. Clients wie Claude nehmen
+ * nur `[a-zA-Z0-9_-]{1,64}` — `crm.contacts.list` waere unsichtbar. Aus jedem
+ * anderen Zeichen wird `__`, also `crm__contacts__list`. Zurueckgerechnet wird
+ * nie: Der Handler kennt seine Ressourcen-Id, der Name ist nur ein Etikett.
+ */
+export function mcpToolName(resourceId: string, taken: ReadonlySet<string> = new Set()): string {
+  const base = resourceId.replace(/[^a-zA-Z0-9_-]/g, '__').slice(0, 60);
+  let name = base;
+  for (let i = 2; taken.has(name); i += 1) name = `${base}_${String(i)}`;
+  return name;
 }

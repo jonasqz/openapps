@@ -28,6 +28,15 @@ mit denselben Rechten aus demselben Rechtemodell.
 | `infra/`                | Traefik-Forward-Auth, Postgres-Rollen, Betriebs-Skripte                                                           |
 | `docs/`                 | Brief, Architektur, Roadmap, DoD, Entscheidungen                                                                  |
 
+## Lokal ausprobieren, mit Standard-Apps und Agents
+
+`infra/lokal/` startet die ganze Plattform in Docker, ohne Coolify und ohne
+GitHub. Dazu kommen drei Standard-Apps aus `standard-apps/`: `wiki` (Seiten wie
+in Notion), `crm` und `wissen` (Dokumente mit Passagensuche, die
+Retrieval-Hälfte eines RAG). Anleitung: [`infra/lokal/README.md`](infra/lokal/README.md).
+Was echte Agents damit gemacht haben, steht in
+[`docs/nachweise/lokal-agents.md`](docs/nachweise/lokal-agents.md).
+
 ## Auf einen Server bringen
 
 Ein Server mit Coolify, eine Compose-Datei, eine Liste von Variablen:

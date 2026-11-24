@@ -56,7 +56,9 @@ async function requireAuthorityOver(
     return;
   }
 
-  const { appName } = parseObjectResourceId(resource.id);
+  const { appName } = parseObjectResourceId(resource.id, {
+    allowDotInObject: resource.kind === 'tool',
+  });
   const owner = await ctx.apps.findByName(appName);
   if (owner === null) throw new NotFoundError(`App "${appName}" gibt es nicht`);
   await requireAppPermission(ctx, actor, verb, owner);
@@ -157,23 +159,36 @@ export async function revoke(ctx: DomainContext, input: RevokeInput): Promise<Gr
 
 export async function listGrants(
   ctx: DomainContext,
-  input: { actor: Actor; resource?: ResourceRef; subject?: SubjectRef },
+  input: { actor: Actor; resource?: ResourceRef; subject?: SubjectRef; correlationId?: string },
 ): Promise<readonly Grant[]> {
-  if (input.resource !== undefined) {
-    await requireAuthorityOver(ctx, input.actor, input.resource, 'read');
-    return ctx.grants.listForResource(input.resource);
-  }
-  if (input.subject !== undefined) {
-    const own = input.subject.kind === input.actor.kind && input.subject.id === input.actor.id;
-    if (!own) {
-      // Fremde Freigaben zu lesen ist selbst ein Recht; ohne Wildcard-read
-      // auf Apps sieht man nur die eigenen.
+  // Protokolliert wie `listApps`: Wer Freigaben lesen wollte und nicht durfte,
+  // gehoert ins Audit-Log — gerade bei einem Agenten, der seine Grenzen sucht.
+  return audited(
+    ctx,
+    {
+      actor: input.actor,
+      action: 'list_grants',
+      resource: input.resource ?? { kind: 'app', id: '*' },
+      ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
+    },
+    async () => {
+      if (input.resource !== undefined) {
+        await requireAuthorityOver(ctx, input.actor, input.resource, 'read');
+        return { value: await ctx.grants.listForResource(input.resource) };
+      }
+      if (input.subject !== undefined) {
+        const own = input.subject.kind === input.actor.kind && input.subject.id === input.actor.id;
+        if (!own) {
+          // Fremde Freigaben zu lesen ist selbst ein Recht; ohne Wildcard-read
+          // auf Apps sieht man nur die eigenen.
+          await requirePermission(ctx, input.actor, 'read', { kind: 'app', id: '*' });
+        }
+        return { value: await ctx.grants.listForSubjects([input.subject]) };
+      }
       await requirePermission(ctx, input.actor, 'read', { kind: 'app', id: '*' });
-    }
-    return ctx.grants.listForSubjects([input.subject]);
-  }
-  await requirePermission(ctx, input.actor, 'read', { kind: 'app', id: '*' });
-  return ctx.grants.listAll(500);
+      return { value: await ctx.grants.listAll(500) };
+    },
+  );
 }
 
 /**

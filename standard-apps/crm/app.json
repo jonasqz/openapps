@@ -1,0 +1,154 @@
+{
+  "manifestVersion": 1,
+  "name": "crm",
+  "displayName": "CRM",
+  "description": "Schlankes CRM für Menschen und Agents: Firmen, Kontakte, Deals mit Pipeline und Aktivitäten.",
+  "category": "sales",
+  "version": "0.1.0",
+  "source": {
+    "git": "https://github.com/jonasqz/openapps.git",
+    "tag": "crm-v0.1.0"
+  },
+  "requiredTables": [
+    {
+      "name": "companies",
+      "description": "Firmen mit Name, Website, Branche und Notizen."
+    },
+    {
+      "name": "contacts",
+      "description": "Ansprechpartner mit Name, E-Mail (eindeutig, ohne Groß-/Kleinschreibung), Telefon, Rolle und optionaler Firma."
+    },
+    {
+      "name": "deals",
+      "description": "Verkaufschancen mit Firma, optionalem Kontakt, Betrag in Cent, Stage, erwartetem Abschluss und Verantwortlichem."
+    },
+    {
+      "name": "activities",
+      "description": "Verlauf: Notizen, Anrufe, Mails und Termine zu Kontakten, Firmen oder Deals. Stage-Wechsel landen hier automatisch."
+    }
+  ],
+  "offeredTools": [
+    {
+      "name": "companies.list",
+      "description": "Listet Firmen, alphabetisch. Argumente: q (optional, Freitext, sucht in Name, Branche und Website, ohne Groß-/Kleinschreibung), limit (optional, 1 bis 200, Vorgabe 50). Liefert { companies: [{ id, name, website, branche, notes, contactCount, openDealCount }] }. Nutze die id für companies.get oder als companyId in anderen Tools.",
+      "operationId": "listCompanies",
+      "verb": "read"
+    },
+    {
+      "name": "companies.get",
+      "description": "Holt eine Firma mit allem, was dazugehört. Argument: id (UUID der Firma). Liefert { company, contacts, deals, activities } — activities sind die letzten 20, auch die zu Kontakten und Deals der Firma, neueste zuerst. Unbekannte id ergibt 404.",
+      "operationId": "getCompany",
+      "verb": "read"
+    },
+    {
+      "name": "companies.create",
+      "description": "Legt eine Firma an. Argumente: name (Pflicht, 1 bis 200 Zeichen), website (optional, z. B. https://example.com; ohne Schema wird https:// ergänzt), branche (optional), notes (optional, Freitext). Liefert { company } mit der neuen id. Prüfe vorher mit companies.list, ob es die Firma schon gibt.",
+      "operationId": "createCompany",
+      "verb": "write"
+    },
+    {
+      "name": "contacts.list",
+      "description": "Listet Kontakte, alphabetisch. Argumente: q (optional, sucht in Name, E-Mail, Telefon und Rolle), companyId (optional, nur Kontakte dieser Firma), limit (optional, 1 bis 200, Vorgabe 50). Liefert { contacts: [{ id, name, email, phone, role, companyId, companyName }] }.",
+      "operationId": "listContacts",
+      "verb": "read"
+    },
+    {
+      "name": "contacts.get",
+      "description": "Holt einen Kontakt mit seinen Deals und den letzten 20 Aktivitäten. Argument: id (UUID des Kontakts). Liefert { contact, deals, activities }. Unbekannte id ergibt 404.",
+      "operationId": "getContact",
+      "verb": "read"
+    },
+    {
+      "name": "contacts.create",
+      "description": "Legt einen Kontakt an. Argumente: name (Pflicht), email (optional, eindeutig ohne Groß-/Kleinschreibung; ist sie vergeben, kommt ein Fehler — dann den vorhandenen Kontakt per contacts.list mit q suchen), phone, role (optional), companyId (optional, UUID einer bestehenden Firma). Liefert { contact }.",
+      "operationId": "createContact",
+      "verb": "write"
+    },
+    {
+      "name": "contacts.update",
+      "description": "Ändert einen Kontakt. Argumente: id (Pflicht) und mindestens eines von name, email, phone, role, companyId. Nur genannte Felder ändern sich. null (oder leerer Text) löscht email, phone, role oder companyId; name lässt sich nicht löschen. Liefert { contact }.",
+      "operationId": "updateContact",
+      "verb": "write"
+    },
+    {
+      "name": "deals.list",
+      "description": "Listet Deals, zuerst nach erwartetem Abschluss, dann neueste. Argumente: stage (optional: lead, qualifiziert, angebot, gewonnen, verloren), companyId (optional), limit (optional, 1 bis 200, Vorgabe 50). Liefert { deals: [{ id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner }] }. valueCents ist der Betrag in Euro-Cent.",
+      "operationId": "listDeals",
+      "verb": "read"
+    },
+    {
+      "name": "deals.create",
+      "description": "Legt einen Deal an. Argumente: title (Pflicht), companyId (Pflicht), valueCents (Pflicht, ganze Euro-Cent, 12.500 € = 1250000), contactId (optional, muss zur Firma gehören), stage (optional, Vorgabe lead), expectedClose (optional, JJJJ-MM-TT), owner (optional, Vorgabe: der Aufrufer). Liefert { deal }.",
+      "operationId": "createDeal",
+      "verb": "write"
+    },
+    {
+      "name": "deals.update_stage",
+      "description": "Setzt die Stage eines Deals: lead, qualifiziert, angebot, gewonnen oder verloren. Argumente: id (Pflicht), stage (Pflicht), note (optional, Begründung). Ein Wechsel schreibt automatisch eine Aktivität (Notiz) mit alter und neuer Stage und der note. Ist die Stage schon gesetzt, ändert sich nichts. Liefert { deal, changed, activity }.",
+      "operationId": "updateDealStage",
+      "verb": "write"
+    },
+    {
+      "name": "activities.log",
+      "description": "Erfasst eine Aktivität. Argumente: kind (Pflicht: notiz, anruf, mail, termin), subject (Pflicht, kurze Zeile), body (optional, Freitext), contactId, companyId, dealId (mindestens eines davon), happenedAt (optional, ISO-Zeitpunkt, Vorgabe jetzt). Fehlt companyId, wird sie aus Deal oder Kontakt übernommen. Liefert { activity }.",
+      "operationId": "logActivity",
+      "verb": "write"
+    },
+    {
+      "name": "activities.list",
+      "description": "Listet Aktivitäten, neueste zuerst. Argumente: contactId, companyId, dealId (optional, kombinierbar; companyId findet auch Aktivitäten zu Kontakten und Deals der Firma), limit (optional, 1 bis 200, Vorgabe 50). Ohne Filter: die neuesten aller Datensätze. Liefert { activities }.",
+      "operationId": "listActivities",
+      "verb": "read"
+    },
+    {
+      "name": "pipeline.summary",
+      "description": "Fasst die Pipeline zusammen, ohne Argumente. Liefert { stages: [{ stage, count, sumCents, probability, weightedCents }], totals: { count, openCount, openSumCents, weightedOpenCents, wonCents, lostCents } }. Gewichtung: lead 10 %, qualifiziert 25 %, angebot 60 %, gewonnen 100 %, verloren 0 %. weightedOpenCents ist die gewichtete Summe der offenen Deals.",
+      "operationId": "getPipelineSummary",
+      "verb": "read"
+    }
+  ],
+  "requestedGrants": [
+    {
+      "subjectKind": "group",
+      "verb": "read",
+      "resource": {
+        "kind": "app",
+        "app": "crm"
+      },
+      "reason": "Wer das CRM öffnen darf. Welche Gruppe, entscheidet die Freigabe in der Control Plane — ein gewünschtes Recht ist ein Antrag, keine Vergabe."
+    }
+  ],
+  "env": [
+    {
+      "name": "DATABASE_URL",
+      "secret": true,
+      "description": "Verbindung auf das eigene Schema, mit der App-Rolle. Setzt die Control Plane. Ohne sie startet die App ohne Migrationen und jede Abfrage scheitert."
+    },
+    {
+      "name": "DATABASE_SCHEMA",
+      "secret": false,
+      "description": "Eigenes Schema der App. Das SDK setzt daraus den search_path; eine DSN mit options= wird abgewiesen."
+    },
+    {
+      "name": "OPENAPPS_AUTH_SECRET",
+      "secret": true,
+      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prüft. Setzt die Control Plane pro Deployment."
+    },
+    {
+      "name": "OPENAPPS_APP_ID",
+      "secret": false,
+      "description": "Id dieser App im Signatur-Material. Muss byte-gleich dem sein, was das Gateway schreibt."
+    },
+    {
+      "name": "OPENAPPS_APP_HOST",
+      "secret": false,
+      "description": "Gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben."
+    },
+    {
+      "name": "OPENAPPS_APP_BASE_PATH",
+      "secret": false,
+      "description": "Pfad, unter dem die App liegt (/crm). Muss beim Build gesetzt sein, sonst zeigen Verweise und Bilder ins Leere."
+    }
+  ],
+  "egress": []
+}

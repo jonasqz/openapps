@@ -1,0 +1,6 @@
+/* Ohne diese drei Zeilen erzeugt Tailwind keine einzige Klasse — auch nicht
+   die, mit denen @openapps/ui seine Komponenten gestaltet. Farben kommen
+   ausschliesslich aus dem Preset (Tokens), nicht aus dieser Datei. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

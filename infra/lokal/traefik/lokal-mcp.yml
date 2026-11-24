@@ -1,0 +1,19 @@
+# Nur lokal: der Plattform-MCP auf http://localhost:8080/mcp, damit Agents auf
+# dem Mac ohne eigene Zertifikate und ohne /etc/hosts andocken koennen.
+#
+# Kein Loch gegenueber dem Server: /mcp steht dort auf der Allowlist der
+# Forward-Auth (Spec 1.3, ADR 0009) — ohne Session erreichbar, aber nicht ohne
+# Ausweis. Den Bearer-Token prueft der MCP bei jedem Aufruf selbst. Die
+# Identitaets-Header werden trotzdem entfernt, wie an jedem unserer Router.
+http:
+  routers:
+    lokal-mcp:
+      entryPoints: [http]
+      rule: 'PathPrefix(`/mcp`)'
+      middlewares: [openapps-strip-auth-headers@file]
+      service: lokal-control-plane
+  services:
+    lokal-control-plane:
+      loadBalancer:
+        servers:
+          - url: 'http://openapps-control-plane:3000'

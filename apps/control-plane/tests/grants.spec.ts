@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { can, createApp, grant, listApps, revoke } from '../src/domain';
+import { can, createApp, grant, listApps, listGrants, revoke } from '../src/domain';
 import { PermissionDeniedError } from '../src/domain/errors';
 import { admin, createHarness, manifest, seedBootstrapGrants } from './helpers';
 import type { Actor } from '../src/domain/types';
@@ -49,6 +49,50 @@ describe('Rechtemodell: Mensch auf App', () => {
     // 5. wieder blockiert — ohne Wartezeit, weil nichts gecacht wird
     expect(await can(ctx, teamMember, 'read', { kind: 'app', id: app.id })).toBe(false);
     expect(await listApps(ctx, { actor: teamMember })).toHaveLength(0);
+  });
+
+  it('gibt ein Tool mit Punkt im Namen frei, aber nur dieses (ADR 0011)', async () => {
+    const harness = await setup();
+    const { ctx } = harness;
+    await createApp(ctx, { actor: admin, name: 'crm', manifest: manifest('crm') });
+    const agent: Actor = { kind: 'agent', id: 'vertrieb' };
+
+    await grant(ctx, {
+      actor: admin,
+      subject: agent,
+      verb: 'execute',
+      resource: { kind: 'tool', id: 'crm.contacts.list' },
+    });
+
+    expect(await can(ctx, agent, 'execute', { kind: 'tool', id: 'crm.contacts.list' })).toBe(true);
+    expect(await can(ctx, agent, 'execute', { kind: 'tool', id: 'crm.contacts.create' })).toBe(
+      false,
+    );
+  });
+
+  it('weist Ids ab, die keine App und kein Objekt nennen', async () => {
+    const harness = await setup();
+    const { ctx } = harness;
+    await createApp(ctx, { actor: admin, name: 'crm', manifest: manifest('crm') });
+    for (const id of ['crm', 'crm.', '.contacts', 'crm..list', 'crm.contacts.', 'CRM.x']) {
+      await expect(
+        grant(ctx, {
+          actor: admin,
+          subject: { kind: 'agent', id: 'vertrieb' },
+          verb: 'execute',
+          resource: { kind: 'tool', id },
+        }),
+      ).rejects.toThrow();
+    }
+    // Tabellen bleiben ohne Punkt im Namen.
+    await expect(
+      grant(ctx, {
+        actor: admin,
+        subject: { kind: 'app', id: 'crm' },
+        verb: 'read',
+        resource: { kind: 'table', id: 'crm.a.b' },
+      }),
+    ).rejects.toThrow();
   });
 
   it('oeffnet mit `read` nicht auch `write`', async () => {
@@ -159,6 +203,15 @@ describe('Audit-Log', () => {
     const entries = store.auditEntries.filter((e) => e.action === 'create_app');
     expect(entries.map((e) => e.outcome)).toEqual(['allowed', 'denied']);
     expect(entries[1]?.reason).toContain('darf nicht write');
+  });
+
+  it('protokolliert auch einen Agenten, der fremde Freigaben lesen will', async () => {
+    const { ctx, store } = await setup();
+    await expect(
+      listGrants(ctx, { actor: { kind: 'agent', id: 'praktikant' } }),
+    ).rejects.toBeInstanceOf(PermissionDeniedError);
+    const entry = store.auditEntries.find((e) => e.action === 'list_grants');
+    expect(entry?.outcome).toBe('denied');
   });
 });
 

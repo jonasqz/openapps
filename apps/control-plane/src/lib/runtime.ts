@@ -6,6 +6,11 @@
 
 import { createConfiguredBackend } from '../adapters/coolify';
 import { createConfiguredRepositoryBackend } from '../adapters/github';
+import {
+  createLokalBackend,
+  createLokalRepositoryBackend,
+  lokalConfigFromEnv,
+} from '../adapters/lokal';
 import { systemClock, uuidIds, type DomainContext, type GatewaySettings } from '../domain';
 import { createDefaultPipeline } from '../domain/review-gate';
 import {
@@ -53,6 +58,13 @@ export function domainContext(): DomainContext {
   // (erzeugen und lesen) und in `requestDeploy` danach (schreiben und
   // vergleichen). Zwei Quellen waeren zwei Konfigurationen.
   const gatewaySettings = gatewaySettingsFromEnv(env);
+  // Lokaler Betrieb ohne Coolify und GitHub (infra/lokal, ADR 0011). Nur auf
+  // ausdruecklichen Wunsch; jeder andere Wert ist ein Fehler, kein Default.
+  const backendKind = process.env.OPENAPPS_BACKEND ?? 'coolify';
+  if (backendKind !== 'coolify' && backendKind !== 'lokal') {
+    throw new Error(`OPENAPPS_BACKEND="${backendKind}" — erlaubt sind coolify und lokal`);
+  }
+  const lokal = backendKind === 'lokal' ? lokalConfigFromEnv() : null;
 
   context = {
     apps: createAppRepository(pool),
@@ -63,10 +75,11 @@ export function domainContext(): DomainContext {
     agents: createAgentIdentityRepository(pool),
     clock: systemClock,
     ids: uuidIds,
-    backend: createConfiguredBackend(),
+    backend: lokal === null ? createConfiguredBackend() : createLokalBackend(lokal),
     gatewayConfig: createFileGatewayConfigStore({ directory: env.gatewayDynamicDir }),
     gatewaySettings,
-    repositories: createConfiguredRepositoryBackend(),
+    repositories:
+      lokal === null ? createConfiguredRepositoryBackend() : createLokalRepositoryBackend(lokal),
     reviewGate: createDefaultPipeline({
       gitleaks: gitleaksScanner(env.gitleaksBinary),
       semgrep: semgrepScanner(env.semgrepBinary),

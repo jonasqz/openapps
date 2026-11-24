@@ -1,0 +1,588 @@
+# Die Wahrheit ueber die Funktionen dieser App.
+# Aus dieser Datei erzeugt die Plattform die MCP-Tools. Eine UI-Aktion ohne
+# passende Operation hier blockiert das Review-Gate.
+#
+# Jedes Tool ist `POST /tools/<toolname>` mit den Argumenten als JSON-Body
+# (createToolRoute aus @openapps/sdk). Der Name im Pfad ist byte-gleich mit
+# `offeredTools[].name` in app.json, die operationId mit
+# `offeredTools[].operationId`. src/lib/tools.test.ts haelt beides fest.
+openapi: 3.1.0
+info:
+  title: CRM
+  version: 0.1.0
+  description: >-
+    Schlankes CRM für Menschen und Agents. Firmen, Kontakte, Deals mit
+    Pipeline und Aktivitäten. Beträge sind ganze Euro-Cent, Datumswerte
+    JJJJ-MM-TT, Zeitpunkte ISO 8601. Ids sind UUIDs.
+servers:
+  # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
+  # `basePath` ist byte-gleich mit OPENAPPS_APP_BASE_PATH.
+  - url: '{basePath}/api'
+    description: Diese App hinter dem Gateway.
+    variables:
+      basePath:
+        default: /crm
+        description: Pfad der App, byte-gleich mit OPENAPPS_APP_BASE_PATH.
+paths:
+  /tools/companies.list:
+    post:
+      operationId: listCompanies
+      summary: Firmen auflisten, optional mit Freitextsuche
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                q: { type: string, maxLength: 200, description: Sucht in Name, Branche und Website. }
+                limit: { $ref: '#/components/schemas/Limit' }
+      responses:
+        '200':
+          description: Firmen, alphabetisch
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [companies]
+                properties:
+                  companies:
+                    type: array
+                    items: { $ref: '#/components/schemas/CompanyListItem' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/companies.get:
+    post:
+      operationId: getCompany
+      summary: Eine Firma mit Kontakten, Deals und letzten Aktivitäten
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IdArgs' }
+      responses:
+        '200':
+          description: Firma mit allem, was dazugehört
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [company, contacts, deals, activities]
+                properties:
+                  company: { $ref: '#/components/schemas/Company' }
+                  contacts:
+                    type: array
+                    items: { $ref: '#/components/schemas/Contact' }
+                  deals:
+                    type: array
+                    items: { $ref: '#/components/schemas/Deal' }
+                  activities:
+                    type: array
+                    maxItems: 20
+                    items: { $ref: '#/components/schemas/Activity' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/companies.create:
+    post:
+      operationId: createCompany
+      summary: Firma anlegen
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+                website: { type: string, maxLength: 500, description: 'http(s)-Adresse; ohne Schema wird https:// ergänzt.' }
+                branche: { type: string, maxLength: 100 }
+                notes: { type: string, maxLength: 5000 }
+      responses:
+        '200':
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [company]
+                properties:
+                  company: { $ref: '#/components/schemas/Company' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/contacts.list:
+    post:
+      operationId: listContacts
+      summary: Kontakte auflisten, optional mit Suche und Firmenfilter
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                q: { type: string, maxLength: 200, description: Sucht in Name, E-Mail, Telefon und Rolle. }
+                companyId: { type: string, format: uuid }
+                limit: { $ref: '#/components/schemas/Limit' }
+      responses:
+        '200':
+          description: Kontakte, alphabetisch
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contacts]
+                properties:
+                  contacts:
+                    type: array
+                    items: { $ref: '#/components/schemas/Contact' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/contacts.get:
+    post:
+      operationId: getContact
+      summary: Ein Kontakt mit Deals und letzten Aktivitäten
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IdArgs' }
+      responses:
+        '200':
+          description: Kontakt
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contact, deals, activities]
+                properties:
+                  contact: { $ref: '#/components/schemas/Contact' }
+                  deals:
+                    type: array
+                    items: { $ref: '#/components/schemas/Deal' }
+                  activities:
+                    type: array
+                    maxItems: 20
+                    items: { $ref: '#/components/schemas/Activity' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/contacts.create:
+    post:
+      operationId: createContact
+      summary: Kontakt anlegen
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+                email: { type: string, format: email, maxLength: 254, description: Eindeutig ohne Groß-/Kleinschreibung. }
+                phone: { type: string, maxLength: 50 }
+                role: { type: string, maxLength: 100 }
+                companyId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contact]
+                properties:
+                  contact: { $ref: '#/components/schemas/Contact' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/contacts.update:
+    post:
+      operationId: updateContact
+      summary: Kontakt ändern
+      description: Nur genannte Felder ändern sich. null oder leerer Text löscht email, phone, role, companyId.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              minProperties: 2
+              properties:
+                id: { type: string, format: uuid }
+                name: { type: string, minLength: 1, maxLength: 200 }
+                email: { type: [string, 'null'], format: email, maxLength: 254 }
+                phone: { type: [string, 'null'], maxLength: 50 }
+                role: { type: [string, 'null'], maxLength: 100 }
+                companyId: { type: [string, 'null'], format: uuid }
+      responses:
+        '200':
+          description: Geändert
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contact]
+                properties:
+                  contact: { $ref: '#/components/schemas/Contact' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/deals.list:
+    post:
+      operationId: listDeals
+      summary: Deals auflisten, optional nach Stage und Firma
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                stage: { $ref: '#/components/schemas/Stage' }
+                companyId: { type: string, format: uuid }
+                limit: { $ref: '#/components/schemas/Limit' }
+      responses:
+        '200':
+          description: Deals, nach erwartetem Abschluss
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deals]
+                properties:
+                  deals:
+                    type: array
+                    items: { $ref: '#/components/schemas/Deal' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/deals.create:
+    post:
+      operationId: createDeal
+      summary: Deal anlegen
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, companyId, valueCents]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                companyId: { type: string, format: uuid }
+                contactId: { type: string, format: uuid, description: Muss zur Firma gehören. }
+                valueCents: { $ref: '#/components/schemas/Cents' }
+                stage: { $ref: '#/components/schemas/Stage' }
+                expectedClose: { type: string, format: date }
+                owner: { type: string, maxLength: 200, description: Vorgabe ist der Aufrufer. }
+      responses:
+        '200':
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deal]
+                properties:
+                  deal: { $ref: '#/components/schemas/Deal' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/deals.update_stage:
+    post:
+      operationId: updateDealStage
+      summary: Stage eines Deals setzen, mit automatischer Aktivität
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, stage]
+              properties:
+                id: { type: string, format: uuid }
+                stage: { $ref: '#/components/schemas/Stage' }
+                note: { type: string, maxLength: 2000, description: Begründung, landet im Text der Aktivität. }
+      responses:
+        '200':
+          description: >-
+            Stage gesetzt. changed ist false und activity null, wenn die Stage
+            schon so war.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deal, changed, activity]
+                properties:
+                  deal: { $ref: '#/components/schemas/Deal' }
+                  changed: { type: boolean }
+                  activity:
+                    oneOf:
+                      - { $ref: '#/components/schemas/Activity' }
+                      - { type: 'null' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/activities.log:
+    post:
+      operationId: logActivity
+      summary: Aktivität erfassen
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind, subject]
+              anyOf:
+                - required: [contactId]
+                - required: [companyId]
+                - required: [dealId]
+              properties:
+                kind: { $ref: '#/components/schemas/ActivityKind' }
+                subject: { type: string, minLength: 1, maxLength: 200 }
+                body: { type: string, maxLength: 10000 }
+                contactId: { type: string, format: uuid }
+                companyId: { type: string, format: uuid, description: Fehlt sie, wird sie aus Deal oder Kontakt übernommen. }
+                dealId: { type: string, format: uuid }
+                happenedAt: { type: string, format: date-time, description: Vorgabe jetzt. }
+      responses:
+        '200':
+          description: Erfasst
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [activity]
+                properties:
+                  activity: { $ref: '#/components/schemas/Activity' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/activities.list:
+    post:
+      operationId: listActivities
+      summary: Aktivitäten auflisten, neueste zuerst
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                contactId: { type: string, format: uuid }
+                companyId: { type: string, format: uuid, description: Findet auch Aktivitäten zu Kontakten und Deals der Firma. }
+                dealId: { type: string, format: uuid }
+                limit: { $ref: '#/components/schemas/Limit' }
+      responses:
+        '200':
+          description: Aktivitäten
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [activities]
+                properties:
+                  activities:
+                    type: array
+                    items: { $ref: '#/components/schemas/Activity' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/pipeline.summary:
+    post:
+      operationId: getPipelineSummary
+      summary: Anzahl, Summe und gewichtete Summe je Stage
+      description: >-
+        Gewichtung lead 10 %, qualifiziert 25 %, angebot 60 %, gewonnen 100 %,
+        verloren 0 %. weightedOpenCents zählt nur offene Stages.
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '200':
+          description: Zusammenfassung
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stages, totals]
+                properties:
+                  stages:
+                    type: array
+                    items:
+                      type: object
+                      required: [stage, count, sumCents, probability, weightedCents]
+                      properties:
+                        stage: { $ref: '#/components/schemas/Stage' }
+                        count: { type: integer, minimum: 0 }
+                        sumCents: { $ref: '#/components/schemas/Cents' }
+                        probability: { type: integer, minimum: 0, maximum: 100 }
+                        weightedCents: { $ref: '#/components/schemas/Cents' }
+                  totals:
+                    type: object
+                    required: [count, openCount, openSumCents, weightedOpenCents, wonCents, lostCents]
+                    properties:
+                      count: { type: integer, minimum: 0 }
+                      openCount: { type: integer, minimum: 0 }
+                      openSumCents: { $ref: '#/components/schemas/Cents' }
+                      weightedOpenCents: { $ref: '#/components/schemas/Cents' }
+                      wonCents: { $ref: '#/components/schemas/Cents' }
+                      lostCents: { $ref: '#/components/schemas/Cents' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  responses:
+    Invalid:
+      description: Argumente passen nicht zum Tool. message und issues sagen, welches Feld.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Kein gültiger Aufruf über die Plattform (Signatur fehlt oder ist falsch).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Datensatz mit dieser id gibt es nicht.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, enum: [invalid, unauthorized, not_found, unknown_tool, internal] }
+        message: { type: string }
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: array, items: { type: [string, integer] } }
+              message: { type: string }
+    IdArgs:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: { type: string, format: uuid }
+    Limit:
+      type: integer
+      minimum: 1
+      maximum: 200
+      default: 50
+    Cents:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740991
+      description: Betrag in ganzen Euro-Cent. 12.500,00 € = 1250000.
+    Stage:
+      type: string
+      enum: [lead, qualifiziert, angebot, gewonnen, verloren]
+    ActivityKind:
+      type: string
+      enum: [notiz, anruf, mail, termin]
+    Company:
+      type: object
+      required: [id, name, website, branche, notes, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        website: { type: [string, 'null'] }
+        branche: { type: [string, 'null'] }
+        notes: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CompanyListItem:
+      allOf:
+        - { $ref: '#/components/schemas/Company' }
+        - type: object
+          required: [contactCount, openDealCount]
+          properties:
+            contactCount: { type: integer, minimum: 0 }
+            openDealCount: { type: integer, minimum: 0 }
+    Contact:
+      type: object
+      required: [id, name, email, phone, role, companyId, companyName, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: [string, 'null'] }
+        phone: { type: [string, 'null'] }
+        role: { type: [string, 'null'] }
+        companyId: { type: [string, 'null'], format: uuid }
+        companyName: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Deal:
+      type: object
+      required: [id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        companyId: { type: string, format: uuid }
+        companyName: { type: string }
+        contactId: { type: [string, 'null'], format: uuid }
+        contactName: { type: [string, 'null'] }
+        valueCents: { $ref: '#/components/schemas/Cents' }
+        stage: { $ref: '#/components/schemas/Stage' }
+        expectedClose: { type: [string, 'null'], format: date }
+        owner: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Activity:
+      type: object
+      required: [id, kind, subject, body, contactId, contactName, companyId, companyName, dealId, dealTitle, happenedAt, createdBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/ActivityKind' }
+        subject: { type: string }
+        body: { type: [string, 'null'] }
+        contactId: { type: [string, 'null'], format: uuid }
+        contactName: { type: [string, 'null'] }
+        companyId: { type: [string, 'null'], format: uuid }
+        companyName: { type: [string, 'null'] }
+        dealId: { type: [string, 'null'], format: uuid }
+        dealTitle: { type: [string, 'null'] }
+        happenedAt: { type: string, format: date-time }
+        createdBy: { type: string, description: 'Nutzer-Id aus dem Gateway, bei Agents agent:<name>.' }
+        createdAt: { type: string, format: date-time }

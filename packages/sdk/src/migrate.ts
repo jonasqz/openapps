@@ -1,0 +1,105 @@
+import { createHash } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type pg from 'pg';
+import { SdkConfigurationError } from './errors.js';
+
+/**
+ * Fuehrt die Migrationen einer App in ihrem eigenen Schema aus.
+ *
+ * Wer das darf: die Rolle der App selbst. `provision_app_schema` legt das
+ * Schema mit `AUTHORIZATION <rolle>` an — die App ist Eigentuemerin ihres
+ * Schemas und von nichts sonst. Der `search_path` kommt aus dem Pool
+ * (`createAppPool`), also landen unqualifizierte Namen im eigenen Schema.
+ *
+ * Regeln, die hier durchgesetzt werden, nicht nur in der Doku stehen:
+ *
+ * - **Aufsteigend nach Dateiname**, `0001_…sql` vor `0002_…sql`.
+ * - **Jede Datei genau einmal**, in einer Transaktion. Scheitert sie, bleibt
+ *   nichts davon stehen und die App startet nicht.
+ * - **Nie eine bestehende aendern** (CLAUDE.md): Die Pruefsumme jeder
+ *   angewendeten Datei wird gespeichert. Weicht sie spaeter ab, bricht der Lauf
+ *   ab, statt einen Stand vorzutaeuschen, den die Datenbank nicht hat.
+ * - **Ein Lauf zur Zeit**: Advisory-Lock pro Schema, damit zwei Instanzen
+ *   derselben App nicht gleichzeitig migrieren.
+ */
+
+export const MIGRATIONS_TABLE = 'openapps_migrations';
+
+const FILE_PATTERN = /^\d{4}_[a-z0-9_]+\.sql$/;
+
+export interface MigrationResult {
+  readonly applied: readonly string[];
+  readonly skipped: readonly string[];
+}
+
+export async function runMigrations(pool: pg.Pool, directory: string): Promise<MigrationResult> {
+  const files = (await readdir(directory)).filter((name) => name.endsWith('.sql')).sort();
+  for (const name of files) {
+    if (!FILE_PATTERN.test(name)) {
+      throw new SdkConfigurationError(
+        `Migration "${name}" hat keinen gueltigen Namen. Erwartet: 0001_beschreibung.sql`,
+      );
+    }
+  }
+
+  const client = await pool.connect();
+  const applied: string[] = [];
+  const skipped: string[] = [];
+  try {
+    await client.query('select pg_advisory_lock(hashtext(current_schema()))');
+    try {
+      await client.query(
+        `create table if not exists ${MIGRATIONS_TABLE} (
+           name       text primary key,
+           checksum   text not null,
+           applied_at timestamptz not null default now()
+         )`,
+      );
+      const done = new Map(
+        (
+          await client.query<{ name: string; checksum: string }>(
+            `select name, checksum from ${MIGRATIONS_TABLE}`,
+          )
+        ).rows.map((row) => [row.name, row.checksum]),
+      );
+
+      for (const name of files) {
+        const sql = await readFile(join(directory, name), 'utf8');
+        const checksum = createHash('sha256').update(sql).digest('hex');
+        const previous = done.get(name);
+        if (previous !== undefined) {
+          if (previous !== checksum) {
+            throw new SdkConfigurationError(
+              `Migration "${name}" wurde nach dem Anwenden geaendert. Aendere nie eine bestehende Migration — lege eine neue an.`,
+            );
+          }
+          skipped.push(name);
+          continue;
+        }
+
+        await client.query('begin');
+        try {
+          await client.query(sql);
+          await client.query(`insert into ${MIGRATIONS_TABLE} (name, checksum) values ($1, $2)`, [
+            name,
+            checksum,
+          ]);
+          await client.query('commit');
+        } catch (error) {
+          await client.query('rollback');
+          throw new SdkConfigurationError(`Migration "${name}" ist gescheitert`, {
+            cause: error,
+          });
+        }
+        applied.push(name);
+      }
+    } finally {
+      await client.query('select pg_advisory_unlock(hashtext(current_schema()))');
+    }
+  } finally {
+    client.release();
+  }
+
+  return { applied, skipped };
+}

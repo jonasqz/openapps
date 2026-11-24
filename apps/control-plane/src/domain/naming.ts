@@ -97,19 +97,38 @@ export function appNameFromPath(path: string): string | null {
   return APP_NAME.test(first) ? first : null;
 }
 
-/** Ressourcen-Id einer Tabelle oder View: `<app-name>.<objekt>`. */
-export function parseObjectResourceId(resourceId: string): { appName: string; objectName: string } {
-  const parts = resourceId.split('.');
-  if (parts.length !== 2 || parts[0] === undefined || parts[1] === undefined) {
+/**
+ * Ressourcen-Id einer Tabelle, einer View oder eines Tools: `<app-name>.<objekt>`.
+ *
+ * Getrennt wird am **ersten** Punkt: App-Namen enthalten keinen
+ * (`assertAppName`). Tabellen und Views heissen ohne Punkt; Tools duerfen
+ * einen tragen (`crm.contacts.list` ist das Tool `contacts.list` der App
+ * `crm`) — das Manifest erlaubt das, und die Standard-Apps machen es so.
+ * Vorher wurde jede Id mit mehr als einem Punkt abgewiesen, und damit liess
+ * sich keines dieser Tools freigeben (ADR 0011).
+ */
+export function parseObjectResourceId(
+  resourceId: string,
+  options: { allowDotInObject?: boolean } = {},
+): { appName: string; objectName: string } {
+  const separator = resourceId.indexOf('.');
+  const appName = separator === -1 ? '' : resourceId.slice(0, separator);
+  const objectName = separator === -1 ? '' : resourceId.slice(separator + 1);
+  const objectPattern = options.allowDotInObject === true ? OBJECT_WITH_DOTS : OBJECT_PLAIN;
+  if (!APP_SEGMENT.test(appName) || !objectPattern.test(objectName)) {
     throw new ValidationError(
       `ungueltige Ressourcen-Id "${resourceId}": erwartet <app-name>.<objekt>`,
     );
   }
-  return { appName: parts[0], objectName: parts[1] };
+  return { appName, objectName };
 }
 
-/** Ressourcen-Id eines Tools: `<app-name>.<tool>`. */
+const APP_SEGMENT = /^[a-z0-9][a-z0-9-]*$/;
+const OBJECT_PLAIN = /^[a-z0-9_]+$/;
+const OBJECT_WITH_DOTS = /^[a-z0-9_]+(?:\.[a-z0-9_]+)*$/;
+
+/** Ressourcen-Id eines Tools: `<app-name>.<tool>`, das Tool darf Punkte tragen. */
 export function parseToolResourceId(resourceId: string): { appName: string; toolName: string } {
-  const { appName, objectName } = parseObjectResourceId(resourceId);
+  const { appName, objectName } = parseObjectResourceId(resourceId, { allowDotInObject: true });
   return { appName, toolName: objectName };
 }

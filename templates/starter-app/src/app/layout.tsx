@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import '@openapps/ui/tokens.css';
+import './globals.css';
 
 export const metadata = { title: 'Starter App' };
 
