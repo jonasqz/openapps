@@ -19,7 +19,7 @@ export async function register(): Promise<void> {
     return;
   }
 
-  const [{ runMigrations }, { join }, { appPool }] = await Promise.all([
+  const [{ runMigrations, runSeeds }, { join }, { appPool }] = await Promise.all([
     import('@openapps/sdk'),
     import('node:path'),
     import('./lib/db'),
@@ -28,5 +28,11 @@ export async function register(): Promise<void> {
   const result = await runMigrations(appPool(), join(process.cwd(), 'migrations'));
   if (result.applied.length > 0) {
     console.info(`[crm] Migrationen angewendet: ${result.applied.join(', ')}`);
+  }
+
+  // Beispieldaten nur, wenn die Plattform es verlangt (lokal ja, Server nein).
+  const seeded = await runSeeds(appPool(), join(process.cwd(), 'seeds'));
+  if (seeded !== null && seeded.applied.length > 0) {
+    console.info(`[crm] Beispieldaten eingespielt: ${seeded.applied.join(', ')}`);
   }
 }

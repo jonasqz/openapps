@@ -53,14 +53,38 @@ nur die Tools, die er darf. Ruft er ein anderes trotzdem auf, wird er blockiert,
 und beides steht im Protokoll. Im MCP heißen App-Tools `<app>__<tool>` mit `__`
 statt Punkt, weil Clients keine Punkte im Namen annehmen.
 
+## Prüfen, dass Agents durchkommen
+
+```bash
+pnpm --filter @openapps/platform-mcp test:lokal
+```
+
+Der Test geht dieselben Wege wie ein Agent: `betrieb` legt zwei Agents an und
+gibt einzelne Tools frei. Danach ruft jeder Agent seine Tools mit Argumenten
+auf. Ein nicht freigegebenes Tool und eine Selbstfreigabe werden abgelehnt.
+Der Agent steht in der App als Urheber, und nach einer Sperre kommt er nicht
+mehr herein. Der Test braucht kein Sprachmodell und liefert bei jedem Lauf
+dasselbe Ergebnis.
+
+## Die Oberflächen ansehen
+
+```bash
+docker compose -f infra/lokal/docker-compose.yml --env-file infra/lokal/.env --profile ansehen up -d ansehen
+```
+
+Dann öffnest du <http://127.0.0.1:8090>. Der Proxy zeigt die deployten Apps,
+angemeldet als `ansicht@local.test`, ohne Google und ohne `/etc/hosts`. Er
+umgeht die Forward-Auth und läuft deshalb nur lokal (ADR 0013).
+
 ## Was lokal fehlt
 
 - **Login für Menschen.** Er geht über Google und braucht eigene
   Zugangsdaten (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env`, Redirect
   `https://cp.local.test:8443/api/auth/callback/google`) sowie in `/etc/hosts`
   die Einträge `cp.local.test` und `apps.local.test` auf `127.0.0.1`. Ohne das
-  bleiben die Oberflächen der Apps hinter der Forward-Auth. Genau so soll es
-  sein.
+  bleiben die Oberfläche der Control Plane und der Weg über
+  `apps.local.test` hinter der Forward-Auth. Die Apps selbst zeigt der
+  Ansehen-Proxy.
 - **Ein Inventar des Backends.** Ob ein App-Container Ports oder
   Traefik-Labels hat, kann der lokale Adapter nicht messen. Er meldet „nicht
   erreichbar“ statt „sauber“.

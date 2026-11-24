@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { runMigrations } from '@openapps/sdk';
+import { runMigrations, runSeeds } from '@openapps/sdk';
 import { appPool } from './db';
 
 /**
@@ -18,5 +18,11 @@ export async function migrateOnStart(): Promise<void> {
   const result = await runMigrations(appPool(), join(process.cwd(), 'migrations'));
   if (result.applied.length > 0) {
     console.info(`[wiki] Migrationen angewendet: ${result.applied.join(', ')}`);
+  }
+
+  // Beispielseiten nur, wenn die Plattform es verlangt (lokal ja, Server nein).
+  const seeded = await runSeeds(appPool(), join(process.cwd(), 'seeds'));
+  if (seeded !== null && seeded.applied.length > 0) {
+    console.info(`[wiki] Beispielseiten eingespielt: ${seeded.applied.join(', ')}`);
   }
 }

@@ -34,7 +34,7 @@ export default async function ItemsPage() {
   }
 
   return (
-    <main className="p-lg">
+    <main className="p-6">
       <Table<ItemRow>
         caption="Einträge"
         rows={failed ? [] : items.map(toRow)}

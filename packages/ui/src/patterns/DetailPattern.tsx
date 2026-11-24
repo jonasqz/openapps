@@ -5,6 +5,7 @@ import { cn } from '../lib/cn.ts';
 import { Card, CardBody, CardHeader } from '../components/Card.tsx';
 import { ErrorState } from '../components/ErrorState.tsx';
 import { Spinner } from '../components/Spinner.tsx';
+import { UiLink } from '../lib/link.tsx';
 import { strings } from '../strings.ts';
 
 export interface DetailField {
@@ -36,8 +37,9 @@ export interface DetailPatternProps {
   /**
    * Zurück-Verweis. Steht als erstes in der Fokus-Reihenfolge.
    *
-   * `href` ist der Normalfall und serverfähig. `onClick` ist eine Funktion und
-   * geht nur aus einer Client-Komponente.
+   * `href` ist der Normalfall und serverfähig. Er geht über den Link aus
+   * `LinkProvider`, rechnet also den Pfad der App ein. `onClick` ist eine
+   * Funktion und geht nur aus einer Client-Komponente.
    */
   back?: DetailBack;
   sections: readonly DetailSection[];
@@ -82,10 +84,10 @@ export function DetailPattern({
   return (
     <article className={cn('flex min-w-0 flex-col gap-5', className)}>
       {back === undefined ? null : back.onClick === undefined ? (
-        <a href={back.href} className={BACK_CLASS}>
+        <UiLink href={back.href} className={BACK_CLASS}>
           <span aria-hidden="true">← </span>
           {back.label}
-        </a>
+        </UiLink>
       ) : (
         <button type="button" onClick={back.onClick} className={BACK_CLASS}>
           <span aria-hidden="true">← </span>
@@ -96,12 +98,18 @@ export function DetailPattern({
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow === undefined ? null : (
-            <p className="font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">{eyebrow}</p>
+            <p className="font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">
+              {eyebrow}
+            </p>
           )}
-          <h1 className="mt-2 font-display text-3xl font-normal tracking-display text-fg sm:text-4xl [overflow-wrap:anywhere]">{title}</h1>
+          <h1 className="mt-2 font-display text-3xl font-normal tracking-display text-fg sm:text-4xl [overflow-wrap:anywhere]">
+            {title}
+          </h1>
           {meta === undefined ? null : <div className="mt-2 flex flex-wrap gap-2">{meta}</div>}
         </div>
-        {actions === undefined ? null : <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+        {actions === undefined ? null : (
+          <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+        )}
       </header>
 
       {loading ? (

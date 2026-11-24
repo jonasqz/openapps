@@ -4,7 +4,15 @@
  * Checkout etwas anderes als eine registrierte lokale App holt.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,6 +49,17 @@ describe('lokales Deploy-Backend', () => {
     await backend.setEnv(backendRef, { DATABASE_URL: 'postgres://app_crm:geheim@db/x' });
     const mode = statSync(join(config.runtimeDir, 'crm', 'env.json')).mode & 0o777;
     expect(mode).toBe(0o600);
+  });
+
+  it('schaltet lokal die Beispieldaten ein, und nur hier', async () => {
+    const backend = createLokalBackend(config);
+    const { backendRef } = await backend.createApp(spec);
+    await backend.setEnv(backendRef, { DATABASE_URL: 'postgres://app_crm:geheim@db/x' });
+    const env = JSON.parse(
+      readFileSync(join(config.runtimeDir, 'crm', 'env.json'), 'utf8'),
+    ) as Record<string, string>;
+    expect(env.OPENAPPS_SAMPLE_DATA).toBe('1');
+    expect(env.DATABASE_URL).toBe('postgres://app_crm:geheim@db/x');
   });
 
   it('nimmt keine App ohne lokale Quelle an', async () => {

@@ -16,7 +16,8 @@
     "build": "echo \"kein Build-Schritt: laeuft ueber tsx aus der TypeScript-Quelle\"",
     "typecheck": "tsc --noEmit",
     "lint": "prettier --check \"**/*.{ts,json,md}\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:lokal": "LOKAL_E2E=1 vitest run tests/lokal-e2e.spec.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.12.1",

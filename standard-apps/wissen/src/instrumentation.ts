@@ -7,7 +7,7 @@
  * 2. Dokumente ohne Abschnitte zerlegen (`chunkPendingDocuments`).
  *
  * Warum die Beispieldokumente erst hier zerlegt werden und nicht als
- * vorberechnete Abschnitte in der Migration stehen:
+ * vorberechnete Abschnitte in `seeds/` stehen:
  *
  * - Es gibt genau einen Weg, auf dem Abschnitte entstehen: `chunkText`. Eine
  *   vorberechnete Migration waere eine zweite, eingefrorene Kopie davon, und
@@ -37,13 +37,18 @@ export async function register(): Promise<void> {
   }
 
   const { join } = await import('node:path');
-  const { runMigrations } = await import('@openapps/sdk');
+  const { runMigrations, runSeeds } = await import('@openapps/sdk');
   const { appPool } = await import('./lib/db');
   const { chunkPendingDocuments } = await import('./lib/documents');
 
   const result = await runMigrations(appPool(), join(process.cwd(), 'migrations'));
   if (result.applied.length > 0) {
     console.info(`[wissen] Migrationen angewendet: ${result.applied.join(', ')}`);
+  }
+  // Beispieldokumente nur, wenn die Plattform es verlangt (lokal ja, Server nein).
+  const seeded = await runSeeds(appPool(), join(process.cwd(), 'seeds'));
+  if (seeded !== null && seeded.applied.length > 0) {
+    console.info(`[wissen] Beispieldokumente eingespielt: ${seeded.applied.join(', ')}`);
   }
 
   try {

@@ -41,4 +41,10 @@ export {
   type ToolRouteOptions,
 } from './tools.js';
 
-export { MIGRATIONS_TABLE, runMigrations, type MigrationResult } from './migrate.js';
+export {
+  MIGRATIONS_TABLE,
+  runMigrations,
+  runSeeds,
+  SEED_PREFIX,
+  type MigrationResult,
+} from './migrate.js';

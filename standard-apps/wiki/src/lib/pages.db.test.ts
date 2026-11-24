@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { runMigrations, ToolInputError, ToolNotFoundError } from '@openapps/sdk';
+import { runMigrations, runSeeds, ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { appPool, query } from './db';
 import {
   archivePage,
@@ -28,6 +28,7 @@ const schema = process.env.WIKI_TEST_DATABASE_SCHEMA ?? '';
 const enabled = url !== '' && schema !== '';
 
 const MIGRATIONS = fileURLToPath(new URL('../../migrations', import.meta.url));
+const SEEDS = fileURLToPath(new URL('../../seeds', import.meta.url));
 const HUMAN = 'usr_test';
 const AGENT = 'agent:redaktion';
 
@@ -39,6 +40,7 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
     process.env.DATABASE_URL = url;
     process.env.DATABASE_SCHEMA = schema;
     await runMigrations(appPool(), MIGRATIONS);
+    await runSeeds(appPool(), SEEDS, { OPENAPPS_SAMPLE_DATA: '1' });
   });
 
   afterAll(async () => {
@@ -48,7 +50,7 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
   it('Migrationen laufen ein zweites Mal ohne Wirkung', async () => {
     const result = await runMigrations(appPool(), join(MIGRATIONS));
     expect(result.applied).toEqual([]);
-    expect(result.skipped).toEqual(['0001_wiki.sql', '0002_beispielseiten.sql']);
+    expect(result.skipped).toEqual(['0001_wiki.sql']);
   });
 
   it('die Beispielseiten stehen als Baum da, mit erstem Verlaufseintrag', async () => {
@@ -56,7 +58,11 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
     const handbuch = pages.find((page) => page.title === 'Nordlicht Handbuch');
     expect(handbuch).toBeDefined();
     const children = await listPages({ parentId: handbuch?.id });
-    expect(children.pages.map((page) => page.title)).toEqual(['Onboarding', 'Tools & Zugänge', 'Urlaubsregel']);
+    expect(children.pages.map((page) => page.title)).toEqual([
+      'Onboarding',
+      'Tools & Zugänge',
+      'Urlaubsregel',
+    ]);
     const history = await pageHistory({ id: handbuch?.id ?? '', limit: 50 });
     expect(history.revisions.map((revision) => revision.change)).toEqual(['create']);
   });
@@ -104,7 +110,9 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
 
   it('Anhaengen ueber die Grenze wird abgewiesen, ohne etwas zu schreiben', async () => {
     const page = await create({ title: 'Testseite Grenze', contentMd: 'x'.repeat(199_990) });
-    await expect(update({ id: page.id, appendMd: 'y'.repeat(20) })).rejects.toBeInstanceOf(ToolInputError);
+    await expect(update({ id: page.id, appendMd: 'y'.repeat(20) })).rejects.toBeInstanceOf(
+      ToolInputError,
+    );
     expect((await getPage({ id: page.id })).contentMd.length).toBe(199_990);
     expect((await pageHistory({ id: page.id, limit: 50 })).revisions).toHaveLength(1);
   });
@@ -112,7 +120,9 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
   it('Archivieren: nicht mit lebenden Unterseiten, danach unsichtbar in Liste und Suche', async () => {
     const parent = await create({ title: 'Testseite Eltern', contentMd: 'Zebrastreifen' });
     const child = await create({ title: 'Testseite Kind', contentMd: '', parentId: parent.id });
-    expect((await getPage({ id: parent.id })).children).toEqual([{ id: child.id, title: 'Testseite Kind' }]);
+    expect((await getPage({ id: parent.id })).children).toEqual([
+      { id: child.id, title: 'Testseite Kind' },
+    ]);
 
     await expect(archivePage({ id: parent.id }, AGENT)).rejects.toThrow(/Unterseiten/);
 
@@ -133,9 +143,9 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
     expect((await pageHistory({ id: child.id, limit: 50 })).revisions[0]?.editedBy).toBe(AGENT);
 
     await expect(update({ id: parent.id, title: 'x' })).rejects.toBeInstanceOf(ToolInputError);
-    await expect(create({ title: 'Waise', contentMd: '', parentId: parent.id })).rejects.toBeInstanceOf(
-      ToolInputError,
-    );
+    await expect(
+      create({ title: 'Waise', contentMd: '', parentId: parent.id }),
+    ).rejects.toBeInstanceOf(ToolInputError);
   });
 
   it('unbekannte Seiten ergeben ToolNotFoundError, nie einen Datenbankfehler', async () => {
@@ -144,9 +154,9 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
     await expect(update({ id: missing, title: 'x' })).rejects.toBeInstanceOf(ToolNotFoundError);
     await expect(archivePage({ id: missing }, AGENT)).rejects.toBeInstanceOf(ToolNotFoundError);
     await expect(pageHistory({ id: missing, limit: 5 })).rejects.toBeInstanceOf(ToolNotFoundError);
-    await expect(create({ title: 'Waise', contentMd: '', parentId: missing })).rejects.toBeInstanceOf(
-      ToolNotFoundError,
-    );
+    await expect(
+      create({ title: 'Waise', contentMd: '', parentId: missing }),
+    ).rejects.toBeInstanceOf(ToolNotFoundError);
   });
 
   it('die Revisionen bleiben, auch wenn jemand am Code vorbei loeschen will', async () => {

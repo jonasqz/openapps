@@ -114,6 +114,26 @@ services:
       start_period: 60s
       retries: 30
 
+  # Oberflaechen der Apps ansehen, ohne Google-Login (ADR 0013). Nur mit
+  # `--profile ansehen`, nur am Loopback, nur mit OPENAPPS_BACKEND=lokal.
+  # Signiert jede Anfrage als `ansicht@local.test` und umgeht damit die
+  # Forward-Auth — gehoert deshalb nie auf einen Server.
+  ansehen:
+    image: openapps-lokal-control-plane
+    profiles: [ansehen]
+    restart: unless-stopped
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    command: ['node_modules/.bin/tsx', 'src/infra/lokal-ansehen.ts']
+    environment:
+      OPENAPPS_BACKEND: lokal
+      DATABASE_URL: postgres://openapps_owner:${OPENAPPS_OWNER_PASSWORD:?}@openapps-postgres:5432/openapps
+      OPENAPPS_AUTH_MASTER_SECRET: ${OPENAPPS_AUTH_MASTER_SECRET:?}
+    ports:
+      - '127.0.0.1:8090:8090'
+    networks: [plattform]
+
   deny-backend:
     build:
       context: ../..

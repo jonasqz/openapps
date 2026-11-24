@@ -36,3 +36,5 @@ export { cn } from './lib/cn.ts';
 export type { ClassValue } from './lib/cn.ts';
 export { focusRing, focusRingInset } from './lib/focus.ts';
 export { useFieldIds } from './lib/useId.ts';
+export { LinkProvider, UiLink } from './lib/link.tsx';
+export type { LinkComponent } from './lib/link.tsx';

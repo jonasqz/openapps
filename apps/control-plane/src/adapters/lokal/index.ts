@@ -154,8 +154,13 @@ export function createLokalBackend(config: LokalConfig): DeploymentBackend {
     async setEnv(backendRef, env) {
       const name = appNameFromRef(backendRef);
       await mkdir(appDir(name), { recursive: true, mode: 0o700 });
+      // Lokal mit Beispieldaten (`runSeeds` im SDK); auf dem Server setzt das
+      // niemand, und eine frische App bleibt leer.
+      const withSamples = { ...env, OPENAPPS_SAMPLE_DATA: '1' };
       // 0600: Die DSN mit Passwort und das App-Secret stehen darin.
-      await writeFile(join(appDir(name), 'env.json'), JSON.stringify(env), { mode: 0o600 });
+      await writeFile(join(appDir(name), 'env.json'), JSON.stringify(withSamples), {
+        mode: 0o600,
+      });
     },
 
     async deploy(request: BackendDeployRequest): Promise<BackendDeployResult> {

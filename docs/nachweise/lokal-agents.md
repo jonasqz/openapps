@@ -40,8 +40,21 @@ für jeden gibt es einen Test (ADR 0011, Abschnitt „Was der erste lokale Lauf
 außerdem fand“). Der siebte, ein nicht atomares `createApp`, ist mit
 ADR 0012 behoben.
 
+## Nachtrag: wiederholbar und im Browser
+
+- Die Wege der Agents laufen jetzt auch ohne Sprachmodell als Test
+  (`pnpm --filter @openapps/platform-mcp test:lokal`, 7 Fälle). Abgedeckt sind:
+  Freigabe auf Tools mit Punkt, Tool-Namen, Argumente bis in die App, die
+  Meldung der App bei falschen Argumenten, ein nicht angebotenes Tool, eine
+  abgelehnte Selbstfreigabe, der Agent als Urheber und die Sperre.
+- Die Oberflächen sind über den Ansehen-Proxy (ADR 0013) im neuen Design
+  geprüft: CRM-Pipeline, Firmenliste, Wiki-Liste. Eine Wiki-Seite wurde über
+  das Formular angelegt, mit `lokal-ansicht` als Urheber.
+- Die Beispieldaten kommen nicht mehr aus den Migrationen, sondern aus
+  `seeds/`. Das SDK spielt sie nur mit `OPENAPPS_SAMPLE_DATA=1` ein, und das
+  setzt nur der lokale Adapter.
+
 ## Nicht geprüft
 
-- Die Oberflächen der Apps im Browser. Lokal gibt es ohne eigene
-  Google-Zugangsdaten keinen Login für Menschen.
+- Die Oberfläche der Control Plane. Sie braucht weiter den Google-Login.
 - Der Server-Betrieb mit Coolify. Dieser Lauf ersetzt ihn nicht.

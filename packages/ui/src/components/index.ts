@@ -16,6 +16,8 @@ export { FieldShell, controlBase, controlBorder, describedBy } from './Field.tsx
 export type { FieldShellProps } from './Field.tsx';
 export { Input } from './Input.tsx';
 export type { InputProps } from './Input.tsx';
+export { Textarea } from './Textarea.tsx';
+export type { TextareaProps } from './Textarea.tsx';
 export { Pagination, pageCount } from './Pagination.tsx';
 export type { PaginationProps } from './Pagination.tsx';
 export { Select } from './Select.tsx';

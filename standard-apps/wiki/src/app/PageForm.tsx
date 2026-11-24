@@ -3,25 +3,15 @@
 import { useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  FieldShell,
-  FormPattern,
-  controlBase,
-  controlBorder,
-  cn,
-  describedBy,
-  focusRing,
-  useFieldIds,
-  type FormValues,
-} from '@openapps/ui';
+import { FormPattern, Textarea, type FormValues } from '@openapps/ui';
 import { LIMITS, Tags, Title, splitTags } from '@/lib/schemas';
 import { createPageAction, updatePageAction, type ActionResult } from './actions';
 
 /**
  * Anlegen und Bearbeiten einer Seite. Titel und Tags laufen durch
- * `FormPattern` (Validierung sichtbar am Feld), der Markdown-Inhalt durch ein
- * mehrzeiliges Feld in derselben `FieldShell` wie alle Felder des Design
- * Systems — `FormPattern` kennt kein mehrzeiliges Feld.
+ * `FormPattern` (Validierung sichtbar am Feld), der Markdown-Inhalt durch
+ * `Textarea` aus dem Design System — `FormPattern` kennt kein mehrzeiliges
+ * Feld.
  *
  * Gespeichert wird ueber die Server Actions, die dieselben Funktionen wie die
  * Tools `pages.create` und `pages.update` rufen.
@@ -43,12 +33,16 @@ const firstIssue = (result: { success: boolean; error?: { issues: { message: str
 
 export function PageForm(props: PageFormProps): JSX.Element {
   const router = useRouter();
-  const ids = useFieldIds();
   const [content, setContent] = useState(props.mode === 'edit' ? props.initial.contentMd : '');
   const [contentError, setContentError] = useState<string | undefined>(undefined);
   const [formError, setFormError] = useState<string | undefined>(undefined);
 
-  const cancelTarget = props.mode === 'edit' ? `/pages/${props.id}` : props.parent === null ? '/' : `/pages/${props.parent.id}`;
+  const cancelTarget =
+    props.mode === 'edit'
+      ? `/pages/${props.id}`
+      : props.parent === null
+        ? '/'
+        : `/pages/${props.parent.id}`;
 
   const submit = async (values: FormValues): Promise<Record<string, string> | void> => {
     setFormError(undefined);
@@ -119,25 +113,16 @@ export function PageForm(props: PageFormProps): JSX.Element {
       onSubmit={submit}
       {...(formError === undefined ? {} : { formError })}
     >
-      <FieldShell
-        inputId={ids.inputId}
+      <Textarea
         label="Inhalt (Markdown)"
         hint="# Überschrift, - Liste, **fett**, *kursiv*, `Code`, [Link](https://…)"
-        hintId={ids.hintId}
-        errorId={ids.errorId}
+        value={content}
+        onChange={(event) => setContent(event.target.value)}
+        rows={18}
+        spellCheck
+        monospace
         {...(contentError === undefined ? {} : { error: contentError })}
-      >
-        <textarea
-          id={ids.inputId}
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          rows={18}
-          spellCheck
-          aria-invalid={contentError !== undefined || undefined}
-          aria-describedby={describedBy([ids.hintId, contentError !== undefined && ids.errorId])}
-          className={cn(controlBase, controlBorder(contentError !== undefined), 'py-2 font-mono', focusRing)}
-        />
-      </FieldShell>
+      />
     </FormPattern>
   );
 }

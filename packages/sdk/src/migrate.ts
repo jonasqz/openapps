@@ -34,6 +34,37 @@ export interface MigrationResult {
 }
 
 export async function runMigrations(pool: pg.Pool, directory: string): Promise<MigrationResult> {
+  return runSqlFiles(pool, directory, '');
+}
+
+/** Praefix der Beispieldaten in `openapps_migrations`: `seed/0001_….sql`. */
+export const SEED_PREFIX = 'seed/';
+
+/**
+ * Spielt Beispieldaten ein (`seeds/`), aber nur, wenn die Plattform es
+ * verlangt: `OPENAPPS_SAMPLE_DATA=1` in der Env der App. Im lokalen Betrieb
+ * setzt die Control Plane das, auf dem Server nicht — dort bleibt eine frische
+ * App leer.
+ *
+ * Gleiche Regeln wie bei Migrationen (einmal, Pruefsumme, Transaktion), aber
+ * gefuehrt unter eigenem Namen, damit `seeds/0001_x.sql` nie mit
+ * `migrations/0001_x.sql` zusammenfaellt. Immer **nach** `runMigrations`
+ * aufrufen.
+ */
+export async function runSeeds(
+  pool: pg.Pool,
+  directory: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<MigrationResult | null> {
+  if (env.OPENAPPS_SAMPLE_DATA !== '1') return null;
+  return runSqlFiles(pool, directory, SEED_PREFIX);
+}
+
+async function runSqlFiles(
+  pool: pg.Pool,
+  directory: string,
+  prefix: string,
+): Promise<MigrationResult> {
   const files = (await readdir(directory)).filter((name) => name.endsWith('.sql')).sort();
   for (const name of files) {
     if (!FILE_PATTERN.test(name)) {
@@ -64,8 +95,9 @@ export async function runMigrations(pool: pg.Pool, directory: string): Promise<M
         ).rows.map((row) => [row.name, row.checksum]),
       );
 
-      for (const name of files) {
-        const sql = await readFile(join(directory, name), 'utf8');
+      for (const file of files) {
+        const name = `${prefix}${file}`;
+        const sql = await readFile(join(directory, file), 'utf8');
         const checksum = createHash('sha256').update(sql).digest('hex');
         const previous = done.get(name);
         if (previous !== undefined) {
