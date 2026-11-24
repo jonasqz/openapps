@@ -14,9 +14,9 @@ export interface SpinnerProps {
 }
 
 const SIZE = {
-  sm: 'h-4 w-4 border-2',
-  md: 'h-6 w-6 border-2',
-  lg: 'h-10 w-10 border-2',
+  sm: 'h-4 w-4 border',
+  md: 'h-6 w-6 border',
+  lg: 'h-10 w-10 border',
 } as const;
 
 /** Ladeanzeige. Respektiert `prefers-reduced-motion` über die Token-CSS. */
@@ -31,7 +31,7 @@ export function Spinner({ size = 'md', label, className }: SpinnerProps): JSX.El
       <span
         aria-hidden="true"
         className={cn(
-          'inline-block shrink-0 animate-oa-spin rounded-full border-border-strong border-t-transparent',
+          'inline-block shrink-0 animate-oa-spin rounded-full border-fg-muted border-t-transparent',
           SIZE[size],
         )}
       />

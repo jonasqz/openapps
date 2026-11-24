@@ -179,11 +179,11 @@ export function FormPattern({
       aria-labelledby={`${baseId}-title`}
     >
       <div className="min-w-0">
-        <h1 id={`${baseId}-title`} className="text-2xl font-semibold text-fg [overflow-wrap:anywhere]">
+        <h1 id={`${baseId}-title`} className="font-display text-3xl font-normal tracking-display text-fg sm:text-4xl [overflow-wrap:anywhere]">
           {title}
         </h1>
         {description === undefined ? null : (
-          <p className="mt-1 text-sm text-fg-muted [overflow-wrap:anywhere]">{description}</p>
+          <p className="mt-2 max-w-prose text-sm text-fg-muted [overflow-wrap:anywhere]">{description}</p>
         )}
       </div>
 
@@ -194,7 +194,7 @@ export function FormPattern({
           role="alert"
           className="rounded-lg border border-danger bg-danger-subtle p-3 text-danger-subtle-fg outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
-          <p className="text-sm font-semibold">
+          <p className="text-sm font-medium">
             {formError ?? strings.form.summary(errorList.length)}
           </p>
           {errorList.length > 0 ? (

@@ -20,6 +20,7 @@ import {
   shadow,
   size,
   space,
+  tracking,
   zIndex,
 } from './tokens.ts';
 
@@ -59,6 +60,7 @@ function staticBlock(): string {
     lines.push(`  ${v('leading', name)}: ${value.leading};`);
   }
   for (const [name, value] of Object.entries(fontWeight)) lines.push(`  ${v('weight', name)}: ${value};`);
+  for (const [name, value] of Object.entries(tracking)) lines.push(`  ${v('tracking', name)}: ${value};`);
   for (const [name, value] of Object.entries(screens)) lines.push(`  ${v('screen', name)}: ${value};`);
   for (const [name, value] of Object.entries(zIndex)) lines.push(`  ${v('z', name)}: ${value};`);
   return lines.join('\n');
@@ -127,6 +129,14 @@ body {
   font-size: var(${v('text', 'base')});
   line-height: var(${v('leading', 'base')});
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1;
+}
+
+::selection {
+  background-color: var(${v('color', 'primary-subtle')});
+  color: var(${v('color', 'primary-subtle-fg')});
 }
 
 /* Fokus ist immer sichtbar. */
@@ -170,6 +180,9 @@ const screenMap = Object.entries(screens)
 const sizeMap = Object.keys(size)
   .map((name) => `      '${name}': 'var(${v('size', name)})',`)
   .join('\n');
+const trackingMap = Object.keys(tracking)
+  .map((name) => `        '${name}': 'var(${v('tracking', name)})',`)
+  .join('\n');
 const zMap = Object.keys(zIndex)
   .map((name) => `      '${name}': 'var(${v('z', name)})',`)
   .join('\n');
@@ -202,6 +215,7 @@ ${radiusMap}
     fontFamily: {
       sans: 'var(${v('font', 'sans')})',
       mono: 'var(${v('font', 'mono')})',
+      display: 'var(${v('font', 'display')})',
     },
     fontSize: {
 ${textMap}
@@ -219,6 +233,10 @@ ${screenMap}
 ${zMap}
     },
     extend: {
+      /** Laufweiten — ergänzt die Tailwind-Standardwerte, ersetzt sie nicht. */
+      letterSpacing: {
+${trackingMap}
+      },
       /** Benannte Layout-Breiten — siehe \`size\` in src/tokens/tokens.ts. */
       width: {
 ${sizeMap}

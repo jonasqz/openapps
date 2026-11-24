@@ -21,10 +21,10 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-primary-fg hover:bg-primary-hover',
-  secondary: 'bg-surface text-fg border border-border-strong hover:bg-surface-hover',
-  ghost: 'bg-transparent text-fg hover:bg-surface-hover',
-  danger: 'bg-danger text-danger-fg hover:bg-danger-hover',
+  primary: 'border border-primary bg-primary text-primary-fg hover:border-primary-hover hover:bg-primary-hover',
+  secondary: 'border border-border-strong bg-bg text-fg hover:border-fg hover:bg-surface',
+  ghost: 'border border-transparent bg-transparent text-fg-muted hover:bg-surface-hover hover:text-fg',
+  danger: 'border border-danger bg-danger text-danger-fg hover:border-danger-hover hover:bg-danger-hover',
 };
 
 /**
@@ -32,12 +32,15 @@ const VARIANT: Record<ButtonVariant, string> = {
  * statt abgeschnitten zu werden.
  */
 const SIZE: Record<ButtonSize, string> = {
-  sm: 'min-h-8 px-3 py-1 text-sm gap-1.5',
-  md: 'min-h-10 px-4 py-2 text-sm gap-2',
+  sm: 'min-h-8 px-3.5 py-1 text-sm gap-1.5',
+  md: 'min-h-10 px-5 py-2 text-sm gap-2',
   lg: 'min-h-12 px-6 py-2.5 text-base gap-2',
 };
 
 /**
+ * Knopf als Pille: die einzige runde Form im System, damit Bedienbares sofort
+ * von Flächen (eckig, Haarlinie) zu unterscheiden ist.
+ *
  * Knopf. Zustände: normal, hover, fokussiert, deaktiviert, lädt.
  *
  * Sehr langer Text bricht nicht aus — der Knopf wächst in der Höhe statt die
@@ -68,8 +71,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={isDisabled}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex min-w-0 items-center justify-center rounded-md font-medium',
-        'transition-colors',
+        'inline-flex min-w-0 items-center justify-center rounded-full font-medium',
+        'transition-colors duration-150',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'overflow-hidden',
         focusRing,

@@ -79,8 +79,10 @@ export default {
     fontFamily: {
       sans: 'var(--oa-font-sans)',
       mono: 'var(--oa-font-mono)',
+      display: 'var(--oa-font-display)',
     },
     fontSize: {
+      '2xs': ['var(--oa-text-2xs)', { lineHeight: 'var(--oa-leading-2xs)' }],
       'xs': ['var(--oa-text-xs)', { lineHeight: 'var(--oa-leading-xs)' }],
       'sm': ['var(--oa-text-sm)', { lineHeight: 'var(--oa-leading-sm)' }],
       'base': ['var(--oa-text-base)', { lineHeight: 'var(--oa-leading-base)' }],
@@ -88,6 +90,8 @@ export default {
       'xl': ['var(--oa-text-xl)', { lineHeight: 'var(--oa-leading-xl)' }],
       '2xl': ['var(--oa-text-2xl)', { lineHeight: 'var(--oa-leading-2xl)' }],
       '3xl': ['var(--oa-text-3xl)', { lineHeight: 'var(--oa-leading-3xl)' }],
+      '4xl': ['var(--oa-text-4xl)', { lineHeight: 'var(--oa-leading-4xl)' }],
+      '5xl': ['var(--oa-text-5xl)', { lineHeight: 'var(--oa-leading-5xl)' }],
     },
     fontWeight: {
       'normal': 'var(--oa-weight-normal)',
@@ -117,6 +121,12 @@ export default {
       'toast': 'var(--oa-z-toast)',
     },
     extend: {
+      /** Laufweiten — ergänzt die Tailwind-Standardwerte, ersetzt sie nicht. */
+      letterSpacing: {
+        'display': 'var(--oa-tracking-display)',
+        'label': 'var(--oa-tracking-label)',
+        'loose': 'var(--oa-tracking-loose)',
+      },
       /** Benannte Layout-Breiten — siehe `size` in src/tokens/tokens.ts. */
       width: {
       'nav': 'var(--oa-size-nav)',

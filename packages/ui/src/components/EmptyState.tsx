@@ -29,7 +29,7 @@ export function EmptyState({
       data-oa-empty-state=""
       className={cn(
         'flex min-w-0 flex-col items-center justify-center gap-3 rounded-lg',
-        'border border-dashed border-border bg-surface px-4 py-10 text-center',
+        'border border-dashed border-border-strong bg-bg px-5 py-14 text-center',
         className,
       )}
     >
@@ -38,7 +38,7 @@ export function EmptyState({
           {icon}
         </span>
       )}
-      <h3 className="max-w-prose text-base font-semibold text-fg [overflow-wrap:anywhere]">
+      <h3 className="max-w-prose font-display text-2xl font-normal tracking-display text-fg [overflow-wrap:anywhere]">
         {title}
       </h3>
       {description === undefined ? null : (

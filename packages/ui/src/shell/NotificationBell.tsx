@@ -70,7 +70,7 @@ export function NotificationBell({
         aria-haspopup="dialog"
         aria-label={strings.notifications.label(unread)}
         onClick={() => setOpen((value) => !value)}
-        className={cn('relative rounded-md p-2 text-fg-muted hover:bg-surface-hover hover:text-fg', focusRing)}
+        className={cn('relative rounded-full p-2 text-fg-muted hover:bg-surface-hover hover:text-fg', focusRing)}
       >
         <svg
           aria-hidden="true"
@@ -86,7 +86,7 @@ export function NotificationBell({
         {unread > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-xs font-semibold text-danger-fg"
+            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 font-mono text-2xs font-medium text-danger-fg"
           >
             {unread > 9 ? '9+' : unread}
           </span>
@@ -101,7 +101,7 @@ export function NotificationBell({
           className="absolute right-0 top-full z-dropdown mt-1 w-panel max-w-[calc(100vw-2rem)] animate-oa-fade-in rounded-lg border border-border bg-bg shadow-lg"
         >
           <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-            <h2 className="text-sm font-semibold text-fg">{strings.notifications.title}</h2>
+            <h2 className="font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">{strings.notifications.title}</h2>
             {onMarkAllRead === undefined || unread === 0 ? null : (
               <button
                 type="button"

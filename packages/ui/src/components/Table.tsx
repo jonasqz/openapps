@@ -200,14 +200,14 @@ export function Table<Row>({
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-left text-sm">
           <caption className="sr-only">{caption}</caption>
-          <thead className="bg-surface">
+          <thead className="bg-bg">
             <tr>
               {columns.map((column) => (
                 <th
                   key={columnKey(column)}
                   scope="col"
                   className={cn(
-                    'border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-muted',
+                    'border-b border-border px-4 py-2.5 font-mono text-2xs font-medium uppercase tracking-label text-fg-muted',
                     column.align === 'right' && 'text-right',
                     column.hideBelow === undefined ? undefined : HIDE[column.hideBelow],
                     column.className,
@@ -226,7 +226,7 @@ export function Table<Row>({
                       <td
                         key={columnKey(column)}
                         className={cn(
-                          'border-b border-border px-3 py-3',
+                          'border-b border-border px-4 py-3.5',
                           column.hideBelow === undefined ? undefined : HIDE[column.hideBelow],
                         )}
                       >
@@ -238,7 +238,7 @@ export function Table<Row>({
               : rows.map((row, index) => (
                   <tr
                     key={resolveRowKey(row, index, rowKey)}
-                    className="odd:bg-bg even:bg-surface hover:bg-surface-hover"
+                    className="bg-bg transition-colors duration-150 hover:bg-surface [&:last-child>td]:border-b-0"
                   >
                     {columns.map((column, columnIndex) => {
                       const content =
@@ -249,7 +249,7 @@ export function Table<Row>({
                         <td
                           key={columnKey(column)}
                           className={cn(
-                            'border-b border-border px-3 py-2 align-top text-fg',
+                            'border-b border-border px-4 py-3 align-top text-fg',
                             column.align === 'right' && 'text-right',
                             column.hideBelow === undefined ? undefined : HIDE[column.hideBelow],
                             column.className,
@@ -259,7 +259,7 @@ export function Table<Row>({
                             <button
                               type="button"
                               onClick={() => onRowActivate(row)}
-                              className="block w-full truncate rounded-sm text-left font-medium text-primary underline-offset-2 hover:underline outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                              className="block w-full truncate rounded-sm text-left font-medium text-fg decoration-primary underline-offset-4 hover:underline outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                             >
                               {content}
                             </button>

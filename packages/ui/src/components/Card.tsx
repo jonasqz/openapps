@@ -5,13 +5,16 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
-/** Fläche für zusammengehörige Inhalte. Keine eigene Farbe, nur Tokens. */
+/**
+ * Fläche für zusammengehörige Inhalte. Keine eigene Farbe, nur Tokens.
+ * Getrennt wird durch die Haarlinie, nicht durch Schatten oder Tönung.
+ */
 export function Card({ className, children, ...rest }: CardProps): JSX.Element {
   return (
     <div
       {...rest}
       className={cn(
-        'flex min-w-0 flex-col rounded-lg border border-border bg-surface shadow-sm',
+        'flex min-w-0 flex-col rounded-lg border border-border bg-bg',
         className,
       )}
     >
@@ -41,12 +44,12 @@ export function CardHeader({
     <div
       {...rest}
       className={cn(
-        'flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-start sm:justify-between',
+        'flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-start sm:justify-between',
         className,
       )}
     >
       <div className="min-w-0">
-        <Heading className="truncate text-base font-semibold text-fg">{title}</Heading>
+        <Heading className="truncate text-base font-medium tracking-tight text-fg">{title}</Heading>
         {description === undefined ? null : (
           <p className="mt-1 text-sm text-fg-muted [overflow-wrap:anywhere]">{description}</p>
         )}
@@ -60,7 +63,7 @@ export function CardHeader({
 
 export function CardBody({ className, children, ...rest }: CardProps): JSX.Element {
   return (
-    <div {...rest} className={cn('min-w-0 break-words p-4 [overflow-wrap:anywhere]', className)}>
+    <div {...rest} className={cn('min-w-0 break-words px-5 py-4 [overflow-wrap:anywhere]', className)}>
       {children}
     </div>
   );
@@ -70,7 +73,7 @@ export function CardFooter({ className, children, ...rest }: CardProps): JSX.Ele
   return (
     <div
       {...rest}
-      className={cn('flex flex-wrap gap-2 border-t border-border p-4', className)}
+      className={cn('flex flex-wrap gap-2 border-t border-border px-5 py-4', className)}
     >
       {children}
     </div>

@@ -30,7 +30,7 @@ const ToastContext = createContext<ToastApi | null>(null);
 export const TOAST_LIMIT = 3;
 
 const TONE: Record<ToastTone, string> = {
-  info: 'border-border bg-surface text-fg',
+  info: 'border-fg bg-fg text-fg-inverted',
   success: 'border-success bg-success-subtle text-success-subtle-fg',
   warning: 'border-warning bg-warning-subtle text-warning-subtle-fg',
   danger: 'border-danger bg-danger-subtle text-danger-subtle-fg',
@@ -105,12 +105,12 @@ export function ToastProvider({ children, initialToasts = [] }: ToastProviderPro
             role={toast.tone === 'danger' ? 'alert' : 'status'}
             className={cn(
               'pointer-events-auto flex w-full min-w-0 max-w-sm animate-oa-slide-in items-start gap-3',
-              'rounded-lg border p-3 shadow-md',
+              'rounded-lg border px-4 py-3 shadow-md',
               TONE[toast.tone ?? 'info'],
             )}
           >
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold [overflow-wrap:anywhere]">{toast.title}</p>
+              <p className="text-sm font-medium [overflow-wrap:anywhere]">{toast.title}</p>
               {toast.description === undefined ? null : (
                 <p className="mt-0.5 text-sm [overflow-wrap:anywhere]">{toast.description}</p>
               )}

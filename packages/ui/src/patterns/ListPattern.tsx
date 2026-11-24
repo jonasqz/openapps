@@ -113,11 +113,11 @@ export function ListPattern<Row>({
     <section className={cn('flex min-w-0 flex-col gap-5', className)} aria-labelledby="oa-list-title">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 id="oa-list-title" className="text-2xl font-semibold text-fg [overflow-wrap:anywhere]">
+          <h1 id="oa-list-title" className="font-display text-3xl font-normal tracking-display text-fg sm:text-4xl [overflow-wrap:anywhere]">
             {title}
           </h1>
           {description === undefined ? null : (
-            <p className="mt-1 text-sm text-fg-muted [overflow-wrap:anywhere]">{description}</p>
+            <p className="mt-2 max-w-prose text-sm text-fg-muted [overflow-wrap:anywhere]">{description}</p>
           )}
         </div>
         {actions === undefined ? null : <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
@@ -126,7 +126,7 @@ export function ListPattern<Row>({
       {search !== undefined || filters.length > 0 ? (
         <div
           role="search"
-          className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:flex-row sm:flex-wrap sm:items-end"
+          className="flex flex-col gap-3 rounded-lg border border-border bg-bg p-4 sm:flex-row sm:flex-wrap sm:items-end"
         >
           {search === undefined ? null : (
             <Input

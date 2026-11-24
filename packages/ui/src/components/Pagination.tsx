@@ -44,7 +44,7 @@ export function Pagination({
       aria-label={strings.pagination.label}
       className={cn('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between', className)}
     >
-      <p className="text-sm text-fg-muted" aria-live="polite">
+      <p className="font-mono text-xs tabular-nums text-fg-muted" aria-live="polite">
         {total === 0
           ? strings.pagination.empty
           : strings.pagination.range(from, to, total, current, last)}

@@ -11,7 +11,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const TONE: Record<BadgeTone, string> = {
-  neutral: 'bg-surface-muted text-fg-muted border-border',
+  neutral: 'bg-surface text-fg-muted border-border',
   primary: 'bg-primary-subtle text-primary-subtle-fg border-primary-subtle',
   success: 'bg-success-subtle text-success-subtle-fg border-success-subtle',
   warning: 'bg-warning-subtle text-warning-subtle-fg border-warning-subtle',
@@ -19,7 +19,8 @@ const TONE: Record<BadgeTone, string> = {
 };
 
 /**
- * Status-Etikett. Farbe ist nie die einzige Information — der Text trägt die
+ * Status-Etikett: Mono in Versalien mit einem kleinen Quadrat in Textfarbe.
+ * Farbe ist nie die einzige Information — der Text trägt die
  * Bedeutung, die Farbe verstärkt sie nur.
  */
 export function Badge({ tone = 'neutral', srPrefix, className, children, ...rest }: BadgeProps): JSX.Element {
@@ -27,9 +28,9 @@ export function Badge({ tone = 'neutral', srPrefix, className, children, ...rest
     <span
       {...rest}
       className={cn(
-        'inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5',
-        'text-xs font-medium',
-        'truncate',
+        'inline-flex max-w-full items-center gap-1.5 rounded-sm border px-1.5 py-0.5',
+        'font-mono text-2xs font-medium uppercase tracking-label',
+        "truncate before:h-1.5 before:w-1.5 before:shrink-0 before:bg-current before:content-['']",
         TONE[tone],
         className,
       )}
