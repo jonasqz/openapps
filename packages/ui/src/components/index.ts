@@ -36,7 +36,7 @@ export type {
 export { Tabs } from './Tabs.tsx';
 export type { TabItem, TabsProps } from './Tabs.tsx';
 export { TOAST_LIMIT, ToastProvider, useToast } from './Toast.tsx';
-export type { Toast, ToastApi, ToastProviderProps, ToastTone } from './Toast.tsx';
+export type { Toast, ToastAction, ToastApi, ToastProviderProps, ToastTone } from './Toast.tsx';
 export { Icon, ICON_NAMES } from './Icon.tsx';
 export type { IconName, IconProps } from './Icon.tsx';
 export { Kbd } from './Kbd.tsx';

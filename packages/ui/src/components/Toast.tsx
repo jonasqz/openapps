@@ -13,8 +13,23 @@ export interface Toast {
   title: string;
   description?: string;
   tone?: ToastTone;
-  /** Millisekunden bis zum Verschwinden. `0` bleibt stehen. */
+  /**
+   * Millisekunden bis zum Verschwinden. `0` bleibt stehen. Vorgabe: 6 s,
+   * mit `action` 10 s. Solange die Maus darauf liegt oder der Fokus darin
+   * ist, läuft die Zeit nicht (WCAG 2.2.1).
+   */
   duration?: number;
+  /**
+   * Eine Aktion in der Meldung, meist „Undo“ nach einem Widerruf. Ein Klick
+   * ruft `onClick` und schließt die Meldung. Die Aktion muss es auch als Tool
+   * geben (CLAUDE.md 1); der Knopf ist nur die Abkürzung.
+   */
+  action?: ToastAction;
+}
+
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
 }
 
 export interface ToastApi {
@@ -53,9 +68,9 @@ export function ToastProvider({ children, initialToasts = [] }: ToastProviderPro
   const [toasts, setToasts] = useState<readonly Toast[]>(initialToasts);
   const counter = useRef(0);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const durations = useRef(new Map<string, number>());
 
-  const dismiss = useCallback((id: string) => {
-    setToasts((current) => current.filter((toast) => toast.id !== id));
+  const stop = useCallback((id: string) => {
     const timer = timers.current.get(id);
     if (timer !== undefined) {
       clearTimeout(timer);
@@ -63,22 +78,40 @@ export function ToastProvider({ children, initialToasts = [] }: ToastProviderPro
     }
   }, []);
 
+  const dismiss = useCallback(
+    (id: string) => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+      stop(id);
+      durations.current.delete(id);
+    },
+    [stop],
+  );
+
+  /** Startet die Zeit (neu). Nach einer Pause läuft die volle Dauer erneut. */
+  const start = useCallback(
+    (id: string) => {
+      const duration = durations.current.get(id) ?? 0;
+      if (duration <= 0) return;
+      stop(id);
+      timers.current.set(
+        id,
+        setTimeout(() => dismiss(id), duration),
+      );
+    },
+    [dismiss, stop],
+  );
+
   const show = useCallback<ToastApi['show']>(
     (input) => {
       counter.current += 1;
       const id = input.id ?? `oa-toast-${counter.current}`;
       const toast: Toast = { ...input, id };
       setToasts((current) => [...current, toast].slice(-TOAST_LIMIT));
-      const duration = input.duration ?? 6000;
-      if (duration > 0) {
-        timers.current.set(
-          id,
-          setTimeout(() => dismiss(id), duration),
-        );
-      }
+      durations.current.set(id, input.duration ?? (input.action === undefined ? 6000 : 10000));
+      start(id);
       return id;
     },
-    [dismiss],
+    [start],
   );
 
   useEffect(
@@ -103,6 +136,12 @@ export function ToastProvider({ children, initialToasts = [] }: ToastProviderPro
           <div
             key={toast.id}
             role={toast.tone === 'danger' ? 'alert' : 'status'}
+            onMouseEnter={() => stop(toast.id)}
+            onMouseLeave={() => start(toast.id)}
+            onFocus={() => stop(toast.id)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) start(toast.id);
+            }}
             className={cn(
               'pointer-events-auto flex w-full min-w-0 max-w-sm animate-oa-slide-in items-start gap-3',
               'rounded-lg border px-4 py-3 shadow-md',
@@ -115,6 +154,21 @@ export function ToastProvider({ children, initialToasts = [] }: ToastProviderPro
                 <p className="mt-0.5 text-sm [overflow-wrap:anywhere]">{toast.description}</p>
               )}
             </div>
+            {toast.action === undefined ? null : (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.action?.onClick();
+                  dismiss(toast.id);
+                }}
+                className={cn(
+                  'shrink-0 self-center rounded-full px-2 py-0.5 text-sm font-semibold underline underline-offset-4 hover:opacity-80',
+                  focusRing,
+                )}
+              >
+                {toast.action.label}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => dismiss(toast.id)}

@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import type { JSX } from 'react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AppShell } from '../shell/AppShell.tsx';
@@ -6,6 +7,7 @@ import { filterCommands } from '../shell/CommandPalette.tsx';
 import { PageHeader } from './PageHeader.tsx';
 import { Stat } from './Stat.tsx';
 import { Table } from './Table.tsx';
+import { ToastProvider, useToast } from './Toast.tsx';
 
 const user = { id: 'u1', email: 'anna@example.com', name: 'Anna Example' };
 
@@ -119,5 +121,56 @@ describe('PageHeader und Stat', () => {
   it('wird mit href zum Link', () => {
     render(<Stat label="Apps live" value="4" href="/apps" />);
     expect(screen.getByRole('link')).toHaveAttribute('href', '/apps');
+  });
+});
+
+describe('Toast mit Aktion', () => {
+  function UndoHarness({ onUndo }: { onUndo: () => void }): JSX.Element {
+    const toast = useToast();
+    return (
+      <button
+        type="button"
+        onClick={() => toast.show({ title: 'Grant revoked', action: { label: 'Undo', onClick: onUndo } })}
+      >
+        Revoke
+      </button>
+    );
+  }
+
+  it('ruft die Aktion und schließt die Meldung', async () => {
+    const onUndo = vi.fn();
+    render(
+      <ToastProvider>
+        <UndoHarness onUndo={onUndo} />
+      </ToastProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Grant revoked')).toBeNull();
+  });
+
+  it('bleibt mit Aktion 10 s stehen und pausiert, solange die Maus darauf liegt', () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <ToastProvider>
+          <UndoHarness onUndo={() => undefined} />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+      act(() => vi.advanceTimersByTime(7000));
+      expect(screen.getByText('Grant revoked')).toBeInTheDocument();
+
+      fireEvent.mouseEnter(screen.getByRole('status'));
+      act(() => vi.advanceTimersByTime(20000));
+      expect(screen.getByText('Grant revoked')).toBeInTheDocument();
+
+      fireEvent.mouseLeave(screen.getByRole('status'));
+      act(() => vi.advanceTimersByTime(10001));
+      expect(screen.queryByText('Grant revoked')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

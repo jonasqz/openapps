@@ -170,6 +170,18 @@ function ToastDemo(): JSX.Element {
       >
         Error
       </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() =>
+          toast.show({
+            title: 'Grant revoked',
+            action: { label: 'Undo', onClick: () => toast.show({ title: 'Grant restored', tone: 'success' }) },
+          })
+        }
+      >
+        With undo
+      </Button>
     </div>
   );
 }

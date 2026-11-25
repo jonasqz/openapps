@@ -62,8 +62,11 @@ unfertig.
 - Die Bestätigung mit Undo steht bisher nur im Klickdummy. In der Control
   Plane gibt es noch keinen Widerruf in der Oberfläche. Kommt er, gilt das
   Muster: `Dialog` mit `role="alertdialog"`, danach ein Toast mit Aktion.
-  `Toast` hat dafür noch keinen Aktionsknopf. Das ist der nächste additive
-  Schritt.
+- **Nachtrag:** `Toast` hat dafür jetzt `action: { label, onClick }`. Ein
+  Klick führt die Aktion aus und schließt die Meldung. Mit Aktion bleibt
+  eine Meldung 10 s statt 6 s stehen, und die Zeit pausiert, solange Maus
+  oder Fokus darauf liegen (WCAG 2.2.1). Die Aktion muss es auch als Tool
+  geben. „Undo“ eines Widerrufs ist ein erneutes `grant`.
 - Die Icons in der Navigation der Control Plane setzt die Session, die
   `(verwaltung)/shell.tsx` gerade umbaut (ADR 0017). Diese Datei ist hier
   bewusst unverändert.
