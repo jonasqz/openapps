@@ -1,0 +1,155 @@
+# Die Wahrheit über die Funktionen dieser App.
+# Aus dieser Datei erzeugt die Plattform die MCP-Tools. Eine UI-Aktion ohne
+# passende Operation hier blockiert das Review-Gate.
+#
+# Jedes Tool ist `POST /tools/<toolname>` mit den Argumenten als JSON-Body
+# (createToolRoute aus @openapps/sdk). Der Name im Pfad ist byte-gleich mit
+# `offeredTools[].name` in app.json, die operationId mit
+# `offeredTools[].operationId`. src/lib/tools.test.ts hält beides fest.
+openapi: 3.1.0
+info:
+  title: Aufgaben
+  version: 0.1.0
+  description: >-
+    Team-Aufgaben für Menschen und Agents: Titel, zuständige Person,
+    Fälligkeitsdatum, erledigt ja/nein. Datumswerte JJJJ-MM-TT, Zeitpunkte
+    ISO 8601, Ids UUIDs.
+servers:
+  # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
+  # `basePath` ist byte-gleich mit OPENAPPS_APP_BASE_PATH.
+  - url: '{basePath}/api'
+    description: Diese App hinter dem Gateway.
+    variables:
+      basePath:
+        default: /aufgaben
+        description: Pfad der App, byte-gleich mit OPENAPPS_APP_BASE_PATH.
+paths:
+  /tools/aufgaben.list:
+    post:
+      operationId: listAufgaben
+      summary: Aufgaben auflisten, offene zuerst
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                erledigt: { type: boolean, description: true nur erledigte, false nur offene. }
+                zustaendig: { type: string, maxLength: 200, description: Name der zuständigen Person. }
+                limit: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Aufgaben
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [aufgaben]
+                properties:
+                  aufgaben:
+                    type: array
+                    items: { $ref: '#/components/schemas/Aufgabe' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/aufgaben.create:
+    post:
+      operationId: createAufgabe
+      summary: Aufgabe anlegen
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [titel, zustaendig]
+              properties:
+                titel: { type: string, minLength: 1, maxLength: 200 }
+                zustaendig: { type: string, minLength: 1, maxLength: 200 }
+                faelligAm: { type: string, format: date }
+      responses:
+        '200':
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [aufgabe]
+                properties:
+                  aufgabe: { $ref: '#/components/schemas/Aufgabe' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/aufgaben.erledigen:
+    post:
+      operationId: erledigeAufgabe
+      summary: Aufgabe als erledigt markieren
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Erledigt (oder war es schon)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [aufgabe, changed]
+                properties:
+                  aufgabe: { $ref: '#/components/schemas/Aufgabe' }
+                  changed: { type: boolean }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  responses:
+    Invalid:
+      description: Argumente passen nicht zum Tool. message und issues sagen, welches Feld.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Kein gültiger Aufruf über die Plattform (Signatur fehlt oder ist falsch).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Aufgabe mit dieser id gibt es nicht.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        issues: { type: array, items: {} }
+    Aufgabe:
+      type: object
+      required: [id, titel, zustaendig, faelligAm, erledigt, erledigtAm, erledigtVon, erstelltVon, erstelltAm]
+      properties:
+        id: { type: string, format: uuid }
+        titel: { type: string }
+        zustaendig: { type: string }
+        faelligAm: { type: [string, 'null'], format: date }
+        erledigt: { type: boolean }
+        erledigtAm: { type: [string, 'null'], format: date-time }
+        erledigtVon: { type: [string, 'null'] }
+        erstelltVon: { type: string }
+        erstelltAm: { type: string, format: date-time }

@@ -1,0 +1,82 @@
+{
+  "manifestVersion": 1,
+  "name": "aufgaben",
+  "displayName": "Aufgaben",
+  "description": "Team-Aufgaben mit Titel, zuständiger Person, Fälligkeitsdatum und Erledigt-Status. Für Menschen und Agents.",
+  "category": "internal",
+  "version": "0.1.0",
+  "source": {
+    "git": "https://lokal.invalid/aufgaben",
+    "tag": "lokal"
+  },
+  "requiredTables": [
+    {
+      "name": "aufgaben",
+      "description": "Team-Aufgaben: Titel, zuständige Person, Fälligkeitsdatum, erledigt ja/nein, Urheber und Zeitpunkte."
+    }
+  ],
+  "offeredTools": [
+    {
+      "name": "aufgaben.list",
+      "description": "Listet Aufgaben: offene zuerst, dann nach Fälligkeit (ohne Datum zuletzt), dann neueste. Argumente, alle optional: erledigt (true/false, nur erledigte bzw. offene), zustaendig (Name der Person, ohne Groß-/Kleinschreibung, exakt), limit (1 bis 200, Vorgabe 50). Liefert { aufgaben: [{ id, titel, zustaendig, faelligAm (JJJJ-MM-TT oder null), erledigt, erledigtAm, erledigtVon, erstelltVon, erstelltAm }] }. Die id brauchst du für aufgaben.erledigen.",
+      "operationId": "listAufgaben",
+      "verb": "read"
+    },
+    {
+      "name": "aufgaben.create",
+      "description": "Legt eine offene Aufgabe an. Argumente: titel (Pflicht, 1 bis 200 Zeichen), zustaendig (Pflicht, Name der zuständigen Person), faelligAm (optional, JJJJ-MM-TT). Der Aufrufer wird als erstelltVon gespeichert. Liefert { aufgabe } mit der neuen id. Prüfe vorher mit aufgaben.list, ob es die Aufgabe schon gibt.",
+      "operationId": "createAufgabe",
+      "verb": "write"
+    },
+    {
+      "name": "aufgaben.erledigen",
+      "description": "Markiert eine Aufgabe als erledigt und speichert, wer und wann. Argument: id (UUID aus aufgaben.list). Ist sie schon erledigt, ändert sich nichts (changed: false). Unbekannte id ergibt 404. Liefert { aufgabe, changed }.",
+      "operationId": "erledigeAufgabe",
+      "verb": "write"
+    }
+  ],
+  "requestedGrants": [
+    {
+      "subjectKind": "group",
+      "verb": "read",
+      "resource": {
+        "kind": "app",
+        "app": "aufgaben"
+      },
+      "reason": "Wer die App öffnen darf. Welche Gruppe, entscheidet die Freigabe in der Control Plane — ein gewünschtes Recht ist ein Antrag, keine Vergabe."
+    }
+  ],
+  "env": [
+    {
+      "name": "DATABASE_URL",
+      "secret": true,
+      "description": "Verbindung auf das eigene Schema, mit der App-Rolle. Setzt die Control Plane."
+    },
+    {
+      "name": "DATABASE_SCHEMA",
+      "secret": false,
+      "description": "Eigenes Schema der App. Das SDK setzt daraus den search_path; eine DSN mit options= wird abgewiesen."
+    },
+    {
+      "name": "OPENAPPS_AUTH_SECRET",
+      "secret": true,
+      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prüft. Setzt die Control Plane pro Deployment."
+    },
+    {
+      "name": "OPENAPPS_APP_ID",
+      "secret": false,
+      "description": "Id dieser App im Signatur-Material. Muss byte-gleich dem sein, was das Gateway schreibt."
+    },
+    {
+      "name": "OPENAPPS_APP_HOST",
+      "secret": false,
+      "description": "Gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben."
+    },
+    {
+      "name": "OPENAPPS_APP_BASE_PATH",
+      "secret": false,
+      "description": "Pfad, unter dem die App liegt (/aufgaben). Muss beim Build gesetzt sein, sonst zeigen Verweise und Bilder ins Leere."
+    }
+  ],
+  "egress": []
+}
