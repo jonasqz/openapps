@@ -39,7 +39,7 @@ export default async function DocumentsPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6 p-4 sm:p-6">
+    <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-fg">Documents</h1>
@@ -47,10 +47,9 @@ export default async function DocumentsPage() {
             Everything the search knows. Newest first.
           </p>
         </div>
-        <nav aria-label="Knowledge" className="flex shrink-0 flex-wrap gap-4 text-sm">
-          <TextLink href="/">Search</TextLink>
-          <TextLink href="/documents/new">Add document</TextLink>
-        </nav>
+        <TextLink href="/documents/new" className="shrink-0 self-start text-sm">
+          Add document
+        </TextLink>
       </header>
 
       <Table<DocumentRow>
@@ -75,6 +74,6 @@ export default async function DocumentsPage() {
             : undefined
         }
       />
-    </main>
+    </div>
   );
 }

@@ -22,14 +22,16 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
+import type { PlatformNav } from '@openapps/sdk';
 import type { LokalAuth } from './lokal-ansehen-cp';
 import {
   appContainerPort,
   appPathFor,
   gatewayAliasFor,
   gatewayHost,
+  GATEWAY_RESPONSE_HEADERS,
   identityHeadersForApp,
-  IDENTITY_HEADERS,
+  navHeadersForApp,
   type App,
 } from '../domain';
 
@@ -40,7 +42,9 @@ export const ANSICHT_IDENTITY = {
 
 /** Header, die nie vom Browser an die App durchgehen. */
 const DROP_REQUEST_HEADERS = new Set([
-  ...IDENTITY_HEADERS.map((h) => h.toLowerCase()),
+  // Identitaet und Navigation (ADR 0017): Sonst setzt der Browser eigene
+  // Links in die Leiste.
+  ...GATEWAY_RESPONSE_HEADERS.map((h) => h.toLowerCase()),
   'host',
   'connection',
   'x-forwarded-host',
@@ -65,7 +69,42 @@ export const OWN_ORIGINS: ReadonlySet<string> = new Set([
 export type AnsichtApp = Pick<
   App,
   'name' | 'displayName' | 'primaryDomain' | 'authSecretGeneration' | 'manifest'
->;
+> &
+  Partial<Pick<App, 'category'>>;
+
+/** Adresse des Proxys selbst; die Links der Leiste zeigen hierher. */
+export const DEFAULT_ANSICHT_ORIGIN = 'http://127.0.0.1:8090';
+
+/** Die Control Plane im lokalen Betrieb (ADR 0014, `lokal-ansehen-cp.ts`). */
+export const DEFAULT_ANSICHT_PLATFORM_URL = 'http://127.0.0.1:8091';
+
+/**
+ * Die Navigation des lokalen Betrachters (ADR 0017). Er hat keine echten
+ * Freigaben — der Proxy ueberspringt die Forward-Auth (siehe Dateikopf) —,
+ * also sieht er alle deployten Apps. Apps anlegen darf er, Administrator ist
+ * er nicht: Die Verwaltung unter `platformUrl` prueft ihre Rechte selbst.
+ */
+export function ansichtNav(params: {
+  readonly apps: readonly AnsichtApp[];
+  readonly origin?: string;
+  readonly platformUrl?: string;
+}): PlatformNav {
+  const origin = (params.origin ?? DEFAULT_ANSICHT_ORIGIN).replace(/\/+$/, '');
+  return {
+    v: 1,
+    platformUrl: params.platformUrl ?? DEFAULT_ANSICHT_PLATFORM_URL,
+    apps: params.apps
+      .filter((a) => a.primaryDomain !== null)
+      .map((a) => ({
+        name: a.name,
+        title: a.displayName,
+        category: a.category ?? null,
+        href: `${origin}${appPathFor(a.name)}`,
+      })),
+    canCreateApps: true,
+    isAdmin: false,
+  };
+}
 
 export interface Forward {
   readonly url: string;
@@ -88,6 +127,8 @@ export function buildForward(params: {
   readonly incoming: Readonly<Record<string, string | string[] | undefined>>;
   readonly masterSecret: string;
   readonly now?: Date;
+  /** Navigation der Leiste; ohne sie gehen beide Nav-Header leer raus. */
+  readonly nav?: PlatformNav | null;
 }): Forward {
   const { app } = params;
   if (app.primaryDomain === null) {
@@ -103,17 +144,21 @@ export function buildForward(params: {
     headers[key.toLowerCase()] = Array.isArray(value) ? value.join(', ') : value;
   }
 
-  const signed = identityHeadersForApp({
+  const identity = {
+    ...ANSICHT_IDENTITY,
+    groups: [],
+    issuedAt: Math.floor((params.now ?? new Date()).getTime() / 1000),
+  };
+  const signed = identityHeadersForApp({ app, identity, masterSecret: params.masterSecret });
+  // Wie die Forward-Auth: beide Nav-Header immer gesetzt, notfalls leer.
+  const nav = navHeadersForApp({
     app,
-    identity: {
-      ...ANSICHT_IDENTITY,
-      groups: [],
-      issuedAt: Math.floor((params.now ?? new Date()).getTime() / 1000),
-    },
+    identity,
     masterSecret: params.masterSecret,
+    nav: params.nav ?? null,
   });
   const host = gatewayHost(app.primaryDomain);
-  Object.assign(headers, signed, {
+  Object.assign(headers, signed, nav, {
     'x-forwarded-host': host,
     'x-forwarded-proto': 'https',
   });
@@ -165,6 +210,10 @@ export function createAnsichtServer(options: {
   readonly masterSecret: string;
   readonly findApp: (name: string) => Promise<AnsichtApp | null>;
   readonly listApps: () => Promise<readonly AnsichtApp[]>;
+  /** Adresse des Proxys, fuer die Links der Leiste. */
+  readonly origin?: string;
+  /** Adresse der lokalen Control Plane, fuer die Leiste. */
+  readonly platformUrl?: string;
 }) {
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const path = req.url ?? '/';
@@ -181,11 +230,24 @@ export function createAnsichtServer(options: {
       return;
     }
 
+    // Navigation pro Aufruf, wie die Forward-Auth. Scheitert sie, bleibt die
+    // Leiste leer und die Seite kommt trotzdem.
+    let nav: PlatformNav | null = null;
+    try {
+      nav = ansichtNav({
+        apps: await options.listApps(),
+        ...(options.origin === undefined ? {} : { origin: options.origin }),
+        ...(options.platformUrl === undefined ? {} : { platformUrl: options.platformUrl }),
+      });
+    } catch (error) {
+      console.error('[view] navigation not computed', error);
+    }
     const forward = buildForward({
       app,
       path,
       incoming: req.headers,
       masterSecret: options.masterSecret,
+      nav,
     });
     const body = await readBody(req);
     const upstream = await fetch(forward.url, {
@@ -231,10 +293,13 @@ async function main(): Promise<void> {
   const apps = createAppRepository(getPool());
 
   const port = Number(process.env.ANSEHEN_PORT ?? '8090');
+  const cpPort = Number(process.env.ANSEHEN_CP_PORT ?? '8091');
   createAnsichtServer({
     masterSecret,
     findApp: (name) => apps.findByName(name),
     listApps: () => apps.listAll(),
+    origin: process.env.ANSEHEN_ORIGIN ?? `http://127.0.0.1:${String(port)}`,
+    platformUrl: process.env.ANSEHEN_PLATFORM_URL ?? `http://127.0.0.1:${String(cpPort)}`,
   }).listen(port, '0.0.0.0', () => {
     console.log(`[view] http://127.0.0.1:${String(port)} (local only)`);
   });
@@ -246,7 +311,6 @@ async function main(): Promise<void> {
   const cp = await import('./lokal-ansehen-cp');
   const authEnv = readAuthEnv();
   const auth = createAuth({ pool: getPool(), env: authEnv });
-  const cpPort = Number(process.env.ANSEHEN_CP_PORT ?? '8091');
   cp.createCpAnsichtServer({
     cpOrigin: authEnv.baseUrl,
     upstream: process.env.CONTROL_PLANE_SERVICE_URL ?? 'http://openapps-control-plane:3000',

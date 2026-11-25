@@ -14,7 +14,8 @@
  *    eine App, die nicht auf diesem Host liegt → 403.
  * 2. Keine Session → 302 auf den Login.
  * 3. Keine Freigabe auf die App → 403.
- * 4. Sonst 200 mit den fuenf Identitaets-Headern aus Spec 3.1.
+ * 4. Sonst 200 mit den fuenf Identitaets-Headern aus Spec 3.1 und den zwei
+ *    Nav-Headern der gemeinsamen Leiste (ADR 0017), notfalls leer.
  *
  * Jede Antwort ausser 2xx heisst „nein". Auch ein Fehler in dieser Route heisst
  * „nein": es gibt keinen Pfad, auf dem ein Ausfall der Control Plane Apps
@@ -26,7 +27,11 @@ import {
   canAccessApp,
   gatewayHost,
   identityHeadersForApp,
+  navHeadersForApp,
+  platformNavFor,
   recordAudit,
+  EMPTY_NAV_HEADERS,
+  type Actor,
 } from '../../../../domain';
 import { currentUser } from '../../../../lib/actor';
 import { readEnv } from '../../../../lib/env';
@@ -143,19 +148,44 @@ async function handle(request: Request): Promise<Response> {
     if (!allowed) return deny('no grant on the app');
 
     // Schritt 4: die fuenf Header, signiert mit dem Secret **dieser** App.
+    const identity = {
+      userId: user.userId,
+      email: user.email,
+      groups: user.groups,
+      issuedAt: Math.floor(ctx.clock.now().getTime() / 1000),
+    };
     const headers = identityHeadersForApp({
       app,
-      identity: {
-        userId: user.userId,
-        email: user.email,
-        groups: user.groups,
-        issuedAt: Math.floor(ctx.clock.now().getTime() / 1000),
-      },
+      identity,
       masterSecret: env.authMasterSecret,
     });
-    return new Response(null, { status: 200, headers });
+    const nav = await navigationHeaders(app, actor, identity, env);
+    return new Response(null, { status: 200, headers: { ...headers, ...nav } });
   } catch {
     return deny('forward auth cannot decide');
+  }
+}
+
+/**
+ * Die zwei Nav-Header (ADR 0017). Die Navigation ist Anzeige, keine Freigabe:
+ * Scheitert sie, gehen beide Header leer raus, und die Entscheidung bleibt
+ * ein Ja. Ein Nein an dieser Stelle wuerde eine App sperren, weil die Leiste
+ * einer **anderen** App nicht berechnet werden konnte.
+ */
+async function navigationHeaders(
+  app: App,
+  actor: Actor,
+  identity: { readonly userId: string; readonly issuedAt: number },
+  env: { readonly controlPlaneHost: string; readonly authMasterSecret: string },
+): Promise<Readonly<Record<string, string>>> {
+  try {
+    const nav = await platformNavFor(domainContext(), actor, {
+      controlPlaneHost: env.controlPlaneHost,
+    });
+    return navHeadersForApp({ app, identity, masterSecret: env.authMasterSecret, nav });
+  } catch (error) {
+    console.error('[forward-auth] navigation not computed', error);
+    return EMPTY_NAV_HEADERS;
   }
 }
 

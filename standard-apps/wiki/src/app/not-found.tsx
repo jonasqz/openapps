@@ -3,7 +3,7 @@ import { LinkButton } from '@/components/LinkButton';
 
 export default function NotFound() {
   return (
-    <main className="p-6">
+    <div>
       <EmptyState
         title="This page does not exist"
         description="It may have been archived, or the link is wrong."
@@ -13,6 +13,6 @@ export default function NotFound() {
           </LinkButton>
         }
       />
-    </main>
+    </div>
   );
 }

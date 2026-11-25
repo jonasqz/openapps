@@ -23,6 +23,23 @@ export {
 } from './gateway.js';
 
 export {
+  decodeNav,
+  encodeNav,
+  getNavigation,
+  NAV_HEADER,
+  NAV_LIMITS,
+  NAV_MAX_APPS,
+  NAV_MAX_HEADER_LENGTH,
+  NAV_SIGNATURE_HEADER,
+  NAV_SIGNATURE_MATERIAL_VERSION,
+  navSignatureFor,
+  navSignatureMaterial,
+  type NavSignatureInput,
+  type PlatformNav,
+  type PlatformNavApp,
+} from './nav.js';
+
+export {
   assertAppConnectionString,
   assertSafeSchemaName,
   createAppPool,

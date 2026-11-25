@@ -24,6 +24,7 @@ import {
   createAgentIdentity,
   createApp,
   createGroup,
+  describeActor,
   disableAgentIdentity,
   grant,
   listAgentIdentities,
@@ -392,7 +393,26 @@ export const disableAgentTool = defineTool({
 });
 
 /**
- * Die sechs Tools des Briefs, `list_grants` zum Nachsehen, die
+ * Wer bin ich? Das Gegenstueck zu `GET /api/me` und zur Seite `/settings`
+ * (ADR 0017). Braucht kein Recht: Die eigenen Freigaben darf jeder sehen,
+ * und die Apps sind genau die, die der Aufrufer ohnehin lesen darf.
+ */
+export const whoamiTool = defineTool({
+  name: 'whoami',
+  title: 'Who am I',
+  description:
+    'Shows who you are on the platform: identity, groups, the apps you can open and your grants. Anyone may call it.',
+  schema: z.object({}),
+  async handler({ ctx, actor, correlationId }) {
+    const me = await describeActor(ctx, actor, {
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+    return { me };
+  },
+});
+
+/**
+ * Die sechs Tools des Briefs, `list_grants` und `whoami` zum Nachsehen, die
  * Gruppenpflege und die Agent-Identitaeten. Mehr gibt es nicht: jede weitere Plattform-Aktion entsteht
  * erst als Domaenenfunktion.
  */
@@ -404,6 +424,7 @@ export const platformTools: readonly AnyToolDefinition[] = [
   grantTool,
   revokeTool,
   listGrantsTool,
+  whoamiTool,
   listGroupsTool,
   createGroupTool,
   listGroupMembersTool,

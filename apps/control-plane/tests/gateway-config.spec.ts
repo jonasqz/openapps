@@ -26,7 +26,9 @@ import {
   appContainerPort,
   gatewayAliasFor,
   DEFAULT_APP_PORT,
+  GATEWAY_RESPONSE_HEADERS,
   IDENTITY_HEADERS,
+  NAV_HEADERS,
   type GatewayConfigInput,
   type GatewayDynamicConfig,
 } from '../src/domain';
@@ -107,7 +109,7 @@ describe('Gateway-Konfiguration: was erzeugt wird', () => {
     });
   });
 
-  it('definiert die zwei Middlewares: alle fuenf Header loeschen, dann Forward-Auth', () => {
+  it('definiert die zwei Middlewares: alle sieben Header loeschen, dann Forward-Auth', () => {
     const config = buildGatewayConfig(input());
     const strip = config.http.middlewares[STRIP_IDENTITY_MIDDLEWARE];
     const auth = config.http.middlewares[FORWARD_AUTH_MIDDLEWARE];
@@ -120,6 +122,8 @@ describe('Gateway-Konfiguration: was erzeugt wird', () => {
           'X-Auth-Groups': '',
           'X-Auth-Issued-At': '',
           'X-Auth-Signature': '',
+          'X-Auth-Nav': '',
+          'X-Auth-Nav-Signature': '',
         },
       },
     });
@@ -132,13 +136,17 @@ describe('Gateway-Konfiguration: was erzeugt wird', () => {
           'X-Auth-Groups',
           'X-Auth-Issued-At',
           'X-Auth-Signature',
+          'X-Auth-Nav',
+          'X-Auth-Nav-Signature',
         ],
         trustForwardHeader: true,
         forwardBody: false,
       },
     });
-    // Genau die fuenf aus Spec 3.1 — nicht mehr und nicht weniger.
+    // Genau die fuenf aus Spec 3.1 — nicht mehr und nicht weniger. Die zwei
+    // Nav-Header (ADR 0017) stehen getrennt, mit eigener Signatur.
     expect(IDENTITY_HEADERS).toHaveLength(5);
+    expect(GATEWAY_RESPONSE_HEADERS).toEqual([...IDENTITY_HEADERS, ...NAV_HEADERS]);
   });
 
   it('haengt die Router an Coolifys Entrypoint-Namen, nicht an unseren alten', () => {
@@ -315,6 +323,44 @@ describe('kein Router ohne Middlewares — ueber die ganze Ausgabe', () => {
     } as unknown as GatewayDynamicConfig;
 
     expect(gatewayConfigProblems(kaputt).join(' ')).toContain('X-Auth-Signature');
+  });
+
+  /**
+   * ADR 0017: Ein nicht geloeschter `X-Auth-Nav` liesse einen Browser eigene
+   * Links in die Leiste schmuggeln, ein nicht weitergereichter kostete die
+   * Leiste. Beides muss der Lint sehen.
+   */
+  it('der Lint faengt fehlende Nav-Header in Strip und Forward-Auth', () => {
+    const config = buildGatewayConfig(input());
+    const strip = config.http.middlewares[STRIP_IDENTITY_MIDDLEWARE] as {
+      headers: { customRequestHeaders: Record<string, string> };
+    };
+    const { 'X-Auth-Nav': _nav, ...ohneNav } = strip.headers.customRequestHeaders;
+    const auth = config.http.middlewares[FORWARD_AUTH_MIDDLEWARE] as {
+      forwardAuth: { authResponseHeaders: readonly string[] };
+    };
+    const kaputt = {
+      ...config,
+      http: {
+        ...config.http,
+        middlewares: {
+          ...config.http.middlewares,
+          [STRIP_IDENTITY_MIDDLEWARE]: { headers: { customRequestHeaders: ohneNav } },
+          [FORWARD_AUTH_MIDDLEWARE]: {
+            forwardAuth: {
+              ...auth.forwardAuth,
+              authResponseHeaders: auth.forwardAuth.authResponseHeaders.filter(
+                (h) => h !== 'X-Auth-Nav-Signature',
+              ),
+            },
+          },
+        },
+      },
+    } as unknown as GatewayDynamicConfig;
+
+    const problems = gatewayConfigProblems(kaputt).join(' ');
+    expect(problems).toContain('does not remove the header X-Auth-Nav:');
+    expect(problems).toContain('does not pass on the headers [X-Auth-Nav-Signature]');
   });
 
   it('der Lint faengt einen fehlenden Catch-all', () => {

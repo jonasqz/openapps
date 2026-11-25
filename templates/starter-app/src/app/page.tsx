@@ -41,7 +41,7 @@ export default async function ItemsPage() {
   }
 
   return (
-    <main className="p-6">
+    <div>
       <Table<ItemRow>
         caption="Items"
         rows={failed ? [] : items.map(toRow)}
@@ -62,6 +62,6 @@ export default async function ItemsPage() {
             : undefined
         }
       />
-    </main>
+    </div>
   );
 }

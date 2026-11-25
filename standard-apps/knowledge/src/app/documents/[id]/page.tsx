@@ -33,7 +33,7 @@ export default async function DocumentPage({ params }: { params: Params }) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-4 p-4 sm:p-6">
+    <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-4">
       <TextLink href="/documents" className="self-start text-sm">
         ← All documents
       </TextLink>
@@ -92,6 +92,6 @@ export default async function DocumentPage({ params }: { params: Params }) {
           </section>
         </DetailPattern>
       )}
-    </main>
+    </div>
   );
 }

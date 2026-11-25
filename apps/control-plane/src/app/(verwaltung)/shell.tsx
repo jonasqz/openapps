@@ -1,6 +1,6 @@
 'use client';
 
-import { AppShell, type ShellUser } from '@openapps/ui';
+import { PlatformShell, type ShellPlatform, type ShellUser } from '@openapps/ui';
 import { usePathname } from 'next/navigation';
 import type { JSX, ReactNode } from 'react';
 
@@ -9,34 +9,35 @@ const NAV = [
   { id: 'agents', label: 'Agents', href: '/agents' },
   { id: 'grants', label: 'Grants', href: '/grants' },
   { id: 'get-started', label: 'Get started', href: '/get-started' },
+  { id: 'settings', label: 'Settings', href: '/settings' },
 ] as const;
 
 function isCurrent(href: string, pathname: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** Die Verwaltung in derselben Leiste wie jede App (ADR 0017). */
 export function VerwaltungShell({
   user,
+  platform,
   children,
 }: {
   user: ShellUser;
+  platform: ShellPlatform | null;
   children: ReactNode;
 }): JSX.Element {
   const pathname = usePathname();
   return (
-    <AppShell
-      productName="openapps"
-      appName="Admin"
+    <PlatformShell
+      platform={platform}
+      appName="admin"
+      appTitle="Admin"
       user={user}
-      nav={[{ items: NAV.map((item) => ({ ...item, current: isCurrent(item.href, pathname) })) }]}
-      onSignOut={() => {
-        // Better Auth meldet ab und loescht die Session; danach zum Login.
-        void fetch('/api/auth/sign-out', { method: 'POST' }).finally(() => {
-          window.location.assign('/login');
-        });
-      }}
+      sections={[
+        { items: NAV.map((item) => ({ ...item, current: isCurrent(item.href, pathname) })) },
+      ]}
     >
       {children}
-    </AppShell>
+    </PlatformShell>
   );
 }

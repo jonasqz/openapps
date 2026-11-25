@@ -4,10 +4,10 @@
   "displayName": "CRM",
   "description": "Lean CRM for humans and agents: companies, contacts, deals with a pipeline, and activities.",
   "category": "sales",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "crm-v0.1.2"
+    "tag": "crm-v0.1.4"
   },
   "requiredTables": [
     {

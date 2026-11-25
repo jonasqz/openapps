@@ -33,6 +33,12 @@ const TEXT_PAIRS: ReadonlyArray<[keyof typeof color, keyof typeof color]> = [
   ['danger', 'surface'],
   ['danger-fg', 'danger'],
   ['danger-subtle-fg', 'danger-subtle'],
+  // Gemeinsame Leiste (PlatformShell): Flaeche bg-subtle, Hover surface-muted.
+  ['fg-muted', 'bg-subtle'],
+  ['fg-subtle', 'bg-subtle'],
+  ['fg', 'surface-muted'],
+  // Monogramm-Kacheln (MONOGRAM_TONES in src/shell/platform.ts).
+  ['fg-inverted', 'fg'],
 ];
 
 /** Ränder und Fokus: Bedienelemente, deshalb 3:1. */

@@ -256,7 +256,11 @@ export function signatureMaterial(input: Omit<SignatureInput, 'secret'>): string
   );
 }
 
-interface ResolvedConfig {
+/**
+ * Intern exportiert fuer `nav.ts` (ADR 0017): dieselbe Konfiguration wie
+ * `getUser`, nicht ein zweites Lesen der Env. Nicht Teil von `index.ts`.
+ */
+export interface ResolvedConfig {
   readonly secret: string;
   readonly appId: string;
   readonly appHost: string;
@@ -265,7 +269,7 @@ interface ResolvedConfig {
   readonly now: () => number;
 }
 
-function resolveConfig(options: GetUserOptions): ResolvedConfig {
+export function resolveConfig(options: GetUserOptions): ResolvedConfig {
   const secret = (options.secret ?? process.env[AUTH_SECRET_ENV] ?? '').trim();
   if (secret === '') {
     throw new SdkConfigurationError(
@@ -384,8 +388,10 @@ function assertWithinWindow(issuedAtSeconds: number, config: ResolvedConfig): vo
  * Digests sind immer gleich lang, damit verrät auch die Länge des
  * mitgeschickten Werts nichts, und ein unbrauchbares Hex braucht keinen
  * eigenen, früher antwortenden Pfad.
+ *
+ * Intern exportiert fuer `nav.ts`, nicht Teil von `index.ts`.
  */
-function signatureEquals(presented: string, expected: string): boolean {
+export function signatureEquals(presented: string, expected: string): boolean {
   const key = 'openapps-signature-compare';
   const a = createHmac('sha256', key).update(presented.toLowerCase(), 'utf8').digest();
   const b = createHmac('sha256', key).update(expected, 'utf8').digest();

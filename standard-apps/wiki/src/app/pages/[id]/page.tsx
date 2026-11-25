@@ -16,13 +16,13 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
 
   if (loaded.kind === 'failed') {
     return (
-      <main className="flex flex-col gap-4 p-6">
+      <div className="flex min-w-0 flex-col gap-4">
         <TextLink href="/">← All pages</TextLink>
         <ErrorState
           title="Page could not be loaded"
           description="The database did not respond. Reload the page."
         />
-      </main>
+      </div>
     );
   }
 
@@ -30,7 +30,7 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
   const archived = page.archivedAt !== null;
 
   return (
-    <main className="flex flex-col gap-4 p-6">
+    <div className="flex min-w-0 flex-col gap-4">
       <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 text-sm">
         <TextLink href="/">← All pages</TextLink>
         {page.parent === null ? null : (
@@ -135,6 +135,6 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
           </CardBody>
         </Card>
       </DetailPattern>
-    </main>
+    </div>
   );
 }

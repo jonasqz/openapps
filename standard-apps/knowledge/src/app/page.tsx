@@ -33,7 +33,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6 p-4 sm:p-6">
+    <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-fg">Knowledge</h1>
@@ -41,10 +41,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
             Searches the stored documents and shows the matching sections with their source.
           </p>
         </div>
-        <nav aria-label="Knowledge" className="flex shrink-0 flex-wrap gap-4 text-sm">
-          <TextLink href="/documents">Documents</TextLink>
-          <TextLink href="/documents/new">Add document</TextLink>
-        </nav>
+        <TextLink href="/documents/new" className="shrink-0 self-start text-sm">
+          Add document
+        </TextLink>
       </header>
 
       <SearchBox initialQuery={q} />
@@ -93,6 +92,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
           </ol>
         </section>
       )}
-    </main>
+    </div>
   );
 }

@@ -31,7 +31,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+    <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-4">
       <TextLink href={`/pages/${parsedId.data}`}>← Back to page</TextLink>
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">History</p>
@@ -95,6 +95,6 @@ export default async function HistoryPage({ params }: { params: Promise<{ id: st
           ))}
         </ol>
       )}
-    </main>
+    </div>
   );
 }

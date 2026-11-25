@@ -53,6 +53,8 @@ stop words such as `the` or `and` are ignored.
 - `src/lib/tools.ts`, `src/app/api/tools/[tool]/route.ts` — the tool route
 - `src/app/actions.ts` — server actions of the UI; they check `getUser` and
   call the same functions
+- `src/app/layout.tsx`, `src/lib/shell.ts`, `src/components/Shell.tsx` — the
+  shared platform sidebar (`PlatformShell`); the app only adds its sections
 - `src/lib/markdown.ts`, `src/components/Markdown.tsx` — a small Markdown
   renderer of its own, without `dangerouslySetInnerHTML`; links only http(s)
 

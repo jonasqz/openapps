@@ -111,6 +111,10 @@ async function main(): Promise<void> {
       appIdOrName: name,
       version: manifest.version,
       gitSha,
+      // Das Manifest aus dem Quellordner, nicht das beim Anlegen gespeicherte:
+      // Sonst prueft das Gate jede neue Version gegen die erste und blockt sie
+      // (`manifest.version_mismatch`).
+      manifest,
     });
     // `unreachable` heisst lokal nur: Der Adapter kann das Gateway nicht
     // messen (kein Backend-Inventar). Als Fehler gelesen, fuehrt es in die Irre.

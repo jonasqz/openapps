@@ -46,7 +46,7 @@ import { AppShell, ListPattern, Button } from '@openapps/ui';
 | Tailwind preset | `@openapps/ui/tailwind-preset` | replaces Tailwind's palettes with the tokens |
 | Components | `@openapps/ui` | Button, Input, Select, Checkbox, Table, Dialog, Toast, Badge, Card, Tabs, Pagination, EmptyState, ErrorState, Spinner |
 | Patterns | `@openapps/ui` | ListPattern, FormPattern, DetailPattern, EmptyState, ErrorState |
-| App shell | `@openapps/ui` | AppShell, AppSwitcher, UserMenu, NotificationBell |
+| App shell | `@openapps/ui` | PlatformShell (shared sidebar, ADR 0017), AppShell, AppSwitcher, UserMenu, NotificationBell |
 | Strings | `@openapps/ui` | `strings`, `overrideStrings`, `defaultStrings` |
 | Linter | `@openapps/ui/eslint-config`, `@openapps/ui/lint/rules` | `no-raw-color`, `no-foreign-ui`, `require-list-states`, `require-form-states`, `no-server-function-props` |
 
@@ -244,7 +244,35 @@ pnpm --filter @openapps/ui showcase    # showcase at http://localhost:4321
 ```
 
 The showcase (`showcase/`) shows all components, all five patterns and the
-shell — with a switch for system / light / dark.
+`PlatformShell` (theme in the account menu). States via the address:
+`?platform=none`, `?apps=many`, `?user=loading`, `?sections=none`;
+`?shell=app` shows the older `AppShell`.
+
+## PlatformShell
+
+The shared sidebar of every app (ADR 0017). The platform data comes from the
+gateway; the app only passes its own sections:
+
+```tsx
+import { PlatformShell, themeScript } from '@openapps/ui';
+
+// In <head>, so a stored theme applies before the first paint:
+<script dangerouslySetInnerHTML={{ __html: themeScript }} />
+
+<PlatformShell
+  platform={navigation}          // from getNavigation() in @openapps/sdk, or null
+  appName="crm"
+  appTitle="CRM"
+  sections={[{ items: [{ id: 'companies', label: 'Companies', href: '/crm/companies', current: true }] }]}
+  user={user}                    // null = loading skeleton
+>
+  {children}
+</PlatformShell>
+```
+
+`platform: null` shows only the current app and no platform links. Any href
+that is not `http(s)://…` or `/…` is never rendered. Theme (`data-theme` on
+`<html>`) and the collapsed rail are remembered in `localStorage`.
 
 ## Rules for app agents
 

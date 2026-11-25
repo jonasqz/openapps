@@ -22,7 +22,14 @@ import {
 import type { TableColumn } from '../src/index.ts';
 import { DetailPattern, FormPattern, ListPattern } from '../src/index.ts';
 import { AppShell } from '../src/shell/AppShell.tsx';
-import type { ShellApp, ShellNavGroup, ShellNotification, ShellUser } from '../src/shell/types.ts';
+import { PlatformShell } from '../src/shell/PlatformShell.tsx';
+import type {
+  ShellApp,
+  ShellNavGroup,
+  ShellNotification,
+  ShellPlatform,
+  ShellUser,
+} from '../src/shell/types.ts';
 
 type Theme = 'system' | 'light' | 'dark';
 
@@ -453,7 +460,102 @@ function Content(): JSX.Element {
   );
 }
 
+/**
+ * Varianten ueber die Adresse, damit jeder Zustand der Leiste direkt
+ * aufrufbar ist:
+ *   ?shell=app        alte AppShell mit Kopfzeile
+ *   ?platform=none    keine Navigationsdaten (nur diese App)
+ *   ?apps=many        viele Apps, nach Kategorie gruppiert
+ *   ?user=loading     Nutzer laedt noch
+ *   ?sections=none    App ohne eigene Bereiche
+ */
+const params = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search);
+
+const PLATFORM_URL = 'https://admin.example.test';
+
+const PLATFORM_APPS: ShellPlatform['apps'] = [
+  { name: 'leave', title: 'Leave', category: 'People', href: 'https://apps.example.test/leave' },
+  { name: 'crm', title: 'CRM', category: 'Sales', href: 'https://apps.example.test/crm' },
+  { name: 'tasks', title: 'Tasks', category: null, href: 'https://apps.example.test/tasks' },
+  { name: 'expenses', title: 'Expense reports', category: 'People', href: 'https://apps.example.test/expenses' },
+  // Faellt weg: keine sichere Adresse.
+  { name: 'evil', title: 'Evil', category: null, href: 'javascript:alert(1)' },
+];
+
+const MANY_APPS: ShellPlatform['apps'] = [
+  ...PLATFORM_APPS,
+  { name: 'quotes', title: 'Quotes', category: 'Sales', href: 'https://apps.example.test/quotes' },
+  { name: 'contracts', title: 'Contracts', category: 'Sales', href: 'https://apps.example.test/contracts' },
+  { name: 'inventory', title: 'Inventory', category: 'Operations', href: 'https://apps.example.test/inventory' },
+  { name: 'fleet', title: 'Fleet', category: 'Operations', href: 'https://apps.example.test/fleet' },
+  { name: 'onboarding', title: 'Onboarding checklist for new colleagues', category: 'People', href: 'https://apps.example.test/onboarding' },
+  { name: 'wiki', title: 'Wiki', category: null, href: 'https://apps.example.test/wiki' },
+  { name: 'rooms', title: 'Room booking', category: 'Operations', href: 'https://apps.example.test/rooms' },
+];
+
+const PLATFORM: ShellPlatform = {
+  platformUrl: PLATFORM_URL,
+  apps: params.get('apps') === 'many' ? MANY_APPS : PLATFORM_APPS,
+  canCreateApps: true,
+  isAdmin: true,
+};
+
+const PLATFORM_SECTIONS: readonly ShellNavGroup[] = [
+  {
+    title: 'Requests',
+    items: [
+      { id: 'open', label: 'Open requests', href: '/leave', badge: 3 },
+      { id: 'all', label: 'All requests', href: '/leave/all' },
+      { id: 'calendar', label: 'Calendar', href: '/leave/calendar' },
+      { id: 'lang', label: LONG, href: '/leave/long' },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
+      { id: 'rules', label: 'Rules', href: '/leave/rules' },
+      { id: 'export', label: 'Export', href: '/leave/export', badge: 120 },
+    ],
+  },
+];
+
+function PlatformShowcase(): JSX.Element {
+  const [path, setPath] = useState('/leave');
+  const sections =
+    params.get('sections') === 'none'
+      ? []
+      : PLATFORM_SECTIONS.map((group) => ({
+          ...group,
+          items: group.items.map((item) => ({ ...item, current: item.href === path })),
+        }));
+  return (
+    <PlatformShell
+      platform={params.get('platform') === 'none' ? null : PLATFORM}
+      appName="leave"
+      appTitle="Leave"
+      sections={sections}
+      user={params.get('user') === 'loading' ? null : USER}
+      onNavigate={setPath}
+    >
+      <div className="flex min-w-0 flex-col gap-8">
+        <header className="min-w-0">
+          <p className="font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">PlatformShell</p>
+          <h1 className="mt-1 font-display text-4xl tracking-display text-fg">Open requests</h1>
+          <p className="mt-2 max-w-2xl text-sm text-fg-muted">
+            The shared sidebar every app gets (ADR 0017). Theme lives in the account menu at the bottom left.
+          </p>
+        </header>
+        <Content />
+      </div>
+    </PlatformShell>
+  );
+}
+
 export function Showcase(): JSX.Element {
+  return params.get('shell') === 'app' ? <AppShellShowcase /> : <PlatformShowcase />;
+}
+
+function AppShellShowcase(): JSX.Element {
   const [theme, setTheme] = useState<Theme>('system');
 
   useEffect(() => {

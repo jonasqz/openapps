@@ -15,8 +15,9 @@
  * steht in `auth-postgres.spec.ts` — das braucht eine echte Datenbank.
  */
 
+import { getNavigation, NAV_HEADER, NAV_SIGNATURE_HEADER } from '@openapps/sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createApp, grant, revoke } from '../src/domain';
+import { appAuthSecret, createApp, grant, revoke } from '../src/domain';
 import { resetSessionReader, setSessionReader } from '../src/lib/actor';
 import { setDomainContext } from '../src/lib/runtime';
 import { createBetterAuthSessionReader, denyAllSessions } from '../src/lib/session';
@@ -347,5 +348,144 @@ describe('Forward-Auth mit Session', () => {
     );
     const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
     expect(response.status).toBe(302);
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* Navigation der gemeinsamen Leiste (ADR 0017)                              */
+  /* ------------------------------------------------------------------------ */
+
+  /** Liest die Navigation so, wie die App `projekte` sie liest. */
+  function navAsApp(response: Response, appName = 'projekte') {
+    return getNavigation(response.headers, {
+      secret: appAuthSecret({
+        masterSecret: ENV.OPENAPPS_AUTH_MASTER_SECRET ?? '',
+        appId: appName,
+        generation: 1,
+      }),
+      appId: appName,
+      appHost: APPS_DOMAIN,
+      now: () => harness.ctx.clock.now().getTime(),
+    });
+  }
+
+  async function zweiteApp(name: string): Promise<void> {
+    await createApp(harness.ctx, { actor: admin, name, manifest: manifest(name) });
+  }
+
+  function alsLena(groups: readonly string[] = []): void {
+    setSessionReader(
+      createBetterAuthSessionReader({
+        auth: sessionFor({ id: 'u-lena', email: 'lena@example.com' }),
+        groups: membershipTable({ 'lena@example.com': groups }),
+      }),
+    );
+  }
+
+  it('gibt der Leiste nur die Apps, die die Person lesen darf', async () => {
+    const app = await appOnPath();
+    await zweiteApp('aufgaben');
+    await zweiteApp('geheim');
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'user', id: 'u-lena' },
+      verb: 'read',
+      resource: { kind: 'app', id: app.id },
+    });
+    // Freigabe auf den Namen statt die Id: zaehlt genauso (canAccessApp).
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'group', id: 'team' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'aufgaben' },
+    });
+    alsLena(['team']);
+
+    const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
+    expect(response.status).toBe(200);
+    const nav = navAsApp(response);
+    expect(nav).not.toBeNull();
+    expect(nav?.apps.map((a) => a.name).sort()).toEqual(['aufgaben', 'projekte']);
+    expect(nav?.apps.find((a) => a.name === 'projekte')).toEqual({
+      name: 'projekte',
+      title: 'projekte',
+      category: 'test',
+      href: `https://${APPS_DOMAIN}${APP_PATH}`,
+    });
+    expect(nav?.platformUrl).toBe(`https://${CONTROL_PLANE_HOST}`);
+    // Keine Freigabe auf `app:*`, keine Mitgliedschaft in platform-admins.
+    expect(nav?.canCreateApps).toBe(false);
+    expect(nav?.isAdmin).toBe(false);
+  });
+
+  it('bindet die Navigation an die aufgerufene App', async () => {
+    const app = await appOnPath();
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'user', id: 'u-lena' },
+      verb: 'read',
+      resource: { kind: 'app', id: app.id },
+    });
+    alsLena();
+    const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
+    expect(response.status).toBe(200);
+    // Mit dem Secret einer anderen App gelesen: keine Navigation.
+    expect(navAsApp(response, 'aufgaben')).toBeNull();
+  });
+
+  it('zeigt dem Administrator alle Apps und dass er Apps anlegen darf', async () => {
+    await appOnPath();
+    await zweiteApp('aufgaben');
+    setSessionReader(
+      createBetterAuthSessionReader({
+        auth: sessionFor({ id: 'u-chef', email: 'chef@example.com' }),
+        groups: membershipTable({ 'chef@example.com': ['platform-admins'] }),
+      }),
+    );
+    const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
+    const nav = navAsApp(response);
+    expect(nav?.apps.map((a) => a.name).sort()).toEqual(['aufgaben', 'projekte']);
+    expect(nav?.canCreateApps).toBe(true);
+    expect(nav?.isAdmin).toBe(true);
+  });
+
+  it('gibt bei einem Nein keine Navigation mit', async () => {
+    await appOnPath();
+    await zweiteApp('aufgaben');
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'user', id: 'u-lena' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'aufgaben' },
+    });
+    alsLena();
+    const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get(NAV_HEADER)).toBeNull();
+    expect(response.headers.get(NAV_SIGNATURE_HEADER)).toBeNull();
+  });
+
+  it('laesst durch und setzt beide Nav-Header leer, wenn die Navigation scheitert', async () => {
+    const app = await appOnPath();
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'user', id: 'u-lena' },
+      verb: 'read',
+      resource: { kind: 'app', id: app.id },
+    });
+    alsLena();
+    // Die Liste aller Apps braucht nur die Navigation, nicht die Entscheidung.
+    const apps = harness.ctx.apps as { listAll: () => Promise<unknown> };
+    const original = apps.listAll;
+    apps.listAll = () => Promise.reject(new Error('db weg'));
+    try {
+      const response = await GET(appRequest({ cookie: 'better-auth.session=abc' }));
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-auth-user-id')).toBe('u-lena');
+      expect(response.headers.get(NAV_HEADER)).toBe('');
+      expect(response.headers.get(NAV_SIGNATURE_HEADER)).toBe('');
+      expect(navAsApp(response)).toBeNull();
+    } finally {
+      apps.listAll = original;
+    }
   });
 });

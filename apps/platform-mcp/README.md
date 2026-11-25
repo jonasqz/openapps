@@ -15,6 +15,7 @@ and forwards the apps' tools — each only to callers that have a grant.
 | `grant`          | grant a permission                                                                |
 | `revoke`         | revoke a grant                                                                    |
 | `list_grants`    | look up grants                                                                    |
+| `whoami`         | who you are: identity, groups, the apps you can open, your grants                 |
 
 Group management (migrations 0009 and 0011 — a group is a subject **and** a
 resource):
