@@ -44,9 +44,9 @@ import { AppShell, ListPattern, Button } from '@openapps/ui';
 | --- | --- | --- |
 | Tokens | `@openapps/ui/tokens`, `@openapps/ui/tokens.css` | colours, spacing, sizes, type, radii, shadows, z-layers |
 | Tailwind preset | `@openapps/ui/tailwind-preset` | replaces Tailwind's palettes with the tokens |
-| Components | `@openapps/ui` | Button, Input, Select, Checkbox, Table, Dialog, Toast, Badge, Card, Tabs, Pagination, EmptyState, ErrorState, Spinner |
+| Components | `@openapps/ui` | Button, Input, Select, Checkbox, Table (with `searchable` and `toolbar`), Dialog, Toast, Badge, Card, Tabs, Pagination, EmptyState, ErrorState, Spinner, PageHeader, Stat, StatGroup, Icon, Kbd, Skeleton |
 | Patterns | `@openapps/ui` | ListPattern, FormPattern, DetailPattern, EmptyState, ErrorState |
-| App shell | `@openapps/ui` | AppShell, AppSwitcher, UserMenu, NotificationBell |
+| App shell | `@openapps/ui` | AppShell (with ⌘K command palette), AppSwitcher, UserMenu, NotificationBell, CommandPalette |
 | Strings | `@openapps/ui` | `strings`, `overrideStrings`, `defaultStrings` |
 | Linter | `@openapps/ui/eslint-config`, `@openapps/ui/lint/rules` | `no-raw-color`, `no-foreign-ui`, `require-list-states`, `require-form-states`, `no-server-function-props` |
 

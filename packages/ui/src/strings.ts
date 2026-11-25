@@ -127,6 +127,29 @@ export interface UiStrings {
   readonly developer: {
     readonly toastProviderMissing: string;
   };
+  readonly pageHeader: {
+    readonly breadcrumb: string;
+  };
+  readonly commandPalette: {
+    /** Text im Suchknopf der Shell. */
+    readonly trigger: string;
+    readonly label: string;
+    readonly placeholder: string;
+    readonly empty: string;
+    readonly navigationGroup: string;
+    readonly appsGroup: string;
+    readonly hint: string;
+    readonly escapeKey: string;
+  };
+  readonly tableSearch: {
+    readonly label: (caption: string) => string;
+    readonly placeholder: string;
+    /** „3 of 12" */
+    readonly count: (shown: number, total: number) => string;
+    readonly noMatchTitle: string;
+    readonly noMatchDescription: (query: string) => string;
+    readonly clear: string;
+  };
 }
 
 /** Die ausgelieferten Texte, englisch (ADR 0016). */
@@ -223,6 +246,27 @@ const en: UiStrings = {
   },
   developer: {
     toastProviderMissing: 'useToast needs a <ToastProvider> above it.',
+  },
+  pageHeader: {
+    breadcrumb: 'Breadcrumb',
+  },
+  commandPalette: {
+    trigger: 'Search or jump to…',
+    label: 'Command palette',
+    placeholder: 'Type a page or app name…',
+    empty: 'No matches',
+    navigationGroup: 'Go to',
+    appsGroup: 'Apps',
+    hint: 'Enter to open · Esc to close',
+    escapeKey: 'Esc',
+  },
+  tableSearch: {
+    label: (caption) => `Search ${caption}`,
+    placeholder: 'Filter…',
+    count: (shown, total) => (shown === total ? `${total}` : `${shown} of ${total}`),
+    noMatchTitle: 'No matches',
+    noMatchDescription: (query) => `Nothing matches “${query}”. Try a shorter term.`,
+    clear: 'Clear filter',
   },
 };
 

@@ -2,12 +2,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Klickdummy der Control Plane im Design aus ADR 0010: Schwarz/Weiss, eine Akzentfarbe Blaugrau,
-   Haarlinien statt Schatten, Mono-Labels in Versalien, Serife nur fuer Seitentitel und grosse Zahlen.
-   Layout: App-Shell aus @openapps/ui -- Kopfzeile, Navigation links (15rem), Inhalt rechts;
-   unter 768px wird die Navigation zur Schublade.
-   Der Token-Block unten ist 1:1 aus packages/ui/src/tokens/tokens.css kopiert (generiert aus tokens.ts).
-   Alles darunter benutzt nur diese Variablen, keine eigenen Farbwerte. */
+/* Klickdummy der Control Plane, Stand ADR 0010 und ADR 0017: Schwarz/Weiss mit einer Akzentfarbe
+   Blaugrau, Haarlinien, Mono-Labels, Serife nur fuer Titel und Kennzahlen. Produktsprache Englisch
+   (ADR 0016). Neu in Runde 2: Uebersicht, Befehlspalette (Cmd+K), Tabellen mit Suche, Filter und
+   Sortierung, Bestaetigung vor Widerruf/Sperren mit Rueckgaengig, Ladezustand, Eigenschaften-Spalte.
+   Der Token-Block ist 1:1 aus packages/ui/src/tokens/tokens.css kopiert (generiert aus tokens.ts);
+   alles darunter benutzt nur diese Variablen. */
 /* Hell ist die Voreinstellung. */
 :root {
   --oa-space-0: 0rem;
@@ -255,157 +255,245 @@
 /* ---------- Grundlage ---------- */
 *,*::before,*::after{box-sizing:border-box;border-color:var(--oa-color-border)}
 html{font-family:var(--oa-font-sans);-webkit-text-size-adjust:100%;background:var(--oa-color-bg)}
-html,body{height:100%}
+html,body{min-height:100%}
 body{margin:0;background:var(--oa-color-bg);color:var(--oa-color-fg);font-size:var(--oa-text-sm);line-height:var(--oa-leading-sm);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--oa-color-bg)}
 ::selection{background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg)}
 button,input,select{font:inherit;color:inherit}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--oa-color-focus);outline-offset:2px}
-.mono{font-family:var(--oa-font-mono);font-size:.8125rem;letter-spacing:0}
+svg.i{width:1rem;height:1rem;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--oa-font-mono);font-size:.8125rem}
 .muted{color:var(--oa-color-fg-muted)}
 .subtle{color:var(--oa-color-fg-subtle)}
-/* Das Mono-Label: Versalien, weite Laufweite. Der wiederkehrende Akzent. */
-.label,.eyebrow,.crumbs,.navgroup h3,th,.card h2,.section h2,.pop h3,.field label,.appbrand .p,.kpi .k{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);font-weight:500;text-transform:uppercase;letter-spacing:var(--oa-tracking-label);color:var(--oa-color-fg-muted)}
-.x{color:var(--oa-color-fg-subtle);padding-inline:.35em}
+.num{font-variant-numeric:tabular-nums}
+.right{text-align:right}
+.sr{position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.label,.navgroup h3,th,.card h2,.section-h,.pop h3,.field label,.props dt,.stat .k,.feed .t,.crumbs{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);font-weight:500;text-transform:uppercase;letter-spacing:var(--oa-tracking-label);color:var(--oa-color-fg-muted)}
+kbd{display:inline-flex;align-items:center;border:1px solid var(--oa-color-border);background:var(--oa-color-surface);border-radius:var(--oa-radius-sm);padding:0 .3rem;font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:1.125rem;color:var(--oa-color-fg-muted)}
 
-/* ---------- Hinweisband: Klickdummy ---------- */
-.demo{border-bottom:1px solid var(--oa-color-border);background:var(--oa-color-bg-subtle);color:var(--oa-color-fg-muted);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);letter-spacing:.02em;padding-block:var(--oa-space-2);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;gap:var(--oa-space-1) var(--oa-space-4);align-items:center}
-.demo strong{text-transform:uppercase;letter-spacing:var(--oa-tracking-label);color:var(--oa-color-fg);font-weight:500}
-.demo label{display:flex;gap:var(--oa-space-2);align-items:center;margin-left:auto;text-transform:uppercase;letter-spacing:var(--oa-tracking-label)}
-.demo select{background:var(--oa-color-bg);border:1px solid var(--oa-color-border-strong);border-radius:var(--oa-radius-full);padding:var(--oa-space-0_5) var(--oa-space-2);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg)}
-@media (max-width:640px){.demo label{margin-left:0}}
+/* ---------- Demo-Band ---------- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--oa-space-1) var(--oa-space-4);border-bottom:1px solid var(--oa-color-border);background:var(--oa-color-bg-subtle);color:var(--oa-color-fg-muted);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);padding-block:var(--oa-space-1_5);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+.demo strong{color:var(--oa-color-fg);font-weight:500;text-transform:uppercase;letter-spacing:var(--oa-tracking-label)}
+.demo label{display:flex;align-items:center;gap:var(--oa-space-2);margin-left:auto;text-transform:uppercase;letter-spacing:var(--oa-tracking-label)}
+.demo select{background:var(--oa-color-bg);border:1px solid var(--oa-color-border-strong);border-radius:var(--oa-radius-full);padding:1px var(--oa-space-2);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg)}
+@media (max-width:640px){.demo label{margin-left:0}.demo .why{display:none}}
 
-/* ---------- Shell ---------- */
-.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;height:3.5rem;display:flex;align-items:center;gap:var(--oa-space-2);border-bottom:1px solid var(--oa-color-border);background:var(--oa-color-bg);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
-.brand{display:flex;gap:var(--oa-space-2);align-items:center;white-space:nowrap;font-family:var(--oa-font-mono);font-size:var(--oa-text-xs);font-weight:500;text-transform:uppercase;letter-spacing:var(--oa-tracking-loose);color:var(--oa-color-fg);text-decoration:none}
+/* ---------- Shell: Sidebar volle Hoehe, schmale Kopfzeile ---------- */
+.app{display:grid;grid-template-columns:var(--oa-size-nav) minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;align-self:start;height:100vh;display:flex;flex-direction:column;gap:var(--oa-space-5);border-right:1px solid var(--oa-color-border);background:var(--oa-color-bg);padding:var(--oa-space-4) var(--oa-space-3);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:var(--oa-space-2);padding:var(--oa-space-1) var(--oa-space-2);text-decoration:none;font-family:var(--oa-font-mono);font-size:var(--oa-text-xs);font-weight:500;letter-spacing:var(--oa-tracking-loose);text-transform:uppercase;color:var(--oa-color-fg);white-space:nowrap;min-width:0}
 .brand::before{content:"";width:.625rem;height:.625rem;background:var(--oa-color-primary);flex-shrink:0}
-.brand small{font-size:inherit;font-weight:400;color:var(--oa-color-fg-subtle);letter-spacing:var(--oa-tracking-label)}
-.top .spacer{flex:1}
-.iconbtn{width:2.25rem;height:2.25rem;border-radius:var(--oa-radius-full);border:1px solid transparent;background:none;display:grid;place-items:center;cursor:pointer;color:var(--oa-color-fg-muted);position:relative;transition:background-color .15s,color .15s}
-.iconbtn:hover{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
-.iconbtn svg{width:1.125rem;height:1.125rem}
-.dot{position:absolute;top:.4rem;right:.45rem;width:.4375rem;height:.4375rem;border-radius:var(--oa-radius-full);background:var(--oa-color-danger);box-shadow:0 0 0 2px var(--oa-color-bg)}
-.avatar{width:1.875rem;height:1.875rem;border-radius:var(--oa-radius-full);background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg);display:grid;place-items:center;font-family:var(--oa-font-mono);font-weight:500;font-size:var(--oa-text-2xs);letter-spacing:.04em}
-.menu-toggle{display:none}
-.layout{display:grid;grid-template-columns:var(--oa-size-nav) minmax(0,1fr);min-height:calc(100% - 3.5rem)}
-nav.side{border-right:1px solid var(--oa-color-border);background:var(--oa-color-bg);padding:var(--oa-space-6) var(--oa-space-3);display:flex;flex-direction:column;gap:var(--oa-space-8)}
-@media (min-width:768px){nav.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 3.5rem);align-self:start;height:calc(100vh - 3.5rem);overflow-y:auto}}
+.brand small{font-size:inherit;font-weight:400;color:var(--oa-color-fg-subtle);letter-spacing:var(--oa-tracking-label);overflow:hidden;text-overflow:ellipsis}
+.searchbtn{display:flex;align-items:center;gap:var(--oa-space-2);width:100%;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-md);background:var(--oa-color-bg);padding:var(--oa-space-2) var(--oa-space-3);color:var(--oa-color-fg-subtle);cursor:pointer;text-align:left;transition:border-color .15s,color .15s}
+.searchbtn:hover{border-color:var(--oa-color-border-strong);color:var(--oa-color-fg-muted)}
+.searchbtn span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .navgroup{display:flex;flex-direction:column;gap:1px}
 .navgroup h3{margin:0 0 var(--oa-space-2) var(--oa-space-3)}
-.navlink{display:flex;align-items:center;justify-content:space-between;gap:var(--oa-space-2);padding:var(--oa-space-2) var(--oa-space-3);border-radius:var(--oa-radius-sm);color:var(--oa-color-fg-muted);text-decoration:none;transition:background-color .15s,color .15s}
+.navlink{position:relative;display:flex;align-items:center;gap:var(--oa-space-2_5);padding:var(--oa-space-2) var(--oa-space-3);border-radius:var(--oa-radius-sm);color:var(--oa-color-fg-muted);text-decoration:none;transition:background-color .15s,color .15s}
+.navlink .i{color:var(--oa-color-fg-subtle)}
 .navlink:hover{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
-.navlink[aria-current="page"]{background:var(--oa-color-surface-hover);color:var(--oa-color-fg);font-weight:500;box-shadow:inset 2px 0 0 var(--oa-color-primary)}
+.navlink[aria-current="page"]{background:var(--oa-color-surface-hover);color:var(--oa-color-fg);font-weight:500}
+.navlink[aria-current="page"] .i{color:var(--oa-color-fg)}
+.navlink[aria-current="page"]::before{content:"";position:absolute;left:0;top:.25rem;bottom:.25rem;width:2px;background:var(--oa-color-primary)}
+.navlink .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .navlink .count{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle);font-variant-numeric:tabular-nums}
-main{min-width:0;padding-block:var(--oa-space-10) var(--oa-space-16,4rem);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-@media (min-width:768px){main{padding-left:var(--oa-space-12);padding-right:max(var(--oa-space-12),env(safe-area-inset-right,0px))}}
-.page{max-width:68rem;display:flex;flex-direction:column;gap:var(--oa-space-8)}
-
+.navlink .count.warn{color:var(--oa-color-warning)}
+.me{margin-top:auto;display:flex;align-items:center;gap:var(--oa-space-2_5);width:100%;border:0;border-top:1px solid var(--oa-color-border);background:none;padding:var(--oa-space-4) var(--oa-space-2) var(--oa-space-1);cursor:pointer;text-align:left;border-radius:0}
+.me:hover .n{text-decoration:underline;text-underline-offset:3px}
+.me .who{display:flex;flex-direction:column;min-width:0;flex:1}
+.me .n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me .e{font-size:var(--oa-text-xs);color:var(--oa-color-fg-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.avatar{width:1.875rem;height:1.875rem;border-radius:var(--oa-radius-full);background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg);display:grid;place-items:center;font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);font-weight:500;flex-shrink:0}
+.col{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:20;height:3.25rem;display:flex;align-items:center;gap:var(--oa-space-2);border-bottom:1px solid var(--oa-color-border);background:var(--oa-color-bg);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(12px,env(safe-area-inset-right,0px))}
+@media (min-width:768px){.top{padding-inline:var(--oa-space-10) var(--oa-space-6)}}
+.top .crumbs{display:flex;align-items:center;gap:var(--oa-space-2);min-width:0;flex:1;overflow:hidden;white-space:nowrap}
+.top .crumbs a{text-decoration:none;color:var(--oa-color-fg-muted)}
+.top .crumbs a:hover{color:var(--oa-color-fg)}
+.top .crumbs .cur{color:var(--oa-color-fg);overflow:hidden;text-overflow:ellipsis}
+.top .crumbs .x{color:var(--oa-color-fg-subtle)}
+.top .tools{display:flex;align-items:center;gap:var(--oa-space-1)}
+.iconbtn{width:2.25rem;height:2.25rem;border-radius:var(--oa-radius-full);border:1px solid transparent;background:none;display:grid;place-items:center;cursor:pointer;color:var(--oa-color-fg-muted);position:relative;transition:background-color .15s,color .15s;flex-shrink:0}
+.iconbtn:hover{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
+.dot{position:absolute;top:.45rem;right:.5rem;width:.4375rem;height:.4375rem;border-radius:var(--oa-radius-full);background:var(--oa-color-danger);box-shadow:0 0 0 2px var(--oa-color-bg)}
+.menu-toggle,.mbrand{display:none}
+main{min-width:0;padding:var(--oa-space-10) max(16px,env(safe-area-inset-right,0px)) var(--oa-space-16) max(16px,env(safe-area-inset-left,0px))}
+@media (min-width:768px){main{padding-inline:var(--oa-space-10)}}
+.page{max-width:72rem;display:flex;flex-direction:column;gap:var(--oa-space-8)}
 @media (max-width:767px){
-  .menu-toggle{display:grid}
-  .layout{grid-template-columns:minmax(0,1fr)}
-  nav.side{position:fixed;z-index:40;top:0;bottom:0;left:0;width:min(var(--oa-size-nav),85vw);transform:translateX(-100%);transition:transform .2s ease;padding-top:calc(env(safe-area-inset-top,0px) + var(--oa-space-6));padding-left:max(var(--oa-space-3),env(safe-area-inset-left,0px));box-shadow:var(--oa-shadow-lg)}
-  body.nav-open nav.side{transform:none}
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:fixed;z-index:40;left:0;top:0;bottom:0;height:auto;width:min(var(--oa-size-drawer),86vw);transform:translateX(-100%);transition:transform .2s ease;box-shadow:var(--oa-shadow-lg);padding-top:calc(env(safe-area-inset-top,0px) + var(--oa-space-4))}
+  body.nav-open .side{transform:none}
   .scrim{position:fixed;inset:0;z-index:35;background:var(--oa-color-overlay)}
+  .menu-toggle{display:grid}
+  .top .crumbs{display:none}
+  .mbrand{display:flex;flex:1;min-width:0}
   .hide-sm{display:none}
-  main{padding-top:var(--oa-space-8)}
+  main{padding-top:var(--oa-space-6)}
   .page{gap:var(--oa-space-6)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-/* ---------- Kopf einer Seite ---------- */
-.eyebrow{display:flex;align-items:center;gap:var(--oa-space-3);margin-bottom:calc(-1 * var(--oa-space-4))}
-.eyebrow::after{content:"";flex:1;height:1px;background:var(--oa-color-border)}
-.head{display:flex;flex-wrap:wrap;gap:var(--oa-space-4) var(--oa-space-6);align-items:flex-end;justify-content:space-between;padding-bottom:var(--oa-space-8);border-bottom:1px solid var(--oa-color-border)}
-.head > div:first-child{min-width:0;flex:1 1 24rem}
-.head h1{margin:0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-5xl);line-height:var(--oa-leading-5xl);letter-spacing:var(--oa-tracking-display);text-wrap:balance;display:flex;flex-wrap:wrap;align-items:center;gap:var(--oa-space-2) var(--oa-space-4)}
-.head h1 .badge{font-family:var(--oa-font-mono);letter-spacing:var(--oa-tracking-label)}
-.head p{margin:var(--oa-space-3) 0 0;color:var(--oa-color-fg-muted);max-width:60ch;font-size:var(--oa-text-base);line-height:var(--oa-leading-base);text-wrap:pretty}
-.crumbs{margin-bottom:var(--oa-space-3)}
-.crumbs a{color:inherit;text-decoration:none;border-bottom:1px solid var(--oa-color-border-strong)}
-.crumbs a:hover{color:var(--oa-color-fg);border-color:var(--oa-color-fg)}
+/* ---------- Seitenkopf ---------- */
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--oa-space-4) var(--oa-space-6);padding-bottom:var(--oa-space-6);border-bottom:1px solid var(--oa-color-border)}
+.head > div:first-child{min-width:0;flex:1 1 26rem}
+.head .eb{margin-bottom:var(--oa-space-3)}
+.head h1{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--oa-space-2) var(--oa-space-4);font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl);letter-spacing:var(--oa-tracking-display);text-wrap:balance}
+.head p{margin:var(--oa-space-2) 0 0;max-width:62ch;color:var(--oa-color-fg-muted);text-wrap:pretty}
 .actions{display:flex;flex-wrap:wrap;gap:var(--oa-space-2)}
-@media (max-width:640px){.head h1{font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl)}.head{padding-bottom:var(--oa-space-6)}.head p{font-size:var(--oa-text-sm);line-height:var(--oa-leading-sm)}}
+@media (max-width:640px){.head h1{font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl)}}
 
-/* ---------- Knöpfe: Pillen ---------- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--oa-space-1_5);min-height:2.375rem;padding:0 var(--oa-space-5);border-radius:var(--oa-radius-full);border:1px solid var(--oa-color-border-strong);background:var(--oa-color-bg);color:var(--oa-color-fg);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background-color .15s,border-color .15s,color .15s}
+/* ---------- Knoepfe ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--oa-space-1_5);min-height:2.25rem;padding:0 var(--oa-space-4);border-radius:var(--oa-radius-full);border:1px solid var(--oa-color-border-strong);background:var(--oa-color-bg);color:var(--oa-color-fg);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background-color .15s,border-color .15s,color .15s}
 .btn:hover{border-color:var(--oa-color-fg);background:var(--oa-color-surface)}
 .btn.primary{background:var(--oa-color-primary);border-color:var(--oa-color-primary);color:var(--oa-color-primary-fg)}
 .btn.primary:hover{background:var(--oa-color-primary-hover);border-color:var(--oa-color-primary-hover)}
 .btn.danger{background:var(--oa-color-danger);border-color:var(--oa-color-danger);color:var(--oa-color-danger-fg)}
+.btn.danger:hover{background:var(--oa-color-danger-hover);border-color:var(--oa-color-danger-hover)}
 .btn.ghost{border-color:transparent;background:none;color:var(--oa-color-fg-muted)}
 .btn.ghost:hover{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
+.btn.ghost.dangerous:hover{color:var(--oa-color-danger)}
 .btn.sm{min-height:1.875rem;padding:0 var(--oa-space-3);font-size:var(--oa-text-xs)}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 .btn[disabled]:hover{border-color:var(--oa-color-border-strong);background:var(--oa-color-bg)}
 
-/* ---------- Badge: Mono in Versalien, Quadrat in Textfarbe ---------- */
+/* ---------- Badge ---------- */
 .badge{display:inline-flex;align-items:center;gap:var(--oa-space-1_5);border:1px solid var(--oa-color-border);background:var(--oa-color-surface);color:var(--oa-color-fg-muted);border-radius:var(--oa-radius-sm);padding:0 var(--oa-space-1_5);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);font-weight:500;line-height:1.25rem;letter-spacing:var(--oa-tracking-label);text-transform:uppercase;white-space:nowrap;vertical-align:middle}
+.badge::before{content:"";width:.375rem;height:.375rem;background:currentColor;flex-shrink:0}
+.badge.plain::before{display:none}
 .badge.success{background:var(--oa-color-success-subtle);color:var(--oa-color-success-subtle-fg);border-color:var(--oa-color-success-subtle)}
 .badge.warning{background:var(--oa-color-warning-subtle);color:var(--oa-color-warning-subtle-fg);border-color:var(--oa-color-warning-subtle)}
 .badge.danger{background:var(--oa-color-danger-subtle);color:var(--oa-color-danger-subtle-fg);border-color:var(--oa-color-danger-subtle)}
 .badge.primary{background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg);border-color:var(--oa-color-primary-subtle)}
-.badge::before{content:"";width:.375rem;height:.375rem;background:currentColor;flex-shrink:0}
-.badge.plain::before{display:none}
-.head h1 .badge{font-size:var(--oa-text-2xs)}
+
+/* ---------- Werkzeugleiste ueber Listen ---------- */
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--oa-space-2) var(--oa-space-3);margin-bottom:var(--oa-space-3)}
+.search{position:relative;display:flex;align-items:center;flex:1 1 14rem;max-width:20rem;min-width:0}
+.search .i{position:absolute;left:.75rem;color:var(--oa-color-fg-subtle);pointer-events:none}
+.search input{width:100%;height:2.25rem;border:1px solid var(--oa-color-border-strong);border-radius:var(--oa-radius-md);background:var(--oa-color-bg);padding:0 2.25rem 0 2.25rem;transition:border-color .15s}
+.search input:hover{border-color:var(--oa-color-fg-muted)}
+.search input::placeholder{color:var(--oa-color-fg-subtle)}
+.search kbd{position:absolute;right:.5rem}
+.seg{display:inline-flex;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-full);padding:2px;background:var(--oa-color-bg)}
+.seg button{border:0;background:none;border-radius:var(--oa-radius-full);padding:0 var(--oa-space-3);height:1.75rem;color:var(--oa-color-fg-muted);font-size:var(--oa-text-xs);font-weight:500;cursor:pointer;white-space:nowrap;transition:background-color .15s,color .15s}
+.seg button:hover{color:var(--oa-color-fg)}
+.seg button[aria-pressed="true"]{background:var(--oa-color-fg);color:var(--oa-color-bg)}
+.count{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.toolbar .spacer{flex:1}
 
 /* ---------- Tabelle ---------- */
-.tablewrap{overflow-x:auto;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg)}
+.tablewrap{position:relative;overflow-x:auto;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg)}
 table{width:100%;border-collapse:collapse;text-align:left}
-th{border-bottom:1px solid var(--oa-color-border);padding:var(--oa-space-3) var(--oa-space-4);white-space:nowrap}
-td{border-bottom:1px solid var(--oa-color-border);padding:var(--oa-space-3_5,.875rem) var(--oa-space-4);vertical-align:middle}
+th{border-bottom:1px solid var(--oa-color-border);padding:var(--oa-space-2_5) var(--oa-space-4);white-space:nowrap;font-weight:500}
+th.sort{padding:0}
+th.sort button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:var(--oa-space-1);width:100%;padding:var(--oa-space-2_5) var(--oa-space-4);cursor:pointer;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit}
+th.sort button:hover{color:var(--oa-color-fg)}
+th.sort button:focus-visible{outline:2px solid var(--oa-color-focus);outline-offset:-2px}
+th.sort .arr{opacity:0;font-size:.625rem}
+th.sort[aria-sort] .arr{opacity:1;color:var(--oa-color-fg)}
+th.right button{justify-content:flex-end}
+td{border-bottom:1px solid var(--oa-color-border);padding:.8125rem var(--oa-space-4);vertical-align:middle}
 tbody tr:last-child td{border-bottom:0}
-tbody tr{transition:background-color .15s}
+tbody tr{transition:background-color .12s}
+tbody tr:hover{background:var(--oa-color-surface)}
 tbody tr.link{cursor:pointer}
-tbody tr.link:hover{background:var(--oa-color-surface)}
 tbody tr.link:hover .title{text-decoration:underline;text-decoration-color:var(--oa-color-primary);text-underline-offset:4px}
 td .title{font-weight:500}
 td .sub{font-size:var(--oa-text-xs);color:var(--oa-color-fg-subtle);margin-top:1px}
 td .sub.mono{font-size:var(--oa-text-2xs)}
-.num{font-variant-numeric:tabular-nums}
-@media (max-width:640px){th,td{padding-inline:var(--oa-space-3)}td .badge{white-space:normal;line-height:var(--oa-leading-2xs);padding-block:var(--oa-space-0_5)}td .sub,td.mono{overflow-wrap:anywhere}td .title{overflow-wrap:anywhere}}
-.right{text-align:right}
+td.act{width:1%;white-space:nowrap;text-align:right}
+td.act .btn{opacity:.0;transition:opacity .12s}
+tbody tr:hover td.act .btn,td.act .btn:focus-visible,td.act .btn.keep{opacity:1}
+@media (hover:none){td.act .btn{opacity:1}}
+.ellip{display:block;max-width:22rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tfoot{display:flex;justify-content:space-between;gap:var(--oa-space-3);margin-top:var(--oa-space-2);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle)}
+@media (max-width:640px){th,td{padding-inline:var(--oa-space-3)}td .badge{white-space:normal;line-height:var(--oa-leading-2xs);padding-block:2px}td .sub,td.mono,td .title{overflow-wrap:anywhere}.ellip{max-width:9rem}.search{max-width:none}}
 
-/* ---------- Leer- und Fehlerzustand ---------- */
-.state{border:1px dashed var(--oa-color-border-strong);border-radius:var(--oa-radius-lg);padding:var(--oa-space-16,4rem) var(--oa-space-6);text-align:center;display:flex;flex-direction:column;align-items:center;gap:var(--oa-space-3);background:var(--oa-color-bg)}
-.state::before{content:"[ \2205  leer ]";font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);letter-spacing:var(--oa-tracking-label);text-transform:uppercase;color:var(--oa-color-fg-subtle);margin-bottom:var(--oa-space-1)}
+/* ---------- Skeleton ---------- */
+.sk{display:block;height:.875rem;border-radius:var(--oa-radius-sm);background:var(--oa-color-surface-muted);animation:pulse 1.4s ease-in-out infinite}
+.sk.w1{width:40%}.sk.w2{width:65%}.sk.w3{width:85%}.sk.big{height:2.25rem;width:50%;margin-top:var(--oa-space-2)}
+@keyframes pulse{50%{opacity:.45}}
+
+/* ---------- Leer, Fehler ---------- */
+.state{border:1px dashed var(--oa-color-border-strong);border-radius:var(--oa-radius-lg);padding:var(--oa-space-16) var(--oa-space-6);text-align:center;display:flex;flex-direction:column;align-items:center;gap:var(--oa-space-3);background:var(--oa-color-bg)}
+.state::before{content:"[ \2205  empty ]";font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);letter-spacing:var(--oa-tracking-label);text-transform:uppercase;color:var(--oa-color-fg-subtle)}
+.state.nomatch::before{content:"[ 0 matches ]"}
 .state h2{margin:0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl);letter-spacing:var(--oa-tracking-display);text-wrap:balance}
-.state p{margin:0;color:var(--oa-color-fg-muted);max-width:46ch;text-wrap:pretty}
+.state p{margin:0;max-width:48ch;color:var(--oa-color-fg-muted);text-wrap:pretty}
+.state .actions{justify-content:center;margin-top:var(--oa-space-2)}
 .state.error{border-style:solid;border-color:var(--oa-color-danger);background:var(--oa-color-danger-subtle);color:var(--oa-color-danger-subtle-fg)}
-.state.error::before{content:"[ ! Fehler ]";color:var(--oa-color-danger-subtle-fg)}
+.state.error::before{content:"[ ! error ]";color:var(--oa-color-danger-subtle-fg)}
 .state.error p{color:var(--oa-color-danger-subtle-fg)}
-.state .btn{margin-top:var(--oa-space-3)}
+.state.error .ref{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs)}
 @media (max-width:640px){.state{padding:var(--oa-space-12) var(--oa-space-4)}.state h2{font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl)}}
 
-/* ---------- Karten im Haarlinien-Raster ---------- */
+/* ---------- Kennzahlen ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--oa-color-border);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);overflow:hidden}
+.stat{display:flex;flex-direction:column;background:var(--oa-color-bg);padding:var(--oa-space-4) var(--oa-space-5) var(--oa-space-5);text-decoration:none;color:inherit;min-width:0;transition:background-color .15s}
+a.stat:hover{background:var(--oa-color-surface)}
+.stat .v{margin-top:var(--oa-space-2);font-family:var(--oa-font-display);font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl);letter-spacing:var(--oa-tracking-display);font-variant-numeric:tabular-nums lining-nums}
+.stat .h{margin-top:var(--oa-space-1);font-size:var(--oa-text-xs);color:var(--oa-color-fg-muted)}
+.stat .h.warning{color:var(--oa-color-warning)}.stat .h.danger{color:var(--oa-color-danger)}.stat .h.success{color:var(--oa-color-success)}
+@media (max-width:900px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.stat .v{font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl)}.stat{padding:var(--oa-space-3) var(--oa-space-4) var(--oa-space-4)}}
+
+/* ---------- Abschnitte, Karten, Raster ---------- */
+.section{display:flex;flex-direction:column;gap:var(--oa-space-3);min-width:0}
+.section-h{margin:0;display:flex;align-items:center;gap:var(--oa-space-3)}
+.section-h::after{content:"";flex:1;height:1px;background:var(--oa-color-border)}
+.section-h a{color:var(--oa-color-fg-muted);text-decoration:none;order:2}
+.section-h a:hover{color:var(--oa-color-fg)}
+.two{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:var(--oa-space-8);align-items:start}
+.two.detail{grid-template-columns:minmax(0,1fr) 18rem}
+@media (max-width:1000px){.two,.two.detail{grid-template-columns:minmax(0,1fr)}}
 .grid{display:grid;gap:1px;padding:1px;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr))}
 .card{background:var(--oa-color-bg);box-shadow:0 0 0 1px var(--oa-color-border);padding:var(--oa-space-5);display:flex;flex-direction:column;gap:var(--oa-space-3);min-width:0}
-.card h2{margin:0 0 var(--oa-space-1)}
-.card .step{font-family:var(--oa-font-display);font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl);letter-spacing:var(--oa-tracking-display);font-weight:400;margin:0;color:var(--oa-color-fg)}
-.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--oa-space-2) var(--oa-space-5);margin:0}
-.kv dt{color:var(--oa-color-fg-subtle)}
-.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
-.section{display:flex;flex-direction:column;gap:var(--oa-space-4)}
-.section h2{margin:0;display:flex;align-items:center;gap:var(--oa-space-3)}
-.section h2::after{content:"";flex:1;height:1px;background:var(--oa-color-border)}
-.kpi .v{font-family:var(--oa-font-display);font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl);letter-spacing:var(--oa-tracking-display);font-weight:400;font-variant-numeric:tabular-nums lining-nums}
-@media (max-width:640px){.kpi .v{font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl)}}
+.card h2{margin:0}
+.card .step{margin:0;font-family:var(--oa-font-display);font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl);letter-spacing:var(--oa-tracking-display);font-weight:400}
+.card p{margin:0}
+
+/* Liste mit Zeilen: Aufmerksamkeit, Aktivitaet */
+.list{border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg);overflow:hidden}
+.list .row{display:flex;align-items:flex-start;gap:var(--oa-space-3);padding:var(--oa-space-3_5,.875rem) var(--oa-space-4);border-bottom:1px solid var(--oa-color-border);text-decoration:none;color:inherit}
+.list .row:last-child{border-bottom:0}
+.list a.row:hover{background:var(--oa-color-surface)}
+.list .row .body{flex:1;min-width:0}
+.list .row .t1{font-weight:500}
+.list .row .t2{font-size:var(--oa-text-xs);color:var(--oa-color-fg-muted);margin-top:1px}
+.list .row .go{color:var(--oa-color-fg-subtle);margin-top:2px}
+.sev{width:.5rem;height:.5rem;margin-top:.4rem;flex-shrink:0;background:var(--oa-color-fg-subtle)}
+.sev.warning{background:var(--oa-color-warning)}.sev.danger{background:var(--oa-color-danger)}.sev.ok{background:var(--oa-color-success)}
+.feed .row{gap:var(--oa-space-4)}
+.feed .t{width:4.5rem;flex-shrink:0;padding-top:2px}
+.feed .ellip{max-width:100%}
+.feed .what{font-family:var(--oa-font-mono);font-size:.8125rem}
+.feed .what b{font-weight:500;color:var(--oa-color-fg)}
+.feed .who{color:var(--oa-color-fg-muted)}
+
+/* Eigenschaften-Spalte */
+.props{border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg);padding:var(--oa-space-2) var(--oa-space-5) var(--oa-space-4)}
+.props h2{margin:var(--oa-space-2) 0 var(--oa-space-2)}
+.props dl{margin:0;display:flex;flex-direction:column}
+.props .p{display:flex;flex-direction:column;gap:2px;padding:var(--oa-space-2_5) 0;border-bottom:1px solid var(--oa-color-border)}
+.props .p:last-child{border-bottom:0}
+.props dd{margin:0;min-width:0;overflow-wrap:anywhere}
 
 /* ---------- Reiter ---------- */
-.tabs{display:flex;gap:var(--oa-space-6);border-bottom:1px solid var(--oa-color-border);overflow-x:auto;margin-top:calc(-1 * var(--oa-space-8));scrollbar-width:none}
-.tab{border:0;background:none;padding:var(--oa-space-3) 0;border-bottom:1px solid transparent;margin-bottom:-1px;color:var(--oa-color-fg-muted);cursor:pointer;font-weight:500;white-space:nowrap;transition:color .15s}
+.tabs{display:flex;gap:var(--oa-space-6);border-bottom:1px solid var(--oa-color-border);overflow-x:auto;scrollbar-width:none;margin-top:calc(-1 * var(--oa-space-8))}
+.tab{border:0;background:none;padding:var(--oa-space-3) 0;border-bottom:1px solid transparent;margin-bottom:-1px;color:var(--oa-color-fg-muted);cursor:pointer;font-weight:500;white-space:nowrap;display:inline-flex;gap:var(--oa-space-1_5);align-items:center}
 .tab:hover{color:var(--oa-color-fg)}
 .tab[aria-selected="true"]{color:var(--oa-color-fg);border-bottom-color:var(--oa-color-fg)}
-.head + .tabs{border-top:0}
+.tab .n{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle)}
+.head:has(+ .tabs){border-bottom:0}
 @media (max-width:767px){.tabs{margin-top:calc(-1 * var(--oa-space-6))}}
 
 /* ---------- Review-Gate ---------- */
 .gate{display:flex;flex-direction:column;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);overflow:hidden;background:var(--oa-color-bg)}
-.gate .row{display:grid;grid-template-columns:1.25rem minmax(0,1fr) auto;gap:var(--oa-space-4);align-items:start;padding:var(--oa-space-3_5,.875rem) var(--oa-space-4);border-bottom:1px solid var(--oa-color-border)}
+.gate .row{display:grid;grid-template-columns:1.25rem minmax(0,1fr) auto;gap:var(--oa-space-4);align-items:start;padding:.8125rem var(--oa-space-4);border-bottom:1px solid var(--oa-color-border)}
 .gate .row:last-child{border-bottom:0}
-.gate .row .what{font-family:var(--oa-font-mono);font-size:.8125rem;font-weight:500}
-.gate .row .why{font-size:var(--oa-text-xs);color:var(--oa-color-fg-muted);margin-top:1px}
-.mark{width:1.25rem;height:1.25rem;border-radius:var(--oa-radius-sm);display:grid;place-items:center;font-family:var(--oa-font-mono);font-size:.6875rem;font-weight:500;background:var(--oa-color-surface-muted);color:var(--oa-color-fg-subtle);margin-top:.0625rem}
+.gate .what{font-family:var(--oa-font-mono);font-size:.8125rem;font-weight:500}
+.gate .why{font-size:var(--oa-text-xs);color:var(--oa-color-fg-muted);margin-top:1px}
+.mark{width:1.25rem;height:1.25rem;border-radius:var(--oa-radius-sm);display:grid;place-items:center;font-family:var(--oa-font-mono);font-size:.6875rem;font-weight:500;background:var(--oa-color-surface-muted);color:var(--oa-color-fg-subtle);margin-top:1px}
 .mark.ok{background:var(--oa-color-success-subtle);color:var(--oa-color-success-subtle-fg)}
 .mark.fail{background:var(--oa-color-danger-subtle);color:var(--oa-color-danger-subtle-fg)}
 .mark.info{background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg)}
@@ -420,632 +508,776 @@ td .sub.mono{font-size:var(--oa-text-2xs)}
 .input:hover,.select:hover{border-color:var(--oa-color-fg-muted)}
 .input::placeholder{color:var(--oa-color-fg-subtle)}
 .input[aria-invalid="true"]{border-color:var(--oa-color-danger)}
+.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:var(--oa-space-4)}
 dialog{border:1px solid var(--oa-color-border);padding:0;border-radius:var(--oa-radius-lg);background:var(--oa-color-bg);color:var(--oa-color-fg);box-shadow:var(--oa-shadow-lg);width:min(34rem,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog.sm{width:min(26rem,calc(100vw - 32px))}
 dialog::backdrop{background:var(--oa-color-overlay)}
+dialog[open]{animation:rise .16s ease-out}
 dialog form{display:flex;flex-direction:column;gap:var(--oa-space-5);padding:var(--oa-space-8)}
 dialog h2{margin:0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-3xl);line-height:var(--oa-leading-3xl);letter-spacing:var(--oa-tracking-display);overflow-wrap:anywhere}
+dialog.sm h2{font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl)}
 dialog p{margin:calc(-1 * var(--oa-space-2)) 0 0;color:var(--oa-color-fg-muted)}
-dialog .section p{margin:0}
-.dialog-actions{display:flex;justify-content:flex-end;gap:var(--oa-space-2);flex-wrap:wrap;border-top:1px solid var(--oa-color-border);margin:var(--oa-space-2) calc(-1 * var(--oa-space-8)) calc(-1 * var(--oa-space-8));padding:var(--oa-space-5) var(--oa-space-8)}
+dialog .gate p,dialog .callout p{margin:0}
+.dialog-actions{display:flex;justify-content:flex-end;gap:var(--oa-space-2);flex-wrap:wrap;border-top:1px solid var(--oa-color-border);margin:var(--oa-space-2) calc(-1 * var(--oa-space-8)) calc(-1 * var(--oa-space-8));padding:var(--oa-space-4) var(--oa-space-8)}
 @media (max-width:640px){dialog form{padding:var(--oa-space-6) var(--oa-space-5)}.dialog-actions{margin:var(--oa-space-2) calc(-1 * var(--oa-space-5)) calc(-1 * var(--oa-space-6));padding:var(--oa-space-4) var(--oa-space-5)}dialog h2{font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl)}}
 .secret{display:flex;gap:var(--oa-space-2);align-items:stretch}
 .secret code{flex:1;min-width:0;overflow-wrap:anywhere;background:var(--oa-color-surface);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-md);padding:var(--oa-space-2) var(--oa-space-3);font-family:var(--oa-font-mono);font-size:.8125rem}
-.callout{border:1px solid var(--oa-color-border);border-left:2px solid var(--oa-color-warning);border-radius:var(--oa-radius-sm);padding:var(--oa-space-3) var(--oa-space-4);background:var(--oa-color-warning-subtle);color:var(--oa-color-warning-subtle-fg);font-size:var(--oa-text-xs);line-height:var(--oa-leading-xs)}
+.callout{display:flex;gap:var(--oa-space-3);border:1px solid var(--oa-color-border);border-left:2px solid var(--oa-color-warning);border-radius:var(--oa-radius-sm);padding:var(--oa-space-3) var(--oa-space-4);background:var(--oa-color-warning-subtle);color:var(--oa-color-warning-subtle-fg);font-size:var(--oa-text-xs);line-height:var(--oa-leading-xs)}
 .callout.info{border-left-color:var(--oa-color-primary);background:var(--oa-color-primary-subtle);color:var(--oa-color-primary-subtle-fg)}
 .callout strong{font-weight:600}
-pre.code{margin:0;overflow-x:auto;background:var(--oa-color-surface);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);padding:var(--oa-space-4);font-family:var(--oa-font-mono);font-size:.8125rem;line-height:1.7}
+.callout .btn{margin-left:auto;align-self:center}
+.code{position:relative}
+.code pre{margin:0;overflow-x:auto;background:var(--oa-color-surface);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);padding:var(--oa-space-4) var(--oa-space-16,4rem) var(--oa-space-4) var(--oa-space-4);font-family:var(--oa-font-mono);font-size:.8125rem;line-height:1.7}
+.code .btn{position:absolute;top:var(--oa-space-2);right:var(--oa-space-2)}
 
 /* ---------- Apps im Betrieb ---------- */
-.appbrand{display:flex;flex-direction:column;gap:1px;line-height:1.15;min-width:0;text-decoration:none;color:inherit}
-.appbrand .p{font-size:.625rem;line-height:.875rem}
-.appbrand .n{font-weight:500;font-size:var(--oa-text-base);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .progress{display:flex;align-items:center;gap:var(--oa-space-3);min-width:7rem}
 .progress .bar{flex:1;height:2px;background:var(--oa-color-surface-muted);overflow:hidden}
 .progress .bar span{display:block;height:100%;background:var(--oa-color-primary)}
 .progress .num{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle)}
 .checklist{display:flex;flex-direction:column;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg)}
-.checklist label{display:flex;gap:var(--oa-space-3);align-items:center;padding:var(--oa-space-3_5,.875rem) var(--oa-space-4);border-bottom:1px solid var(--oa-color-border);cursor:pointer;transition:background-color .15s}
+.checklist label{display:flex;gap:var(--oa-space-3);align-items:center;padding:.8125rem var(--oa-space-4);border-bottom:1px solid var(--oa-color-border);cursor:pointer;transition:background-color .15s}
 .checklist label:hover{background:var(--oa-color-surface)}
 .checklist label:last-child{border-bottom:0}
 .checklist input{width:1rem;height:1rem;accent-color:var(--oa-color-primary);flex-shrink:0}
 .checklist .done{color:var(--oa-color-fg-subtle);text-decoration:line-through;text-decoration-color:var(--oa-color-border-strong)}
 .checklist .due{margin-left:auto;font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle);white-space:nowrap}
-.totals{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:var(--oa-space-2) var(--oa-space-8);font-variant-numeric:tabular-nums;min-width:min(18rem,100%)}
+.totals{margin:var(--oa-space-4) 0 0 auto;display:grid;grid-template-columns:auto auto;gap:var(--oa-space-2) var(--oa-space-8);font-variant-numeric:tabular-nums;min-width:min(18rem,100%)}
 .totals dt{color:var(--oa-color-fg-muted)}
 .totals dd{margin:0;text-align:right}
 .totals .sum{border-top:1px solid var(--oa-color-fg);padding-top:var(--oa-space-3);margin-top:var(--oa-space-1)}
 .totals dt.sum{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);text-transform:uppercase;letter-spacing:var(--oa-tracking-label);color:var(--oa-color-fg);align-self:end}
 .totals dd.sum{font-family:var(--oa-font-display);font-size:var(--oa-text-2xl);line-height:var(--oa-leading-2xl);letter-spacing:var(--oa-tracking-display)}
-.toolnote{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);color:var(--oa-color-fg-subtle);margin:0}
+.toolnote{margin:0;font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);line-height:var(--oa-leading-2xs);color:var(--oa-color-fg-subtle)}
 .toolnote::before{content:"\203A  "}
 .toolnote .mono{font-size:inherit;color:var(--oa-color-fg-muted)}
-.filters{display:flex;gap:var(--oa-space-1_5);flex-wrap:wrap}
-.chip{border:1px solid var(--oa-color-border);background:var(--oa-color-bg);border-radius:var(--oa-radius-full);padding:0 var(--oa-space-3_5,.875rem);height:1.875rem;cursor:pointer;color:var(--oa-color-fg-muted);font-weight:500;font-size:var(--oa-text-xs);transition:border-color .15s,color .15s,background-color .15s}
-.chip:hover{border-color:var(--oa-color-border-strong);color:var(--oa-color-fg)}
-.chip[aria-pressed="true"]{background:var(--oa-color-fg);border-color:var(--oa-color-fg);color:var(--oa-color-bg)}
-.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:var(--oa-space-4)}
 
 /* ---------- Toast ---------- */
 .toasts{position:fixed;z-index:60;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:flex-end;gap:var(--oa-space-2);max-width:calc(100vw - 32px)}
-.toast{background:var(--oa-color-fg);color:var(--oa-color-fg-inverted);border-radius:var(--oa-radius-full);padding:var(--oa-space-2_5) var(--oa-space-5);box-shadow:var(--oa-shadow-md);animation:rise .18s ease-out}
+.toast{display:flex;align-items:center;gap:var(--oa-space-4);background:var(--oa-color-fg);color:var(--oa-color-fg-inverted);border-radius:var(--oa-radius-full);padding:var(--oa-space-2_5) var(--oa-space-3) var(--oa-space-2_5) var(--oa-space-5);box-shadow:var(--oa-shadow-md);animation:rise .18s ease-out}
+.toast:not(:has(button)){padding-right:var(--oa-space-5)}
+.toast button{border:0;background:none;color:inherit;font-weight:600;cursor:pointer;padding:var(--oa-space-1) var(--oa-space-2);border-radius:var(--oa-radius-full);text-decoration:underline;text-underline-offset:3px}
 @keyframes rise{from{opacity:0;transform:translateY(.375rem)}to{opacity:1;transform:none}}
 
+/* ---------- Befehlspalette ---------- */
+.palette{position:fixed;inset:0;z-index:70;display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 16px}
+.palette .bg{position:absolute;inset:0;background:var(--oa-color-overlay);animation:fade .12s ease-out}
+.palette .box{position:relative;width:min(36rem,100%);max-height:70vh;display:flex;flex-direction:column;border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);background:var(--oa-color-bg);box-shadow:var(--oa-shadow-lg);overflow:hidden;animation:rise .14s ease-out}
+.palette .in{display:flex;align-items:center;gap:var(--oa-space-3);border-bottom:1px solid var(--oa-color-border);padding:0 var(--oa-space-4)}
+.palette .in .i{color:var(--oa-color-fg-subtle)}
+.palette input{flex:1;min-width:0;height:3rem;border:0;background:none;outline:none;font-size:var(--oa-text-base)}
+.palette input::placeholder{color:var(--oa-color-fg-subtle)}
+.palette ul{list-style:none;margin:0;padding:var(--oa-space-1_5);overflow-y:auto}
+.palette .g{padding:var(--oa-space-3) var(--oa-space-3) var(--oa-space-1)}
+.palette .g:first-child{padding-top:var(--oa-space-1_5)}
+.palette .o{position:relative;display:flex;align-items:center;gap:var(--oa-space-3);padding:var(--oa-space-2) var(--oa-space-3);border-radius:var(--oa-radius-sm);color:var(--oa-color-fg-muted);cursor:pointer}
+.palette .o[aria-selected="true"]{background:var(--oa-color-surface-hover);color:var(--oa-color-fg)}
+.palette .o[aria-selected="true"]::before{content:"";position:absolute;left:0;top:.25rem;bottom:.25rem;width:2px;background:var(--oa-color-primary)}
+.palette .o .l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.palette .o .h{font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle)}
+.palette .none{padding:var(--oa-space-8) var(--oa-space-3);text-align:center;color:var(--oa-color-fg-muted)}
+.palette .foot{display:flex;gap:var(--oa-space-4);border-top:1px solid var(--oa-color-border);padding:var(--oa-space-2) var(--oa-space-4);font-family:var(--oa-font-mono);font-size:var(--oa-text-2xs);color:var(--oa-color-fg-subtle)}
+@keyframes fade{from{opacity:0}}
+
 /* ---------- Login ---------- */
-.login{min-height:100%;display:grid;place-items:center;padding-block:var(--oa-space-12);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--oa-color-bg-subtle)}
+.login{min-height:calc(100vh - 2rem);display:grid;place-items:center;padding:var(--oa-space-12) 16px;background:var(--oa-color-bg-subtle)}
 .login .card{width:min(26rem,100%);padding:var(--oa-space-10) var(--oa-space-8);gap:var(--oa-space-5);border:1px solid var(--oa-color-border);box-shadow:var(--oa-shadow-md);border-radius:var(--oa-radius-lg)}
 .login h1{margin:var(--oa-space-6) 0 0;font-family:var(--oa-font-display);font-weight:400;font-size:var(--oa-text-5xl);line-height:var(--oa-leading-5xl);letter-spacing:var(--oa-tracking-display)}
-.login .foot{border-top:1px solid var(--oa-color-border);padding-top:var(--oa-space-4);margin:0}
+.login .foot{border-top:1px solid var(--oa-color-border);padding-top:var(--oa-space-4);font-size:var(--oa-text-xs);color:var(--oa-color-fg-subtle)}
 .google{justify-content:center;min-height:2.75rem;width:100%}
 .google svg{width:1.125rem;height:1.125rem}
 @media (max-width:640px){.login .card{padding:var(--oa-space-8) var(--oa-space-5)}.login h1{font-size:var(--oa-text-4xl);line-height:var(--oa-leading-4xl)}}
 
-/* ---------- Benachrichtigungen, Menü ---------- */
-.pop{position:absolute;top:3.25rem;right:max(12px,env(safe-area-inset-right,0px));width:min(var(--oa-size-panel),calc(100vw - 32px));background:var(--oa-color-bg);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);box-shadow:var(--oa-shadow-md);z-index:30;padding:var(--oa-space-1);animation:rise .15s ease-out}
-.pop .item{padding:var(--oa-space-2_5) var(--oa-space-3);border-radius:var(--oa-radius-sm);display:flex;flex-direction:column;gap:2px;text-decoration:none;color:inherit}
+/* ---------- Popover ---------- */
+.pop{position:fixed;z-index:45;width:min(var(--oa-size-panel),calc(100vw - 32px));background:var(--oa-color-bg);border:1px solid var(--oa-color-border);border-radius:var(--oa-radius-lg);box-shadow:var(--oa-shadow-md);padding:var(--oa-space-1);animation:rise .14s ease-out}
+.pop.tr{top:3rem;right:max(12px,env(safe-area-inset-right,0px))}
+.pop.bl{bottom:4.25rem;left:var(--oa-space-3)}
+.pop .item{display:flex;flex-direction:column;gap:2px;width:100%;padding:var(--oa-space-2_5) var(--oa-space-3);border:0;border-radius:var(--oa-radius-sm);background:none;text-align:left;text-decoration:none;color:inherit;cursor:pointer}
 .pop .item:hover{background:var(--oa-color-surface-hover)}
 .pop .item .t{font-weight:500}
 .pop .item .s{font-size:var(--oa-text-xs);color:var(--oa-color-fg-subtle)}
-.pop h3{margin:0;padding:var(--oa-space-2_5) var(--oa-space-3) var(--oa-space-2);border-bottom:1px solid var(--oa-color-border);margin-bottom:var(--oa-space-1)}
-.pop button.item{width:100%;border:0;background:none;text-align:left;cursor:pointer}
-.pop > .btn{margin:var(--oa-space-1) var(--oa-space-2) var(--oa-space-1)}
+.pop .item.row{flex-direction:row;align-items:center;justify-content:space-between}
+.pop h3{margin:0 0 var(--oa-space-1);padding:var(--oa-space-2_5) var(--oa-space-3) var(--oa-space-2);border-bottom:1px solid var(--oa-color-border)}
+.pop .sep{height:1px;background:var(--oa-color-border);margin:var(--oa-space-1) 0}
 </style>
 
 <div class="demo" role="note">
-  <strong>Klickdummy</strong><span>Beispieldaten, nichts wird gespeichert. Jede Aktion hier gibt es auch als MCP-Tool.</span>
-  <label for="demo-state">Listen zeigen:
-    <select id="demo-state"><option value="data">mit Daten</option><option value="empty">leer</option><option value="error">Fehler</option></select>
+  <strong>Click-through prototype</strong><span class="why">Sample data, nothing is saved. Every action here also exists as an MCP tool.</span>
+  <label for="demo-state">Lists
+    <select id="demo-state"><option value="data">with data</option><option value="loading">loading</option><option value="empty">empty</option><option value="error">error</option></select>
   </label>
 </div>
 <div id="root"></div>
+<div id="pop"></div>
+<div id="palette"></div>
 <dialog id="dlg"></dialog>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script>
 (function(){
-const I = {
-  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
-  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
-  grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-  google:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>'
+/* ---------- Icons: eigener Satz, identisch mit packages/ui/src/components/Icon.tsx ---------- */
+const P = {
+  home:'M3.5 9 10 3.5 16.5 9v7a1 1 0 0 1-1 1h-3.5v-5h-4v5H4.5a1 1 0 0 1-1-1Z',
+  apps:'M3.5 3.5h5v5h-5zM11.5 3.5h5v5h-5zM3.5 11.5h5v5h-5zM11.5 11.5h5v5h-5z',
+  agents:'M6 7.5h8a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2ZM10 7.5V4.5M8 11.5h.01M12 11.5h.01M10 4.5h.01',
+  grants:'M10 2.75 16 5v4.5c0 3.6-2.6 6.6-6 7.75-3.4-1.15-6-4.15-6-7.75V5Zm-2.5 7.5 1.75 1.75L12.75 8.5',
+  groups:'M7.5 9.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5ZM2.75 16.5c0-2.6 2.1-4.5 4.75-4.5s4.75 1.9 4.75 4.5M13.5 4.25a2.75 2.75 0 0 1 0 5.25M15 12.25c1.4.6 2.25 2.1 2.25 4.25',
+  audit:'M5.5 2.75h6.5l3.5 3.5v10a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-12.5a1 1 0 0 1 1-1ZM12 2.75v3.5h3.5M7.5 10h5M7.5 13h5',
+  plug:'M7.5 2.75v3.5M12.5 2.75v3.5M5.5 6.25h9V9a4.5 4.5 0 0 1-9 0ZM10 13.5v3.75',
+  book:'M4 4.25A1.5 1.5 0 0 1 5.5 2.75H16v12H5.5A1.5 1.5 0 0 0 4 16.25ZM4 16.25a1.5 1.5 0 0 0 1.5 1.5H16v-3',
+  search:'M8.75 14.5a5.75 5.75 0 1 0 0-11.5 5.75 5.75 0 0 0 0 11.5ZM13 13l4 4',
+  bell:'M5 8a5 5 0 0 1 10 0c0 5.5 2 7 2 7H3s2-1.5 2-7M8.5 17.25a1.75 1.75 0 0 0 3 0',
+  plus:'M10 4v12M4 10h12',
+  menu:'M3 6h14M3 10h14M3 14h14',
+  'arrow':'M6.5 13.5l7-7M7.5 6.5h6v6',
+  chev:'M8 5l5 5-5 5',
+  sun:'M10 13.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.3 4.3l1.1 1.1M14.6 14.6l1.1 1.1M4.3 15.7l1.1-1.1M14.6 5.4l1.1-1.1',
+  moon:'M16.5 12.25A6.75 6.75 0 0 1 7.75 3.5a6.75 6.75 0 1 0 8.75 8.75Z',
+  copy:'M7 7h9.5v9.5H7zM13 7V3.5H3.5V13H7',
+  terminal:'M3.5 4.5h13v11h-13zM6.5 8l2.5 2-2.5 2M10.5 12.5h3',
+  out:'M8 3.5H4.5v13H8M12.5 6.5 16 10l-3.5 3.5M16 10H7.5'
 };
+const ic = n => `<svg class="i" viewBox="0 0 20 20" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const GOOGLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>';
 
 /* ---------- Beispieldaten ---------- */
 const S = {
-  user:{name:'Jonas Q.', email:'jonas@blyck.de', initials:'JQ', groups:['platform-admins']},
+  user:{name:'Jonas Q.', email:'jonas@example.com', initials:'JQ'},
   apps:[
-    {id:'projektliste', name:'Projektliste', status:'live', version:'v1.4.0', sha:'9f2c1ab', deployedAt:'heute, 09:12', by:'agent:claude-jonas', schema:'app_projektliste', tools:['projects.list','projects.get','projects.create','projects.update'], tables:['projects','milestones'],
+    {id:'projects', name:'Projects', status:'live', version:'v1.4.0', sha:'9f2c1ab', deployedAt:'today 09:12', ord:1, by:'agent:claude-jonas', schema:'app_projects', tools:['projects.list','projects.get','projects.create','projects.update'], tables:['projects','milestones'],
       deploys:[
-        {v:'v1.4.0', sha:'9f2c1ab', at:'heute, 09:12', by:'agent:claude-jonas', status:'live', gate:'grün'},
-        {v:'v1.3.2', sha:'41d0e77', at:'gestern, 17:40', by:'jonas@blyck.de', status:'abgelöst', gate:'grün'},
-        {v:'v1.3.1', sha:'c08a913', at:'gestern, 16:05', by:'agent:claude-jonas', status:'blockiert', gate:'gitleaks: 1 Secret'}
+        {v:'v1.4.0', sha:'9f2c1ab', at:'today 09:12', by:'agent:claude-jonas', status:'live', gate:'passed'},
+        {v:'v1.3.2', sha:'41d0e77', at:'yesterday 17:40', by:'jonas@example.com', status:'replaced', gate:'passed'},
+        {v:'v1.3.1', sha:'c08a913', at:'yesterday 16:05', by:'agent:claude-jonas', status:'blocked', gate:'gitleaks: 1 secret'}
       ]},
-    {id:'angebote', name:'Angebote', status:'degraded', version:'v0.9.1', sha:'7be44d0', deployedAt:'Mo, 14:30', by:'agent:codex-team', schema:'app_angebote', tools:['offers.list','offers.create','offers.send_draft'], tables:['offers','offer_items'],
+    {id:'quotes', name:'Quotes', status:'degraded', version:'v0.9.1', sha:'7be44d0', deployedAt:'Mon 14:30', ord:2, by:'agent:codex-team', schema:'app_quotes', tools:['quotes.list','quotes.create','quotes.send_draft'], tables:['quotes','quote_items'],
       deploys:[
-        {v:'v0.9.1', sha:'7be44d0', at:'Mo, 14:30', by:'agent:codex-team', status:'degraded', gate:'grün, Lint nach Deploy: Host-Port offen'},
-        {v:'v0.9.0', sha:'aa31f02', at:'Fr, 11:02', by:'lena@blyck.de', status:'abgelöst', gate:'grün'}
+        {v:'v0.9.1', sha:'7be44d0', at:'Mon 14:30', by:'agent:codex-team', status:'degraded', gate:'passed, post-deploy lint: host port open'},
+        {v:'v0.9.0', sha:'aa31f02', at:'Fri 11:02', by:'lena@example.com', status:'replaced', gate:'passed'}
       ]},
-    {id:'urlaubsantrag', name:'Urlaubsantrag', status:'neu', version:null, sha:null, deployedAt:null, by:null, schema:'app_urlaubsantrag', tools:['requests.list','requests.create','requests.approve'], tables:['requests'], deploys:[]}
+    {id:'leave', name:'Leave requests', status:'new', version:null, sha:null, deployedAt:null, ord:9, by:null, schema:'app_leave', tools:['requests.list','requests.create','requests.approve'], tables:['requests'], deploys:[]}
   ],
   groups:[
-    {name:'platform-admins', desc:'Verwalten die Plattform', members:['jonas@blyck.de']},
-    {name:'vertrieb', desc:'Vertrieb und Angebote', members:['lena@blyck.de','tim@blyck.de']},
-    {name:'alle', desc:'Alle Mitarbeitenden', members:['jonas@blyck.de','lena@blyck.de','tim@blyck.de','mira@blyck.de']}
+    {name:'platform-admins', desc:'Run the platform', members:['jonas@example.com']},
+    {name:'sales', desc:'Sales and quotes', members:['lena@example.com','tim@example.com']},
+    {name:'everyone', desc:'All staff', members:['jonas@example.com','lena@example.com','tim@example.com','mira@example.com']}
   ],
   agents:[
-    {name:'claude-jonas', display:'Claude Code (Jonas)', owner:'jonas@blyck.de', seen:'vor 4 Min.', disabled:false},
-    {name:'codex-team', display:'Codex Team-Bot', owner:'lena@blyck.de', seen:'Mo, 14:31', disabled:false},
-    {name:'alt-skript', display:'Altes Import-Skript', owner:'tim@blyck.de', seen:'vor 3 Wochen', disabled:true}
+    {name:'claude-jonas', display:'Claude Code (Jonas)', owner:'jonas@example.com', seen:'4 min ago', ord:1, disabled:false},
+    {name:'codex-team', display:'Codex team bot', owner:'lena@example.com', seen:'Mon 14:31', ord:2, disabled:false},
+    {name:'old-import', display:'Old import script', owner:'tim@example.com', seen:'3 weeks ago', ord:3, disabled:true}
   ],
   grants:[
-    {id:1, subject:'group:alle', verb:'read', resource:'app:projektliste', by:'jonas@blyck.de', at:'12.11.'},
-    {id:2, subject:'group:vertrieb', verb:'write', resource:'app:angebote', by:'jonas@blyck.de', at:'14.11.'},
-    {id:3, subject:'agent:claude-jonas', verb:'execute', resource:'tool:projektliste.projects.*', by:'jonas@blyck.de', at:'18.11.'},
-    {id:4, subject:'agent:codex-team', verb:'write', resource:'app:angebote', by:'lena@blyck.de', at:'17.11.'},
-    {id:5, subject:'app:angebote', verb:'read', resource:'table:projektliste.projects', by:'jonas@blyck.de', at:'17.11.'},
-    {id:6, subject:'group:platform-admins', verb:'write', resource:'agent:*', by:'system:bootstrap', at:'11.11.'}
+    {id:1, subject:'group:everyone', verb:'read', resource:'app:projects', by:'jonas@example.com', at:'12 Nov'},
+    {id:2, subject:'group:sales', verb:'write', resource:'app:quotes', by:'jonas@example.com', at:'14 Nov'},
+    {id:3, subject:'agent:claude-jonas', verb:'execute', resource:'tool:projects.projects.*', by:'jonas@example.com', at:'18 Nov'},
+    {id:4, subject:'agent:codex-team', verb:'write', resource:'app:quotes', by:'lena@example.com', at:'17 Nov'},
+    {id:5, subject:'app:quotes', verb:'read', resource:'table:projects.projects', by:'jonas@example.com', at:'17 Nov'},
+    {id:6, subject:'group:platform-admins', verb:'write', resource:'agent:*', by:'system:bootstrap', at:'11 Nov'}
   ],
   audit:[
-    {at:'09:12', who:'agent:claude-jonas', what:'request_deploy', on:'app:projektliste', out:'allowed'},
-    {at:'09:10', who:'agent:codex-team', what:'grant', on:'app:projektliste', out:'denied'},
-    {at:'08:55', who:'jonas@blyck.de', what:'create_agent', on:'agent:claude-jonas', out:'allowed'},
-    {at:'gestern', who:'agent:claude-jonas', what:'request_deploy', on:'app:projektliste', out:'denied'}
+    {at:'09:12', who:'agent:claude-jonas', what:'request_deploy', on:'app:projects', out:'allowed'},
+    {at:'09:10', who:'agent:codex-team', what:'grant', on:'app:projects', out:'denied'},
+    {at:'08:55', who:'jonas@example.com', what:'create_agent', on:'agent:claude-jonas', out:'allowed'},
+    {at:'08:41', who:'agent:codex-team', what:'quotes.send_draft', on:'tool:quotes.quotes.send_draft', out:'allowed'},
+    {at:'yesterday', who:'agent:claude-jonas', what:'request_deploy', on:'app:projects', out:'denied'}
   ],
   notes:[
-    {t:'Angebote: Deploy läuft, aber mit Befund', s:'Lint nach Deploy meldet einen offenen Host-Port', href:'#app-angebote'},
-    {t:'Projektliste v1.3.1 blockiert', s:'gitleaks hat ein Secret gefunden', href:'#app-projektliste'}
+    {t:'Quotes is running with a finding', s:'Post-deploy lint found an open host port', href:'#app-quotes'},
+    {t:'Projects v1.3.1 was blocked', s:'gitleaks found a secret', href:'#app-projects'}
   ],
   projects:[
-    {id:'p1', name:'Relaunch Kundenportal', client:'Stadtwerke Nordhain', owner:'lena@blyck.de', status:'aktiv', due:'15.12.2026', ms:[['Workshop Anforderungen','03.11.',true],['Klickdummy abgenommen','14.11.',true],['Umsetzung Login und Profil','01.12.',false],['Go-live','15.12.',false]]},
-    {id:'p2', name:'KI-Schulung Vertrieb', client:'Holzbau Lindner', owner:'tim@blyck.de', status:'aktiv', due:'28.11.2026', ms:[['Termin festgelegt','05.11.',true],['Unterlagen fertig','24.11.',false],['Schulung','28.11.',false]]},
-    {id:'p3', name:'Prozessanalyse Buchhaltung', client:'Kanzlei Berger & Roth', owner:'jonas@blyck.de', status:'pausiert', due:'—', ms:[['Interviews','20.10.',true],['Bericht','—',false]]},
-    {id:'p4', name:'Angebotsvorlagen', client:'Bäckerei Kranz', owner:'mira@blyck.de', status:'abgeschlossen', due:'31.10.2026', ms:[['Vorlagen gebaut','24.10.',true],['Übergabe','31.10.',true]]}
+    {id:'p1', name:'Customer portal relaunch', client:'Northvale Utilities', owner:'lena@example.com', status:'active', due:'15 Dec 2026', ms:[['Requirements workshop','3 Nov',true],['Prototype signed off','14 Nov',true],['Sign-in and profile','1 Dec',false],['Go-live','15 Dec',false]]},
+    {id:'p2', name:'AI training for sales', client:'Linden Timberworks', owner:'tim@example.com', status:'active', due:'28 Nov 2026', ms:[['Date fixed','5 Nov',true],['Materials ready','24 Nov',false],['Training','28 Nov',false]]},
+    {id:'p3', name:'Accounting process review', client:'Berger & Roth LLP', owner:'jonas@example.com', status:'paused', due:'—', ms:[['Interviews','20 Oct',true],['Report','—',false]]},
+    {id:'p4', name:'Quote templates', client:'Crane Bakery', owner:'mira@example.com', status:'done', due:'31 Oct 2026', ms:[['Templates built','24 Oct',true],['Handover','31 Oct',true]]}
   ],
   offers:[
-    {id:'a1', no:'A-2026-041', client:'Stadtwerke Nordhain', contact:'einkauf@stadtwerke-nordhain.example', status:'versendet', date:'18.11.2026', valid:'18.12.2026', items:[['Konzept und Klickdummy',1,'Pauschale',4800],['Umsetzung, Personentage',12,'PT',1150],['Betrieb, erster Monat',1,'Monat',390]]},
-    {id:'a2', no:'A-2026-040', client:'Holzbau Lindner', contact:'info@holzbau-lindner.example', status:'angenommen', date:'04.11.2026', valid:'04.12.2026', items:[['KI-Schulung, halber Tag',2,'Termin',1400],['Unterlagen',1,'Pauschale',600]]},
-    {id:'a3', no:'A-2026-042', client:'Kanzlei Berger & Roth', contact:'kanzlei@berger-roth.example', status:'entwurf', date:'21.11.2026', valid:'—', items:[['Prozessanalyse',3,'PT',1150]]},
-    {id:'a4', no:'A-2026-037', client:'Bäckerei Kranz', contact:'kranz@baeckerei-kranz.example', status:'abgelehnt', date:'12.10.2026', valid:'12.11.2026', items:[['Kassensystem-Anbindung',1,'Pauschale',3200]]}
+    {id:'a1', no:'Q-2026-041', client:'Northvale Utilities', contact:'purchasing@northvale.example', status:'sent', date:'18 Nov 2026', valid:'18 Dec 2026', items:[['Concept and prototype',1,'flat fee',4800],['Implementation, person-days',12,'day',1150],['Operations, first month',1,'month',390]]},
+    {id:'a2', no:'Q-2026-040', client:'Linden Timberworks', contact:'info@linden.example', status:'accepted', date:'4 Nov 2026', valid:'4 Dec 2026', items:[['AI training, half day',2,'session',1400],['Materials',1,'flat fee',600]]},
+    {id:'a3', no:'Q-2026-042', client:'Berger & Roth LLP', contact:'office@berger-roth.example', status:'draft', date:'21 Nov 2026', valid:'—', items:[['Process review',3,'day',1150]]},
+    {id:'a4', no:'Q-2026-037', client:'Crane Bakery', contact:'hello@cranebakery.example', status:'declined', date:'12 Oct 2026', valid:'12 Nov 2026', items:[['POS integration',1,'flat fee',3200]]}
   ],
-  nextNo:43, projFilter:'alle',
-  nextGrant:7, loggedIn:true, appTab:'overview'
+  nextNo:43, nextGrant:7, loggedIn:true, appTab:'overview'
 };
 let listState = 'data';
+const T = {}; /* Zustand je Tabelle: Suche, Filter, Sortierung */
+const tbl = id => T[id] || (T[id] = {q:'', f:'all', sort:null, dir:1});
 
 /* ---------- Helfer ---------- */
 const $ = (s, el=document) => el.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; $('#toasts').appendChild(t); setTimeout(()=>t.remove(),3200); }
-const STATUS = {live:['success','läuft'], degraded:['warning','läuft mit Befund'], neu:['plain','noch nicht deployt'], 'blockiert':['danger','blockiert'], 'abgelöst':['plain','abgelöst'], 'läuft':['primary','prüft …'], 'zurückgesetzt':['primary','zurückgesetzt']};
-function badge(status){ const [tone,label]=STATUS[status]||['plain',status]; return `<span class="badge ${tone}">${esc(label)}</span>`; }
-function verbBadge(v){ const tone={read:'plain',write:'primary',execute:'warning'}[v]||'plain'; const label={read:'lesen',write:'schreiben',execute:'ausführen'}[v]||v; return `<span class="badge plain ${tone==='plain'?'':tone}">${label}</span>`; }
+function toast(msg, undo){
+  const t=document.createElement('div'); t.className='toast'; t.setAttribute('role','status');
+  const s=document.createElement('span'); s.textContent=msg; t.appendChild(s);
+  if(undo){ const b=document.createElement('button'); b.type='button'; b.textContent='Undo'; b.addEventListener('click',()=>{ undo(); t.remove(); }); t.appendChild(b); }
+  $('#toasts').appendChild(t); setTimeout(()=>t.remove(), undo?6000:3200);
+}
+const STATUS = {live:['success','running'], degraded:['warning','running with finding'], new:['plain','not deployed'], blocked:['danger','blocked'], replaced:['plain','replaced']};
+const badge = s => { const [t,l]=STATUS[s]||['plain',s]; return `<span class="badge ${t}">${esc(l)}</span>`; };
+const VERB = {read:['plain','read'], write:['primary','write'], execute:['warning','execute']};
+const verbBadge = v => { const [t,l]=VERB[v]||['plain',v]; return `<span class="badge plain ${t==='plain'?'':t}">${l}</span>`; };
+const eur = n => new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR'}).format(n);
+const net = o => o.items.reduce((s,[,q,,p])=>s+q*p,0);
+const head = ({eyebrow, title, text, actions}) => `<div class="head"><div>${eyebrow?`<div class="eb label">${eyebrow}</div>`:''}<h1>${title}</h1>${text?`<p>${text}</p>`:''}</div>${actions?`<div class="actions">${actions}</div>`:''}</div>`;
+const btn = (label, act, cls='', extra='') => `<button class="btn ${cls}" data-act="${act}" ${extra}>${label}</button>`;
+const ERR = t => `<div class="state error" role="alert"><h2>${esc(t)}</h2><p>The control plane did not answer (timed out after 30 s). Reload the page; if it keeps failing, the reason is in the container log.</p><p class="ref">Reference: req_01JC5K8ZT3</p><div class="actions">${btn('Try again','retry')}</div></div>`;
+const EMPTY = (t, text, action='') => `<div class="state"><h2>${esc(t)}</h2><p>${esc(text)}</p>${action?`<div class="actions">${action}</div>`:''}</div>`;
 
-function listOr(rows, {emptyTitle, emptyText, emptyAction, errorTitle}){
-  if(listState==='error') return `<div class="state error" role="alert"><h2>${esc(errorTitle)}</h2><p>Die Control Plane hat nicht geantwortet (Zeitüberschreitung nach 30 s). Seite neu laden; hält der Fehler an, steht der Grund im Log des Containers.</p><button class="btn" data-act="retry">Erneut laden</button></div>`;
-  if(listState==='empty' || rows==='') return `<div class="state"><h2>${esc(emptyTitle)}</h2><p>${esc(emptyText)}</p>${emptyAction||''}</div>`;
-  return rows;
+/* ---------- Tabelle mit Werkzeugleiste: Suche, Filter, Sortierung, Zustaende ---------- */
+function dataTable(id, o){
+  const st = tbl(id);
+  const filters = o.filters ? `<div class="seg" role="group" aria-label="Filter">${o.filters.map(([v,l])=>`<button type="button" aria-pressed="${st.f===v}" data-filter="${id}" data-v="${v}">${l}</button>`).join('')}</div>` : '';
+  const bar = (count) => `<div class="toolbar"><label class="search"><span class="sr">Search ${esc(o.label)}</span>${ic('search')}<input type="search" data-search="${id}" value="${esc(st.q)}" placeholder="Filter ${esc(o.label.toLowerCase())}…" autocomplete="off"><kbd class="hide-sm">/</kbd></label>${filters}<span class="spacer"></span>${count}${o.extra||''}</div>`;
+  const thead = `<thead><tr>${o.cols.map(c=>{
+    const cls=[c.cls||'', c.sort?'sort':'', c.right?'right':''].join(' ');
+    if(!c.sort) return `<th class="${cls}">${c.label}</th>`;
+    const sorted = st.sort===c.key; const aria = sorted?` aria-sort="${st.dir>0?'ascending':'descending'}"`:'';
+    return `<th class="${cls}"${aria}><button type="button" data-sort="${id}" data-k="${c.key}">${c.label}<span class="arr" aria-hidden="true">${sorted&&st.dir<0?'▼':'▲'}</span></button></th>`;
+  }).join('')}</tr></thead>`;
+  if(listState==='error') return bar('')+ERR(o.errorTitle);
+  if(listState==='loading') return bar('<span class="count">Loading…</span>')+`<div class="tablewrap" aria-busy="true"><table>${thead}<tbody>${[1,2,3,4].map(i=>`<tr>${o.cols.map((c,j)=>`<td class="${c.cls||''}"><span class="sk ${['w3','w2','w1'][(i+j)%3]}"></span></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const all = listState==='empty' ? [] : o.items;
+  if(all.length===0) return EMPTY(o.emptyTitle, o.emptyText, o.emptyAction);
+  const q = st.q.trim().toLowerCase();
+  let items = all.filter(it => (st.f==='all' || o.filter(it, st.f)) && (!q || o.text(it).toLowerCase().includes(q)));
+  if(st.sort){ const c=o.cols.find(c=>c.key===st.sort); items=[...items].sort((a,b)=>{ const x=c.sort(a), y=c.sort(b); return (x>y?1:x<y?-1:0)*st.dir; }); }
+  const count = `<span class="count" aria-live="polite">${items.length===all.length?`${all.length} ${o.noun}`:`${items.length} of ${all.length}`}</span>`;
+  if(items.length===0) return bar(count)+`<div class="state nomatch"><h2>No matches</h2><p>Nothing in ${esc(o.label.toLowerCase())} matches${q?` “${esc(st.q.trim())}”`:''}${st.f!=='all'?' with this filter':''}.</p><div class="actions">${btn('Clear filters','clear-filters','', `data-id="${id}"`)}</div></div>`;
+  return bar(count)+`<div class="tablewrap"><table><caption class="sr">${esc(o.label)}</caption>${thead}<tbody>${items.map(o.row).join('')}</tbody></table></div>`;
 }
 
 /* ---------- Shell ---------- */
 const NAV = [
-  {title:'Plattform', items:[['apps','Apps',()=>S.apps.length],['grants','Freigaben',()=>S.grants.length],['groups','Gruppen',()=>S.groups.length],['agents','Agents',()=>S.agents.filter(a=>!a.disabled).length]]},
-  {title:'Für Agents', items:[['connect','Agent verbinden'],['audit','Protokoll']]}
+  {title:'Platform', items:[['overview','Overview','home'],['apps','Apps','apps',()=>S.apps.length,()=>S.apps.some(a=>a.status==='degraded')],['grants','Grants','grants',()=>S.grants.length],['groups','Groups','groups',()=>S.groups.length],['agents','Agents','agents',()=>S.agents.filter(a=>!a.disabled).length]]},
+  {title:'For agents', items:[['connect','Connect an agent','plug'],['audit','Audit log','audit']]}
 ];
 function shell(active, content, ctx){
   const navDef = ctx ? ctx.nav : NAV;
-  const hit = navDef.flatMap(g=>g.items.map(it=>({g:g.title, id:it[0], l:it[1]}))).find(x=>x.id===active);
-  const eyebrow = hit && !content.includes('class="crumbs"') ? `<div class="eyebrow">${esc(hit.g)}<span class="x">×</span>${esc(hit.l)}</div>` : '';
-  const nav = navDef.map(g=>`<div class="navgroup"><h3>${g.title}</h3>${g.items.map(([id,label,count])=>`<a class="navlink" href="#${id}" ${active===id?'aria-current="page"':''}><span>${label}</span>${count?`<span class="count">${count()}</span>`:''}</a>`).join('')}</div>`).join('');
-  return `
-  <header class="top">
-    <button class="iconbtn menu-toggle" data-act="nav" aria-label="Navigation öffnen">${I.menu}</button>
-    ${ctx ? `<a class="appbrand" href="#run-${ctx.id}"><span class="p">openapps</span><span class="n">${esc(ctx.name)}</span></a>` : '<a class="brand" href="#apps">openapps<small class="hide-sm">/ Control Plane</small></a>'}
-    <div class="spacer"></div>
-    <button class="iconbtn" data-act="switcher" aria-label="App wechseln">${I.grid}</button>
-    <button class="iconbtn" data-act="notes" aria-label="Benachrichtigungen, ${S.notes.length} neu">${I.bell}${S.notes.length?'<span class="dot"></span>':''}</button>
-    <button class="iconbtn" data-act="user" aria-label="Profil"><span class="avatar">${S.user.initials}</span></button>
-    <div id="pop"></div>
-  </header>
-  <div class="layout">
-    <nav class="side" aria-label="Hauptnavigation">${nav}</nav>
-    <main id="main"><div class="page">${eyebrow}${content}</div></main>
-  </div>`;
+  const nav = navDef.map(g=>`<div class="navgroup"><h3>${g.title}</h3>${g.items.map(([id,label,icon,count,warn])=>`<a class="navlink" href="#${id}" ${active===id?'aria-current="page"':''}>${ic(icon)}<span class="t">${label}</span>${count?`<span class="count ${warn&&warn()?'warn':''}">${count()}</span>`:''}</a>`).join('')}</div>`).join('');
+  const brand = ctx ? `<a class="brand" href="#run-${ctx.id}">${esc(ctx.name)}<small>/ app</small></a>` : '<a class="brand" href="#overview">openapps<small>/ admin</small></a>';
+  const crumbs = (ctx?.crumbs || CRUMBS).map((c,i,a)=> i===a.length-1 ? `<span class="cur">${esc(c[0])}</span>` : `<a href="${c[1]}">${esc(c[0])}</a><span class="x">/</span>`).join('');
+  return `<div class="app">
+  <aside class="side" aria-label="Sidebar">
+    ${brand}
+    <button class="searchbtn" data-act="palette" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K">${ic('search')}<span>Search or jump to…</span><kbd>⌘K</kbd></button>
+    <nav aria-label="Main navigation" style="display:flex;flex-direction:column;gap:var(--oa-space-6)">${nav}</nav>
+    <button class="me" data-act="user" aria-haspopup="menu"><span class="avatar">${S.user.initials}</span><span class="who"><span class="n">${esc(S.user.name)}</span><span class="e">${esc(S.user.email)}</span></span></button>
+  </aside>
+  <div class="col">
+    <header class="top">
+      <button class="iconbtn menu-toggle" data-act="nav" aria-label="Open navigation">${ic('menu')}</button>
+      <span class="mbrand">${brand}</span>
+      <nav class="crumbs label" aria-label="Breadcrumb">${crumbs}</nav>
+      <div class="tools">
+        <button class="iconbtn" data-act="palette" aria-label="Search">${ic('search')}</button>
+        <button class="iconbtn hide-sm" data-act="switcher" aria-label="Switch app">${ic('apps')}</button>
+        <button class="iconbtn hide-sm" data-act="theme" aria-label="Toggle light and dark">${ic(isDark()?'sun':'moon')}</button>
+        <button class="iconbtn" data-act="notes" aria-label="Notifications, ${S.notes.length} unread">${ic('bell')}${S.notes.length?'<span class="dot"></span>':''}</button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1"><div class="page">${content}</div></main>
+  </div></div>`;
+}
+let CRUMBS = [];
+const isDark = () => { const d=document.documentElement.dataset.theme; return d ? d==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+
+/* ---------- Seiten der Control Plane ---------- */
+function pageOverview(){
+  CRUMBS=[['Platform','#overview'],['Overview']];
+  const live=S.apps.filter(a=>a.status==='live'||a.status==='degraded').length;
+  const findings=S.apps.filter(a=>a.status==='degraded').length;
+  const active=S.agents.filter(a=>!a.disabled).length;
+  const denied=S.audit.filter(e=>e.out==='denied').length;
+  const loading=listState==='loading';
+  const stat=(k,v,h,tone,href)=>`<a class="stat" href="${href}"><span class="k">${k}</span>${loading?'<span class="sk big"></span>':`<span class="v">${v}</span><span class="h ${tone}">${h}</span>`}</a>`;
+  const attention = [
+    ...S.apps.filter(a=>a.status==='degraded').map(a=>({sev:'warning', t:`${a.name} is running with a finding`, s:'Post-deploy lint: host port published, app reachable around the gateway', href:`#app-${a.id}`})),
+    ...S.apps.flatMap(a=>a.deploys.filter(d=>d.status==='blocked').map(d=>({sev:'danger', t:`${a.name} ${d.v} was blocked`, s:`Review gate: ${d.gate}`, href:`#app-${a.id}`}))),
+    ...S.apps.filter(a=>a.status==='new').map(a=>({sev:'', t:`${a.name} has never been deployed`, s:'Created, waiting for the first green review gate', href:`#app-${a.id}`}))
+  ];
+  const att = listState==='error' ? ERR('Overview could not be loaded') : loading ? `<div class="list">${[1,2,3].map(()=>'<div class="row"><div class="body"><span class="sk w2"></span><span class="sk w1" style="margin-top:6px"></span></div></div>').join('')}</div>`
+    : (listState==='empty'||!attention.length) ? EMPTY('All clear','Nothing needs your attention. Findings and blocked deployments show up here.')
+    : `<div class="list">${attention.map(a=>`<a class="row" href="${a.href}"><span class="sev ${a.sev}" aria-hidden="true"></span><div class="body"><div class="t1">${esc(a.t)}</div><div class="t2">${esc(a.s)}</div></div><span class="go">${ic('chev')}</span></a>`).join('')}</div>`;
+  const feed = listState==='error' ? '' : loading ? `<div class="list feed">${[1,2,3,4].map(()=>'<div class="row"><span class="sk w3"></span></div>').join('')}</div>`
+    : (listState==='empty'||!S.audit.length) ? EMPTY('No activity yet','Every call through the API and MCP lands in the audit log.')
+    : `<div class="list feed">${S.audit.slice(0,6).map(e=>`<div class="row"><span class="t">${esc(e.at)}</span><div class="body"><div class="what"><b>${esc(e.what)}</b></div><div class="t2 ellip" title="${esc(e.on)} · ${esc(e.who)}">${esc(e.on)} · ${esc(e.who)}</div></div>${e.out==='allowed'?'<span class="badge success">allowed</span>':'<span class="badge danger">denied</span>'}</div>`).join('')}</div>`;
+  return head({eyebrow:'Platform', title:'Overview', text:'What runs on this instance, what needs you, and what agents did recently.', actions:btn(`${ic('grants')} Grant access`,'new-grant')+btn(`${ic('plus')} Create app`,'new-app','primary')})+
+  `<div class="stats">${stat('Apps live',live,findings?`${findings} with findings`:'all healthy',findings?'warning':'success','#apps')}${stat('Grants',S.grants.length,'default deny everywhere else','','#grants')}${stat('Agents active',active,`${S.agents.length-active} disabled`,'','#agents')}${stat('Denied calls · 24h',denied,denied?'see audit log':'none','danger','#audit')}</div>
+  <div class="two"><section class="section"><h2 class="section-h">Needs attention</h2>${att}</section><section class="section"><h2 class="section-h"><a href="#audit">View all →</a>Recent activity</h2>${feed}</section></div>`;
 }
 
-/* ---------- Seiten ---------- */
 function pageApps(){
-  const rows = S.apps.map(a=>`<tr class="link" data-href="#app-${a.id}" tabindex="0">
-    <td><div class="title">${esc(a.name)}</div><div class="sub mono">apps.enaibler.ai/${esc(a.id)}</div></td>
-    <td>${badge(a.status)}</td>
-    <td class="hide-sm mono">${a.version?esc(a.version)+' · '+esc(a.sha):'—'}</td>
-    <td class="hide-sm">${a.deployedAt?esc(a.deployedAt)+'<div class="sub">'+esc(a.by)+'</div>':'<span class="subtle">—</span>'}</td>
-    <td class="hide-sm num">${a.tools.length}</td>
-    <td class="right">${a.status==='neu'?'':`<a class="btn sm" href="#run-${a.id}">Öffnen</a>`}</td></tr>`).join('');
-  return `
-  <div class="head"><div><h1>Apps</h1><p>Jede App hat ihr eigenes Schema, ihre eigene Rolle und liegt unter einem Pfad von apps.enaibler.ai. Neue Apps legt meist ein Agent an.</p></div>
-    <div class="actions"><button class="btn primary" data-act="new-app">App anlegen</button></div></div>
-  ${listOr(rows,{emptyTitle:'Noch keine App',emptyText:'Leg eine App aus dem Starter-Template an oder lass es deinen Agent tun: create_app.',emptyAction:'<button class="btn primary" data-act="new-app">App anlegen</button>',errorTitle:'Apps konnten nicht geladen werden'}).startsWith('<tr')
-    ? `<div class="tablewrap"><table><caption class="subtle" hidden>Apps</caption><thead><tr><th>Name</th><th>Status</th><th class="hide-sm">Version</th><th class="hide-sm">Zuletzt deployt</th><th class="hide-sm">Tools</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : listOr(rows,{emptyTitle:'Noch keine App',emptyText:'Leg eine App aus dem Starter-Template an oder lass es deinen Agent tun: create_app.',emptyAction:'<button class="btn primary" data-act="new-app">App anlegen</button>',errorTitle:'Apps konnten nicht geladen werden'})}`;
+  CRUMBS=[['Platform','#overview'],['Apps']];
+  return head({eyebrow:'Platform', title:'Apps', text:'Each app has its own schema and its own database role and lives under a path of apps.example.com. Most apps are created by an agent.', actions:btn(`${ic('plus')} Create app`,'new-app','primary')})+
+  dataTable('apps',{label:'Apps', noun:'apps', items:S.apps, text:a=>`${a.name} ${a.id} ${a.version||''} ${a.by||''}`,
+    filters:[['all','All'],['live','Running'],['degraded','Findings'],['new','Not deployed']], filter:(a,f)=>a.status===f,
+    cols:[{key:'name',label:'Name',sort:a=>a.name},{key:'status',label:'Status',sort:a=>a.status},{key:'ver',label:'Version',cls:'hide-sm'},{key:'dep',label:'Last deployed',cls:'hide-sm',sort:a=>a.ord},{key:'tools',label:'Tools',cls:'hide-sm right',right:1,sort:a=>a.tools.length},{key:'x',label:'<span class="sr">Actions</span>'}],
+    row:a=>`<tr class="link" data-href="#app-${a.id}" tabindex="0"><td><div class="title">${esc(a.name)}</div><div class="sub mono">apps.example.com/${esc(a.id)}</div></td><td>${badge(a.status)}</td><td class="hide-sm mono">${a.version?esc(a.version)+' <span class="subtle">· '+esc(a.sha)+'</span>':'<span class="subtle">—</span>'}</td><td class="hide-sm">${a.deployedAt?esc(a.deployedAt)+'<div class="sub">'+esc(a.by)+'</div>':'<span class="subtle">—</span>'}</td><td class="hide-sm num right">${a.tools.length}</td><td class="act">${a.status==='new'?'':`<a class="btn sm" href="#run-${a.id}">Open ${ic('arrow')}</a>`}</td></tr>`,
+    emptyTitle:'No apps yet', emptyText:'Create an app from the starter template, or let your agent do it with create_app.', emptyAction:btn('Create app','new-app','primary'), errorTitle:'Apps could not be loaded'});
 }
 
 function gateRows(state){
-  const steps=[
-    ['gitleaks','Keine Secrets im Code','Sperrt'],
-    ['semgrep','Sicherheitsregeln (p/owasp-top-ten)','Sperrt'],
-    ['UI-Linter','Nur Komponenten und Tokens aus @openapps/ui','Sperrt'],
-    ['Manifest','app.json passt zu Code, Tabellen und Tools','Sperrt'],
-    ['gateway-config','Router mit Forward-Auth, kein Host-Port, kein zweites Netz','Sperrt'],
-    ['KI-Review','Bericht eines Frontier-Modells, eigener Schlüssel','Hinweis']
-  ];
+  const steps=[['gitleaks','No secrets in the code','blocks'],['semgrep','Security rules (p/owasp-top-ten)','blocks'],['ui-lint','Only components and tokens from @openapps/ui','blocks'],['manifest','app.json matches code, tables and tools','blocks'],['gateway-config','Router with forward auth, no host port, no second network','blocks'],['ai-review','Report from a frontier model, own key','advisory']];
   return steps.map(([name,what,kind],i)=>{
-    const st = state[i]||'wait';
-    const mark = {ok:'<span class="mark ok">✓</span>',fail:'<span class="mark fail">!</span>',info:'<span class="mark info">i</span>',run:'<span class="mark run" aria-label="läuft"></span>',wait:'<span class="mark">·</span>'}[st];
-    const tag = kind==='Hinweis'?'<span class="badge primary plain">Hinweis, sperrt nicht</span>':'<span class="badge plain">sperrt</span>';
-    return `<div class="row">${mark}<div><div class="what">${name}</div><div class="why">${what}</div></div>${tag}</div>`;
+    const st=state[i]||'wait';
+    const mark={ok:'<span class="mark ok" aria-label="passed">✓</span>',fail:'<span class="mark fail" aria-label="failed">!</span>',info:'<span class="mark info" aria-label="note">i</span>',run:'<span class="mark run" aria-label="running"></span>',wait:'<span class="mark" aria-label="waiting">·</span>'}[st];
+    return `<div class="row">${mark}<div><div class="what">${name}</div><div class="why">${what}</div></div>${kind==='advisory'?'<span class="badge primary plain">advisory</span>':'<span class="badge plain">blocks</span>'}</div>`;
   }).join('');
 }
+function appGrants(a){ return S.grants.filter(g=>g.resource===`app:${a.id}`||g.resource.startsWith(`tool:${a.id}.`)||g.resource.startsWith(`table:${a.id}.`)); }
 
 function pageApp(id){
-  const a = S.apps.find(x=>x.id===id); if(!a) return pageApps();
-  const tab = S.appTab;
-  const tabs = [['overview','Übersicht'],['deploys','Deployments'],['access','Zugriff'],['tools','Tools']].map(([k,l])=>`<button class="tab" role="tab" aria-selected="${tab===k}" data-tab="${k}">${l}</button>`).join('');
+  const a=S.apps.find(x=>x.id===id); if(!a) return pageApps();
+  CRUMBS=[['Platform','#overview'],['Apps','#apps'],[a.name]];
+  const tab=S.appTab;
+  const tabs=[['overview','Overview'],['deploys','Deployments',a.deploys.length],['access','Access',appGrants(a).length],['tools','Tools',a.tools.length]].map(([k,l,n])=>`<button class="tab" role="tab" aria-selected="${tab===k}" data-tab="${k}">${l}${n!==undefined?`<span class="n">${n}</span>`:''}</button>`).join('');
   let body='';
   if(tab==='overview'){
-    body = `
-    ${a.status==='degraded'?'<div class="callout" role="status"><strong>Läuft mit Befund.</strong> Der Lint nach dem Deploy hat einen veröffentlichten Host-Port gefunden. Die App ist damit am Gateway vorbei erreichbar. Zurücksetzen oder einen neuen Commit ohne <span class="mono">ports:</span> deployen.</div>':''}
-    <div class="grid">
-      <div class="card"><h2>Laufende Version</h2><dl class="kv"><dt>Version</dt><dd class="mono">${esc(a.version||'—')}</dd><dt>Commit</dt><dd class="mono">${esc(a.sha||'—')}</dd><dt>Seit</dt><dd>${esc(a.deployedAt||'—')}</dd><dt>Von</dt><dd>${esc(a.by||'—')}</dd></dl></div>
-      <div class="card"><h2>Daten</h2><dl class="kv"><dt>Schema</dt><dd class="mono">${esc(a.schema)}</dd><dt>Rolle</dt><dd class="mono">${esc(a.schema)}</dd><dt>Tabellen</dt><dd>${a.tables.map(t=>'<span class="mono">'+esc(t)+'</span>').join(', ')}</dd><dt>Rechte</dt><dd>kein SUPERUSER, kein BYPASSRLS</dd></dl></div>
-      <div class="card"><h2>Adresse</h2><dl class="kv"><dt>URL</dt><dd class="mono">apps.enaibler.ai/${esc(a.id)}</dd><dt>Login</dt><dd>Google, über die Forward-Auth</dd><dt>Ohne Freigabe</dt><dd>403</dd></dl></div>
-    </div>
-    <div class="section"><h2>Review-Gate der laufenden Version</h2>${a.version?`<div class="gate">${gateRows(['ok','ok','ok','ok',a.status==='degraded'?'fail':'ok','info'])}</div>`:'<div class="state"><h2>Noch kein Deploy</h2><p>Das Gate läuft beim ersten request_deploy.</p></div>'}</div>`;
+    const props=`<aside class="props" aria-label="Properties"><h2 class="label">Properties</h2><dl>
+      <div class="p"><dt>Status</dt><dd>${badge(a.status)}</dd></div>
+      <div class="p"><dt>Version</dt><dd class="mono">${esc(a.version||'—')}${a.sha?` <span class="subtle">· ${esc(a.sha)}</span>`:''}</dd></div>
+      <div class="p"><dt>Deployed</dt><dd>${esc(a.deployedAt||'—')}${a.by?`<div class="subtle" style="font-size:var(--oa-text-xs)">${esc(a.by)}</div>`:''}</dd></div>
+      <div class="p"><dt>Address</dt><dd class="mono">apps.example.com/${esc(a.id)}</dd></div>
+      <div class="p"><dt>Schema and role</dt><dd class="mono">${esc(a.schema)}</dd></div>
+      <div class="p"><dt>Tables</dt><dd class="mono">${a.tables.map(esc).join(', ')}</dd></div>
+      <div class="p"><dt>Privileges</dt><dd>no SUPERUSER, no BYPASSRLS</dd></div>
+      <div class="p"><dt>Without a grant</dt><dd class="mono">403</dd></div></dl></aside>`;
+    body=`<div class="two detail"><div style="display:flex;flex-direction:column;gap:var(--oa-space-8);min-width:0">
+      ${a.status==='degraded'?`<div class="callout" role="status"><div><strong>Running with a finding.</strong> The post-deploy lint found a published host port, so the app is reachable around the gateway. Roll back, or deploy a commit without <span class="mono">ports:</span>.</div>${btn('Roll back','rollback','sm','data-i="1"')}</div>`:''}
+      <section class="section"><h2 class="section-h">Review gate of the running version</h2>${a.version?`<div class="gate">${gateRows(['ok','ok','ok','ok',a.status==='degraded'?'fail':'ok','info'])}</div>`:EMPTY('Not deployed yet','The gate runs on the first request_deploy.', btn('Request deploy','deploy','primary'))}</section>
+      ${a.deploys.length?`<section class="section"><h2 class="section-h"><a href="#" data-tab="deploys">All deployments →</a>Recent deployments</h2><div class="list">${a.deploys.slice(0,3).map(d=>`<div class="row"><span class="sev ${d.status==='live'?'ok':d.status==='blocked'?'danger':d.status==='degraded'?'warning':''}" aria-hidden="true"></span><div class="body"><div class="t1 mono">${esc(d.v)} <span class="subtle">· ${esc(d.sha)}</span></div><div class="t2">${esc(d.at)} · ${esc(d.by)} · ${esc(d.gate)}</div></div>${badge(d.status)}</div>`).join('')}</div></section>`:''}
+    </div>${props}</div>`;
   } else if(tab==='deploys'){
-    const rows = a.deploys.map((d,i)=>`<tr><td class="mono">${esc(d.v)}<div class="sub">${esc(d.sha)}</div></td><td>${badge(d.status)}</td><td class="hide-sm">${esc(d.gate)}</td><td class="hide-sm">${esc(d.at)}<div class="sub">${esc(d.by)}</div></td><td class="right">${d.status==='abgelöst'?`<button class="btn sm" data-act="rollback" data-i="${i}">Zurücksetzen</button>`:''}</td></tr>`).join('');
-    body = listOr(rows,{emptyTitle:'Noch kein Deployment',emptyText:'Push einen Commit und starte request_deploy, hier oder über MCP.',emptyAction:`<button class="btn primary" data-act="deploy">Deploy anfordern</button>`,errorTitle:'Deployments konnten nicht geladen werden'});
-    if(body.startsWith('<tr')) body = `<div class="tablewrap"><table><thead><tr><th>Version</th><th>Status</th><th class="hide-sm">Review-Gate</th><th class="hide-sm">Wann, wer</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body=dataTable('deploys-'+a.id,{label:'Deployments', noun:'deployments', items:a.deploys, text:d=>`${d.v} ${d.sha} ${d.by} ${d.gate}`,
+      cols:[{key:'v',label:'Version'},{key:'s',label:'Status'},{key:'g',label:'Review gate',cls:'hide-sm'},{key:'w',label:'When, who',cls:'hide-sm'},{key:'x',label:'<span class="sr">Actions</span>'}],
+      row:d=>`<tr><td class="mono">${esc(d.v)}<div class="sub">${esc(d.sha)}</div></td><td>${badge(d.status)}</td><td class="hide-sm">${esc(d.gate)}</td><td class="hide-sm">${esc(d.at)}<div class="sub">${esc(d.by)}</div></td><td class="act">${d.status==='replaced'?btn('Roll back','rollback','sm',`data-i="${a.deploys.indexOf(d)}"`):''}</td></tr>`,
+      emptyTitle:'No deployments yet', emptyText:'Push a commit and run request_deploy, here or over MCP.', emptyAction:btn('Request deploy','deploy','primary'), errorTitle:'Deployments could not be loaded'});
   } else if(tab==='access'){
-    const mine = S.grants.filter(g=>g.resource===`app:${a.id}`||g.resource.startsWith(`tool:${a.id}.`)||g.resource.startsWith(`table:${a.id}.`));
-    const rows = mine.map(g=>grantRow(g)).join('');
-    body = `<p class="muted" style="margin:0">Wer diese App öffnen, ihre Daten lesen oder ihre Tools ausführen darf. Ohne Freigabe: nichts.</p>`+
-      (listOr(rows,{emptyTitle:'Niemand hat Zugriff',emptyText:'Default-Deny: Erst eine Freigabe öffnet die App, auch für dich als Admin im App-Pfad.',emptyAction:'<button class="btn primary" data-act="new-grant">Freigabe vergeben</button>',errorTitle:'Freigaben konnten nicht geladen werden'}).startsWith('<tr') ? grantTable(rows) : listOr(rows,{emptyTitle:'Niemand hat Zugriff',emptyText:'Default-Deny: Erst eine Freigabe öffnet die App.',emptyAction:'<button class="btn primary" data-act="new-grant">Freigabe vergeben</button>',errorTitle:'Freigaben konnten nicht geladen werden'}))+
-      `<div class="actions"><button class="btn" data-act="new-grant" data-res="app:${a.id}">Freigabe vergeben</button></div>`;
+    body=`<p class="muted" style="margin:0">Who may open this app, read its data or run its tools. Without a grant: nothing, admins included.</p>`+grantsTable('grants-'+a.id, appGrants(a), `${btn(`${ic('plus')} Grant access`,'new-grant','sm',`data-res="app:${a.id}"`)}`);
   } else {
-    const rows = a.tools.map(t=>`<tr><td class="mono">${esc(a.id)}.${esc(t)}</td><td class="hide-sm">${esc(t.split('.').pop().replace('_',' '))}</td><td>${S.grants.some(g=>g.resource===`tool:${a.id}.${t}`||g.resource===`tool:${a.id}.${t.split('.')[0]}.*`)?'<span class="badge success">freigegeben</span>':'<span class="badge plain">gesperrt</span>'}</td></tr>`).join('');
-    body = `<p class="muted" style="margin:0">Aus der OpenAPI-Spec der App erzeugt. Ein Agent sieht ein Tool erst, wenn eine Freigabe es öffnet.</p>` + `<div class="tablewrap"><table><thead><tr><th>Tool</th><th class="hide-sm">Aktion</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body=dataTable('tools-'+a.id,{label:'Tools', noun:'tools', items:a.tools, text:t=>t,
+      cols:[{key:'t',label:'Tool'},{key:'a',label:'Action',cls:'hide-sm'},{key:'s',label:'Status'}],
+      row:t=>`<tr><td class="mono">${esc(a.id)}.${esc(t)}</td><td class="hide-sm">${esc(t.split('.').pop().replace('_',' '))}</td><td>${S.grants.some(g=>g.resource===`tool:${a.id}.${t}`||g.resource===`tool:${a.id}.${t.split('.')[0]}.*`)?'<span class="badge success">granted</span>':'<span class="badge plain">locked</span>'}</td></tr>`,
+      emptyTitle:'No tools', emptyText:'Tools are generated from the app’s OpenAPI spec.', errorTitle:'Tools could not be loaded'});
   }
-  return `
-  <div class="head"><div><div class="crumbs"><a href="#apps">Apps</a><span class="x">/</span>${esc(a.name)}</div><h1>${esc(a.name)} ${badge(a.status)}</h1></div>
-    <div class="actions">${a.status==='neu'?'<button class="btn" disabled title="Noch nicht deployt">Öffnen</button>':`<a class="btn" href="#run-${a.id}">Öffnen</a>`}<button class="btn primary" data-act="deploy">Deploy anfordern</button></div></div>
-  <div class="tabs" role="tablist">${tabs}</div>
-  ${body}`;
+  return head({title:`${esc(a.name)} ${badge(a.status)}`, text:`apps.example.com/${esc(a.id)} · schema ${esc(a.schema)}`, actions:(a.status==='new'?'<button class="btn" disabled title="Not deployed yet">Open app</button>':`<a class="btn" href="#run-${a.id}">Open app ${ic('arrow')}</a>`)+btn('Request deploy','deploy','primary')})+
+    `<div class="tabs" role="tablist" aria-label="App sections">${tabs}</div>${body}`;
 }
 
-function grantRow(g){
-  return `<tr><td class="mono">${esc(g.subject)}</td><td>${verbBadge(g.verb)}</td><td class="mono">${esc(g.resource)}</td><td class="hide-sm">${esc(g.at)}<div class="sub">${esc(g.by)}</div></td><td class="right">${g.by==='system:bootstrap'?'<span class="sub">System</span>':`<button class="btn sm ghost" data-act="revoke" data-id="${g.id}">Widerrufen</button>`}</td></tr>`;
+function grantsTable(id, items, extra){
+  return dataTable(id,{label:'Grants', noun:'grants', items, extra, text:g=>`${g.subject} ${g.verb} ${g.resource} ${g.by}`,
+    filters:[['all','All'],['read','Read'],['write','Write'],['execute','Execute']], filter:(g,f)=>g.verb===f,
+    cols:[{key:'s',label:'Who',sort:g=>g.subject},{key:'v',label:'Can',sort:g=>g.verb},{key:'r',label:'On',sort:g=>g.resource},{key:'a',label:'Since',cls:'hide-sm'},{key:'x',label:'<span class="sr">Actions</span>'}],
+    row:g=>`<tr><td class="mono"><span class="ellip" title="${esc(g.subject)}">${esc(g.subject)}</span></td><td>${verbBadge(g.verb)}</td><td class="mono"><span class="ellip" title="${esc(g.resource)}">${esc(g.resource)}</span></td><td class="hide-sm">${esc(g.at)}<div class="sub">${esc(g.by)}</div></td><td class="act">${g.by==='system:bootstrap'?'<span class="sub" title="Created at bootstrap, cannot be revoked here">system</span>':btn('Revoke','revoke','sm ghost dangerous',`data-id="${g.id}"`)}</td></tr>`,
+    emptyTitle:'No grants', emptyText:'Without a grant nobody may do anything: not people, not apps, not agents.', emptyAction:btn('Grant access','new-grant','primary'), errorTitle:'Grants could not be loaded'});
 }
-function grantTable(rows){ return `<div class="tablewrap"><table><thead><tr><th>Wer</th><th>Darf</th><th>Worauf</th><th class="hide-sm">Seit</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`; }
-
 function pageGrants(){
-  const rows = S.grants.map(grantRow).join('');
-  const out = listOr(rows,{emptyTitle:'Keine Freigabe vergeben',emptyText:'Ohne Freigabe darf niemand etwas, weder Menschen noch Apps noch Agents.',emptyAction:'<button class="btn primary" data-act="new-grant">Freigabe vergeben</button>',errorTitle:'Freigaben konnten nicht geladen werden'});
-  return `<div class="head"><div><h1>Freigaben</h1><p>Ein Rechtemodell für alles: Wer (Mensch, Gruppe, App, Agent) darf was (lesen, schreiben, ausführen) worauf (App, Tabelle, Tool, Gruppe, Agent). Ein Widerruf wirkt beim nächsten Aufruf.</p></div>
-    <div class="actions"><button class="btn primary" data-act="new-grant">Freigabe vergeben</button></div></div>
-    ${out.startsWith('<tr')?grantTable(rows):out}`;
+  CRUMBS=[['Platform','#overview'],['Grants']];
+  return head({eyebrow:'Platform', title:'Grants', text:'One permission model for everything: who (person, group, app, agent) can do what (read, write, execute) on which resource. A revoke takes effect on the next call.', actions:btn(`${ic('plus')} Grant access`,'new-grant','primary')})+grantsTable('grants', S.grants);
 }
-
 function pageGroups(){
-  const rows = S.groups.map(g=>`<tr><td><div class="title mono">${esc(g.name)}</div><div class="sub">${esc(g.desc)}</div></td><td class="num">${g.members.length}</td><td class="hide-sm">${g.members.slice(0,3).map(esc).join(', ')}${g.members.length>3?' …':''}</td><td class="right"><button class="btn sm" data-act="add-member" data-g="${esc(g.name)}">Person aufnehmen</button></td></tr>`).join('');
-  const out = listOr(rows,{emptyTitle:'Noch keine Gruppe',emptyText:'Gruppen bündeln Personen, damit Freigaben nicht pro Kopf vergeben werden müssen.',emptyAction:'<button class="btn primary" data-act="new-group">Gruppe anlegen</button>',errorTitle:'Gruppen konnten nicht geladen werden'});
-  return `<div class="head"><div><h1>Gruppen</h1><p>Mitgliedschaften liegen hier, nicht in Google. Wer eine Gruppe verlässt, verliert ihre Rechte beim nächsten Aufruf, ohne neuen Login.</p></div>
-    <div class="actions"><button class="btn primary" data-act="new-group">Gruppe anlegen</button></div></div>
-    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Gruppe</th><th>Mitglieder</th><th class="hide-sm">Wer</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:out}`;
+  CRUMBS=[['Platform','#overview'],['Groups']];
+  return head({eyebrow:'Platform', title:'Groups', text:'Memberships live here, not in Google. Whoever leaves a group loses its rights on the next call, without signing in again.', actions:btn(`${ic('plus')} Create group`,'new-group','primary')})+
+  dataTable('groups',{label:'Groups', noun:'groups', items:S.groups, text:g=>`${g.name} ${g.desc} ${g.members.join(' ')}`,
+    cols:[{key:'n',label:'Group',sort:g=>g.name},{key:'m',label:'Members',right:1,cls:'right',sort:g=>g.members.length},{key:'w',label:'Who',cls:'hide-sm'},{key:'x',label:'<span class="sr">Actions</span>'}],
+    row:g=>`<tr><td><div class="title mono">${esc(g.name)}</div><div class="sub">${esc(g.desc)}</div></td><td class="num right">${g.members.length}</td><td class="hide-sm"><span class="ellip">${g.members.slice(0,3).map(esc).join(', ')}${g.members.length>3?' …':''}</span></td><td class="act">${btn('Add person','add-member','sm',`data-g="${esc(g.name)}"`)}</td></tr>`,
+    emptyTitle:'No groups yet', emptyText:'Groups bundle people so grants need not be given one by one.', emptyAction:btn('Create group','new-group','primary'), errorTitle:'Groups could not be loaded'});
 }
-
 function pageAgents(){
-  const rows = S.agents.map(a=>`<tr><td><div class="title">${esc(a.display)}</div><div class="sub mono">agent:${esc(a.name)}</div></td><td>${a.disabled?'<span class="badge danger">gesperrt</span>':'<span class="badge success">aktiv</span>'}</td><td class="hide-sm">${esc(a.owner)}</td><td class="hide-sm">${esc(a.seen)}</td><td class="right">${a.disabled?'':`<button class="btn sm ghost" data-act="disable-agent" data-n="${esc(a.name)}">Sperren</button>`}</td></tr>`).join('');
-  const out = listOr(rows,{emptyTitle:'Noch kein Agent',emptyText:'Ein Agent bekommt eine eigene Identität und ein Token. Er darf nichts, bis du ihm Freigaben gibst.',emptyAction:'<button class="btn primary" data-act="new-agent">Agent anlegen</button>',errorTitle:'Agents konnten nicht geladen werden'});
-  return `<div class="head"><div><h1>Agents</h1><p>Agents arbeiten mit denselben Rechten wie Menschen, aus demselben Modell. Jeder Aufruf wird geprüft und protokolliert. Sperren wirkt sofort.</p></div>
-    <div class="actions"><button class="btn primary" data-act="new-agent">Agent anlegen</button></div></div>
-    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Agent</th><th>Status</th><th class="hide-sm">Gehört</th><th class="hide-sm">Zuletzt aktiv</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:out}`;
+  CRUMBS=[['Platform','#overview'],['Agents']];
+  return head({eyebrow:'Platform', title:'Agents', text:'Agents work with the same permission model as people. Every call is checked and logged. Disabling takes effect immediately.', actions:btn(`${ic('plus')} Create agent`,'new-agent','primary')})+
+  dataTable('agents',{label:'Agents', noun:'agents', items:S.agents, text:a=>`${a.display} ${a.name} ${a.owner}`,
+    filters:[['all','All'],['active','Active'],['disabled','Disabled']], filter:(a,f)=>f==='active'?!a.disabled:a.disabled,
+    cols:[{key:'n',label:'Agent',sort:a=>a.display},{key:'s',label:'Status',sort:a=>a.disabled},{key:'o',label:'Owner',cls:'hide-sm',sort:a=>a.owner},{key:'l',label:'Last seen',cls:'hide-sm',sort:a=>a.ord},{key:'x',label:'<span class="sr">Actions</span>'}],
+    row:a=>`<tr><td><div class="title">${esc(a.display)}</div><div class="sub mono">agent:${esc(a.name)}</div></td><td>${a.disabled?'<span class="badge danger">disabled</span>':'<span class="badge success">active</span>'}</td><td class="hide-sm">${esc(a.owner)}</td><td class="hide-sm">${esc(a.seen)}</td><td class="act">${a.disabled?'':btn('Disable','disable-agent','sm ghost dangerous',`data-n="${esc(a.name)}"`)}</td></tr>`,
+    emptyTitle:'No agents yet', emptyText:'An agent gets its own identity and a token. It may do nothing until you grant it something.', emptyAction:btn('Create agent','new-agent','primary'), errorTitle:'Agents could not be loaded'});
 }
-
+const MCP_CMD = 'claude mcp add --transport http openapps https://cp.example.com/mcp \\\n  --header "Authorization: Bearer &lt;token&gt;"';
 function pageConnect(){
-  return `<div class="head"><div><h1>Agent verbinden</h1><p>Jeder MCP-Client, der einen festen Header setzen kann, kommt über denselben Weg herein. Erst Agent anlegen, dann Freigaben geben, dann verbinden.</p></div></div>
-  <div class="grid">
-    <div class="card"><h2>Schritt 01</h2><p class="step">Identität</p><p class="muted" style="margin:0">Unter Agents anlegen. Das Token steht genau einmal da.</p><div><a class="btn" href="#agents">Zu den Agents</a></div></div>
-    <div class="card"><h2>Schritt 02</h2><p class="step">Freigaben</p><p class="muted" style="margin:0">Ohne Freigabe sieht der Agent keine Tools und darf nichts.</p><div><a class="btn" href="#grants">Zu den Freigaben</a></div></div>
-    <div class="card"><h2>Schritt 03</h2><p class="step">Verbinden</p><p class="muted" style="margin:0">Adresse <span class="mono">https://cp.enaibler.ai/mcp</span>, Token als Bearer-Header.</p></div>
+  CRUMBS=[['For agents','#connect'],['Connect an agent']];
+  return head({eyebrow:'For agents', title:'Connect an agent', text:'Any MCP client that can send a fixed header comes in the same way. Create the agent, grant it access, then connect.'})+
+  `<div class="grid">
+    <div class="card"><h2>Step 01</h2><p class="step">Identity</p><p class="muted">Create it under Agents. The token is shown exactly once.</p><div><a class="btn sm" href="#agents">Go to agents</a></div></div>
+    <div class="card"><h2>Step 02</h2><p class="step">Grants</p><p class="muted">Without a grant the agent sees no tools and may do nothing.</p><div><a class="btn sm" href="#grants">Go to grants</a></div></div>
+    <div class="card"><h2>Step 03</h2><p class="step">Connect</p><p class="muted">Address <span class="mono">https://cp.example.com/mcp</span>, token as bearer header.</p></div>
   </div>
-  <div class="section"><h2>Claude Code</h2><pre class="code">claude mcp add --transport http openapps https://cp.enaibler.ai/mcp \\
-  --header "Authorization: Bearer &lt;token&gt;"</pre></div>
-  <div class="section"><h2>Was der Agent dann kann</h2>
-  <div class="tablewrap"><table><thead><tr><th>Tool</th><th>Wofür</th></tr></thead><tbody>
-  ${[['list_apps','Apps sehen, die er lesen darf'],['create_app','Repo aus dem Starter-Template anlegen'],['request_deploy','Commit prüfen lassen und deployen'],['rollback','auf die Vorversion zurück'],['grant · revoke · list_grants','Freigaben pflegen, soweit er selbst darf'],['list_groups · create_group · grant_group_member · revoke_group_member · list_group_members','Gruppen pflegen'],['create_agent · list_agents · disable_agent','andere Agents verwalten'],['<App>.<tool>','die Tools jeder App, wenn freigegeben']].map(([t,w])=>`<tr><td class="mono">${esc(t)}</td><td>${esc(w)}</td></tr>`).join('')}
-  </tbody></table></div></div>
-  <div class="callout info">claude.ai als Connector ohne festen Header braucht OAuth für MCP. Das ist geplant, aber noch nicht gebaut.</div>`;
+  <section class="section"><h2 class="section-h">Claude Code</h2><div class="code"><pre id="cmd">${MCP_CMD}</pre><button class="btn sm" data-act="copy-cmd">${ic('copy')} Copy</button></div></section>
+  <section class="section"><h2 class="section-h">What the agent can then do</h2><div class="tablewrap"><table><thead><tr><th>Tool</th><th>For</th></tr></thead><tbody>
+  ${[['list_apps','see the apps it may read'],['create_app','create a repo from the starter template'],['request_deploy','have a commit checked and deployed'],['rollback','go back to the previous version'],['grant · revoke · list_grants','manage grants, as far as it may itself'],['list_groups · create_group · grant_group_member','manage groups'],['create_agent · list_agents · disable_agent','manage other agents'],['<app>.<tool>','the tools of every app, once granted']].map(([t,w])=>`<tr><td class="mono">${esc(t)}</td><td>${esc(w)}</td></tr>`).join('')}
+  </tbody></table></div></section>
+  <div class="callout info"><div>claude.ai as a connector without a fixed header needs OAuth for MCP. That is planned, not built yet.</div></div>`;
 }
-
 function pageAudit(){
-  const rows = S.audit.map(e=>`<tr><td class="num">${esc(e.at)}</td><td class="mono">${esc(e.who)}</td><td class="mono">${esc(e.what)}</td><td class="mono hide-sm">${esc(e.on)}</td><td>${e.out==='allowed'?'<span class="badge success">erlaubt</span>':'<span class="badge danger">abgelehnt</span>'}</td></tr>`).join('');
-  const out = listOr(rows,{emptyTitle:'Noch nichts protokolliert',emptyText:'Jeder Aufruf, auch der abgelehnte, landet hier.',errorTitle:'Protokoll konnte nicht geladen werden'});
-  return `<div class="head"><div><h1>Protokoll</h1><p>Jeder Aufruf über API und MCP, mit Ergebnis. Abgelehnte Aufrufe stehen genauso drin wie erlaubte.</p></div></div>
-  ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Wann</th><th>Wer</th><th>Aktion</th><th class="hide-sm">Worauf</th><th>Ergebnis</th></tr></thead><tbody>${rows}</tbody></table></div>`:out}`;
+  CRUMBS=[['For agents','#connect'],['Audit log']];
+  return head({eyebrow:'For agents', title:'Audit log', text:'Every call through the API and MCP, with its result. Denied calls are logged just like allowed ones.'})+
+  dataTable('audit',{label:'Audit log', noun:'entries', items:S.audit, text:e=>`${e.who} ${e.what} ${e.on}`,
+    filters:[['all','All'],['allowed','Allowed'],['denied','Denied']], filter:(e,f)=>e.out===f,
+    cols:[{key:'t',label:'When'},{key:'w',label:'Who',sort:e=>e.who},{key:'a',label:'Action',sort:e=>e.what},{key:'o',label:'On',cls:'hide-sm'},{key:'r',label:'Result',sort:e=>e.out}],
+    row:e=>`<tr><td class="mono subtle">${esc(e.at)}</td><td class="mono"><span class="ellip">${esc(e.who)}</span></td><td class="mono">${esc(e.what)}</td><td class="mono hide-sm"><span class="ellip" title="${esc(e.on)}">${esc(e.on)}</span></td><td>${e.out==='allowed'?'<span class="badge success">allowed</span>':'<span class="badge danger">denied</span>'}</td></tr>`,
+    emptyTitle:'Nothing logged yet', emptyText:'Every call, including denied ones, ends up here.', errorTitle:'Audit log could not be loaded'});
 }
-
 function pageLogin(){
-  return `<div class="login"><div class="card"><div class="brand">openapps<small>/ Control Plane</small></div><h1>Anmelden</h1><p class="muted" style="margin:0">Mit deinem Google-Konto von blyck.de. Andere Domains kommen nicht herein.</p>
-  <button class="btn google" data-act="login">${I.google} Mit Google anmelden</button>
-  <p class="subtle foot" style="font-size:var(--oa-text-xs)">Agents melden sich nicht hier an, sondern mit ihrem Token über /mcp.</p></div></div>`;
+  return `<div class="login"><div class="card"><div class="brand">openapps<small>/ admin</small></div><h1>Sign in</h1><p class="muted">With your Google account at example.com. Other domains do not get in.</p>
+  <button class="btn google" data-act="login">${GOOGLE} Continue with Google</button>
+  <p class="foot">Agents do not sign in here. They use their token on /mcp.</p></div></div>`;
 }
 
 /* ---------- Die Apps selbst ---------- */
-const eur = n => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
-const net = o => o.items.reduce((s,[,q,,p])=>s+q*p,0);
-const OFFER = {entwurf:['plain','Entwurf'], versendet:['primary','versendet'], angenommen:['success','angenommen'], abgelehnt:['danger','abgelehnt']};
-const PROJ = {aktiv:['primary','aktiv'], pausiert:['warning','pausiert'], abgeschlossen:['success','abgeschlossen']};
+const OFFER = {draft:['plain','draft'], sent:['primary','sent'], accepted:['success','accepted'], declined:['danger','declined']};
+const PROJ = {active:['primary','active'], paused:['warning','paused'], done:['success','done']};
 const tone = (map,k) => { const [t,l]=map[k]||['plain',k]; return `<span class="badge ${t}">${esc(l)}</span>`; };
-const toolNote = t => `<p class="toolnote">Diese Aktion gibt es auch als Tool <span class="mono">${esc(t)}</span>, für Agents mit Freigabe.</p>`;
-const appNote = id => `<div class="callout info">Du siehst die App so, wie eine Person aus der Gruppe ${id==='angebote'?'vertrieb':'alle'} sie sieht: Login und Rechte kommen von der Plattform, die App selbst enthält keinen Auth-Code.</div>`;
+const toolNote = t => `<p class="toolnote">Also available as the tool <span class="mono">${esc(t)}</span>, for agents with a grant.</p>`;
+const appNote = id => `<div class="callout info"><div>You see this app the way someone in the group <b>${id==='quotes'?'sales':'everyone'}</b> sees it. Sign-in and permissions come from the platform; the app itself has no auth code.</div></div>`;
 
-function runProjektliste(sub){
-  const ctx={id:'projektliste', name:'Projektliste', nav:[{title:'Projektliste', items:[['run-projektliste','Projekte',()=>S.projects.length]]},{title:'Plattform', items:[['apps','Zur Control Plane']]}]};
-  if(sub){
-    const p=S.projects.find(x=>x.id===sub);
-    if(p){
-      const done=p.ms.filter(m=>m[2]).length;
-      return shell('run-projektliste', `
-      <div class="head"><div><div class="crumbs"><a href="#run-projektliste">Projekte</a><span class="x">/</span>${esc(p.name)}</div><h1>${esc(p.name)} ${tone(PROJ,p.status)}</h1><p>${esc(p.client)}</p></div>
-        <div class="actions"><button class="btn" data-act="proj-status" data-id="${p.id}">${p.status==='abgeschlossen'?'Wieder öffnen':'Abschließen'}</button></div></div>
-      <div class="grid">
-        <div class="card"><h2>Eckdaten</h2><dl class="kv"><dt>Kunde</dt><dd>${esc(p.client)}</dd><dt>Verantwortlich</dt><dd>${esc(p.owner)}</dd><dt>Fällig</dt><dd>${esc(p.due)}</dd></dl></div>
-        <div class="card"><h2>Fortschritt</h2><div class="progress"><div class="bar"><span style="width:${p.ms.length?Math.round(done/p.ms.length*100):0}%"></span></div><span class="num">${done} von ${p.ms.length}</span></div><p class="muted" style="margin:0">Meilensteine abgehakt</p></div>
-      </div>
-      <div class="section"><h2>Meilensteine</h2>
-        ${p.ms.length?`<div class="checklist">${p.ms.map((m,i)=>`<label for="ms-${p.id}-${i}"><input type="checkbox" id="ms-${p.id}-${i}" data-ms="${i}" data-p="${p.id}" ${m[2]?'checked':''}><span class="${m[2]?'done':''}">${esc(m[0])}</span><span class="due">${esc(m[1])}</span></label>`).join('')}</div>`:'<div class="state"><h2>Noch kein Meilenstein</h2><p>Leg den ersten an, damit der Fortschritt sichtbar wird.</p></div>'}
-        <div class="actions" style="margin-top:var(--oa-space-3)"><button class="btn" data-act="add-ms" data-id="${p.id}">Meilenstein hinzufügen</button></div>
-        ${toolNote('projektliste.projects.update')}
-      </div>`, ctx);
-    }
-  }
-  const list = S.projects.filter(p=>S.projFilter==='alle'||p.status===S.projFilter);
-  const rows = list.map(p=>{ const d=p.ms.filter(m=>m[2]).length; return `<tr class="link" data-href="#run-projektliste-${p.id}" tabindex="0">
-    <td><div class="title">${esc(p.name)}</div><div class="sub">${esc(p.client)}</div></td>
-    <td>${tone(PROJ,p.status)}</td>
-    <td class="hide-sm"><div class="progress"><div class="bar"><span style="width:${p.ms.length?Math.round(d/p.ms.length*100):0}%"></span></div><span class="num">${d}/${p.ms.length}</span></div></td>
-    <td class="hide-sm">${esc(p.owner)}</td><td class="hide-sm num">${esc(p.due)}</td></tr>`; }).join('');
-  const filters = ['alle','aktiv','pausiert','abgeschlossen'].map(f=>`<button class="chip" aria-pressed="${S.projFilter===f}" data-act="proj-filter" data-f="${f}">${f[0].toUpperCase()+f.slice(1)}</button>`).join('');
-  const out = listOr(rows,{emptyTitle:S.projFilter==='alle'?'Noch kein Projekt':'Kein Projekt mit diesem Status',emptyText:S.projFilter==='alle'?'Leg das erste Projekt an. Meilensteine kommen danach.':'Wähle einen anderen Filter oder leg ein Projekt an.',emptyAction:'<button class="btn primary" data-act="new-project">Projekt anlegen</button>',errorTitle:'Projekte konnten nicht geladen werden'});
-  return shell('run-projektliste', `
-    <div class="head"><div><h1>Projekte</h1><p>Alle laufenden und abgeschlossenen Projekte, mit Meilensteinen.</p></div>
-      <div class="actions"><button class="btn primary" data-act="new-project">Projekt anlegen</button></div></div>
-    ${appNote('projektliste')}
-    <div class="filters" role="group" aria-label="Nach Status filtern">${filters}</div>
-    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Projekt</th><th>Status</th><th class="hide-sm">Meilensteine</th><th class="hide-sm">Verantwortlich</th><th class="hide-sm">Fällig</th></tr></thead><tbody>${rows}</tbody></table></div>`:out}
-    ${toolNote('projektliste.projects.list')}`, ctx);
+function runProjects(sub){
+  const ctx={id:'projects', name:'Projects', nav:[{title:'Projects', items:[['run-projects','All projects','book',()=>S.projects.length]]},{title:'Platform', items:[['overview','Control plane','home']]}]};
+  if(sub){ const p=S.projects.find(x=>x.id===sub); if(p){
+    ctx.crumbs=[['Projects','#run-projects'],[p.name]];
+    const done=p.ms.filter(m=>m[2]).length;
+    return shell('run-projects', head({title:`${esc(p.name)} ${tone(PROJ,p.status)}`, text:esc(p.client), actions:btn(p.status==='done'?'Reopen':'Mark as done','proj-status','',`data-id="${p.id}"`)})+
+    `<div class="two detail"><section class="section"><h2 class="section-h">Milestones</h2>
+      ${p.ms.length?`<div class="checklist">${p.ms.map((m,i)=>`<label for="ms-${p.id}-${i}"><input type="checkbox" id="ms-${p.id}-${i}" data-ms="${i}" data-p="${p.id}" ${m[2]?'checked':''}><span class="${m[2]?'done':''}">${esc(m[0])}</span><span class="due">${esc(m[1])}</span></label>`).join('')}</div>`:EMPTY('No milestones yet','Add the first one so progress becomes visible.')}
+      <div class="actions">${btn(`${ic('plus')} Add milestone`,'add-ms','sm',`data-id="${p.id}"`)}</div>${toolNote('projects.projects.update')}</section>
+      <aside class="props" aria-label="Properties"><h2 class="label">Properties</h2><dl>
+        <div class="p"><dt>Progress</dt><dd><div class="progress"><div class="bar"><span style="width:${p.ms.length?Math.round(done/p.ms.length*100):0}%"></span></div><span class="num">${done} / ${p.ms.length}</span></div></dd></div>
+        <div class="p"><dt>Client</dt><dd>${esc(p.client)}</dd></div><div class="p"><dt>Owner</dt><dd>${esc(p.owner)}</dd></div><div class="p"><dt>Due</dt><dd>${esc(p.due)}</dd></div></dl></aside></div>`, ctx);
+  }}
+  ctx.crumbs=[['Projects','#run-projects'],['All projects']];
+  return shell('run-projects', head({eyebrow:'Projects', title:'All projects', text:'Running and finished client projects, with milestones.', actions:btn(`${ic('plus')} New project`,'new-project','primary')})+appNote('projects')+
+    dataTable('projects',{label:'Projects', noun:'projects', items:S.projects, text:p=>`${p.name} ${p.client} ${p.owner}`,
+      filters:[['all','All'],['active','Active'],['paused','Paused'],['done','Done']], filter:(p,f)=>p.status===f,
+      cols:[{key:'n',label:'Project',sort:p=>p.name},{key:'s',label:'Status',sort:p=>p.status},{key:'m',label:'Milestones',cls:'hide-sm'},{key:'o',label:'Owner',cls:'hide-sm',sort:p=>p.owner},{key:'d',label:'Due',cls:'hide-sm'}],
+      row:p=>{ const d=p.ms.filter(m=>m[2]).length; return `<tr class="link" data-href="#run-projects-${p.id}" tabindex="0"><td><div class="title">${esc(p.name)}</div><div class="sub">${esc(p.client)}</div></td><td>${tone(PROJ,p.status)}</td><td class="hide-sm"><div class="progress"><div class="bar"><span style="width:${p.ms.length?Math.round(d/p.ms.length*100):0}%"></span></div><span class="num">${d}/${p.ms.length}</span></div></td><td class="hide-sm">${esc(p.owner)}</td><td class="hide-sm num">${esc(p.due)}</td></tr>`; },
+      emptyTitle:'No projects yet', emptyText:'Create the first project. Milestones come after.', emptyAction:btn('New project','new-project','primary'), errorTitle:'Projects could not be loaded'})+
+    toolNote('projects.projects.list'), ctx);
 }
 
-function runAngebote(sub){
-  const ctx={id:'angebote', name:'Angebote', nav:[{title:'Angebote', items:[['run-angebote','Alle Angebote',()=>S.offers.length]]},{title:'Plattform', items:[['apps','Zur Control Plane']]}]};
-  if(sub){
-    const o=S.offers.find(x=>x.id===sub);
-    if(o){
-      const n=net(o), vat=Math.round(n*19)/100;
-      const rows=o.items.map(([t,q,u,pr],i)=>`<tr><td class="num">${i+1}</td><td>${esc(t)}</td><td class="num right">${q}</td><td class="hide-sm">${esc(u)}</td><td class="num right hide-sm">${eur(pr)}</td><td class="num right">${eur(q*pr)}</td></tr>`).join('');
-      const acts = o.status==='entwurf' ? `<button class="btn" data-act="offer-draft" data-id="${o.id}">E-Mail-Entwurf vorbereiten</button><button class="btn primary" data-act="offer-set" data-s="versendet" data-id="${o.id}">Als versendet markieren</button>`
-        : o.status==='versendet' ? `<button class="btn" data-act="offer-set" data-s="abgelehnt" data-id="${o.id}">Abgelehnt</button><button class="btn primary" data-act="offer-set" data-s="angenommen" data-id="${o.id}">Angenommen</button>` : '';
-      return shell('run-angebote', `
-      <div class="head"><div><div class="crumbs"><a href="#run-angebote">Angebote</a><span class="x">/</span>${esc(o.no)}</div><h1>${esc(o.no)} ${tone(OFFER,o.status)}</h1><p>${esc(o.client)}</p></div>
-        <div class="actions">${acts}</div></div>
-      <div class="grid">
-        <div class="card"><h2>Kunde</h2><dl class="kv"><dt>Firma</dt><dd>${esc(o.client)}</dd><dt>Kontakt</dt><dd class="mono">${esc(o.contact)}</dd></dl></div>
-        <div class="card"><h2>Angebot</h2><dl class="kv"><dt>Datum</dt><dd>${esc(o.date)}</dd><dt>Gültig bis</dt><dd>${esc(o.valid)}</dd><dt>Netto</dt><dd class="num">${eur(n)}</dd></dl></div>
-      </div>
-      <div class="section"><h2>Positionen</h2>
-        <div class="tablewrap"><table><thead><tr><th>Pos.</th><th>Leistung</th><th class="right">Menge</th><th class="hide-sm">Einheit</th><th class="right hide-sm">Einzelpreis</th><th class="right">Gesamt</th></tr></thead><tbody>${rows}</tbody></table></div>
-        <dl class="totals" style="margin-top:var(--oa-space-4)"><dt>Netto</dt><dd>${eur(n)}</dd><dt>USt. 19 %</dt><dd>${eur(vat)}</dd><dt class="sum">Brutto</dt><dd class="sum">${eur(n+vat)}</dd></dl>
-      </div>
-      ${o.status==='entwurf'?toolNote('angebote.offers.send_draft')+'<p class="toolnote">Der Entwurf landet im Postfach der Person, versendet wird er dort von Hand.</p>':''}`, ctx);
-    }
-  }
-  const rows=S.offers.map(o=>`<tr class="link" data-href="#run-angebote-${o.id}" tabindex="0">
-    <td><div class="title mono">${esc(o.no)}</div><div class="sub">${esc(o.date)}</div></td>
-    <td>${esc(o.client)}</td><td>${tone(OFFER,o.status)}</td>
-    <td class="num right">${eur(net(o))}</td><td class="hide-sm num">${esc(o.valid)}</td></tr>`).join('');
-  const open = S.offers.filter(o=>o.status==='versendet').reduce((s,o)=>s+net(o),0);
-  const won = S.offers.filter(o=>o.status==='angenommen').reduce((s,o)=>s+net(o),0);
-  const out = listOr(rows,{emptyTitle:'Noch kein Angebot',emptyText:'Leg ein Angebot an. Es startet als Entwurf und geht erst raus, wenn du es versendest.',emptyAction:'<button class="btn primary" data-act="new-offer">Angebot anlegen</button>',errorTitle:'Angebote konnten nicht geladen werden'});
-  return shell('run-angebote', `
-    <div class="head"><div><h1>Angebote</h1><p>Angebote des Vertriebs, vom Entwurf bis zur Zusage. Beträge netto.</p></div>
-      <div class="actions"><button class="btn primary" data-act="new-offer">Angebot anlegen</button></div></div>
-    ${appNote('angebote')}
-    ${listState==='data'?`<div class="grid"><div class="card kpi"><span class="k">Offen · versendet</span><strong class="v">${eur(open)}</strong></div><div class="card kpi"><span class="k">Angenommen</span><strong class="v">${eur(won)}</strong></div><div class="card kpi"><span class="k">Entwürfe</span><strong class="v">${S.offers.filter(o=>o.status==='entwurf').length}</strong></div></div>`:''}
-    ${out.startsWith('<tr')?`<div class="tablewrap"><table><thead><tr><th>Nummer</th><th>Kunde</th><th>Status</th><th class="right">Netto</th><th class="hide-sm">Gültig bis</th></tr></thead><tbody>${rows}</tbody></table></div>`:out}
-    ${toolNote('angebote.offers.list')}`, ctx);
-}
-
-function dlgNewProject(){
-  openDialog(`<h2>Projekt anlegen</h2>
-    <div class="field"><label for="pj-n">Name</label><input class="input" id="pj-n" placeholder="Website-Relaunch"><span class="err" id="pj-err" hidden></span></div>
-    <div class="field"><label for="pj-c">Kunde</label><input class="input" id="pj-c" placeholder="Firma"></div>
-    <div class="field-row"><div class="field"><label for="pj-o">Verantwortlich</label><select class="select" id="pj-o">${S.groups.find(g=>g.name==='alle').members.map(m=>`<option>${esc(m)}</option>`).join('')}</select></div>
-    <div class="field"><label for="pj-d">Fällig</label><input class="input" id="pj-d" placeholder="TT.MM.JJJJ"></div></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
-      const n=$('#pj-n',f).value.trim(), err=$('#pj-err',f);
-      if(n.length<3){ err.textContent='Bitte einen Namen mit mindestens drei Zeichen eingeben.'; err.hidden=false; $('#pj-n',f).setAttribute('aria-invalid','true'); $('#pj-n',f).focus(); return false; }
-      const id='p'+(S.projects.length+1)+rand(3).toLowerCase().replace(/[^a-z0-9]/g,'x');
-      S.projects.unshift({id, name:n, client:$('#pj-c',f).value.trim()||'—', owner:$('#pj-o',f).value, status:'aktiv', due:$('#pj-d',f).value.trim()||'—', ms:[]});
-      S.projFilter='alle'; location.hash='run-projektliste-'+id; toast('Projekt angelegt');
-    });
-}
-function dlgAddMs(id){
-  openDialog(`<h2>Meilenstein hinzufügen</h2>
-    <div class="field"><label for="ms-n">Was</label><input class="input" id="ms-n" placeholder="Entwurf abgestimmt"><span class="err" id="ms-err" hidden></span></div>
-    <div class="field"><label for="ms-d">Bis wann</label><input class="input" id="ms-d" placeholder="TT.MM."></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Hinzufügen</button></div>`, f=>{
-      const n=$('#ms-n',f).value.trim(); if(!n){ const e=$('#ms-err',f); e.textContent='Bitte beschreiben, was erreicht sein soll.'; e.hidden=false; $('#ms-n',f).setAttribute('aria-invalid','true'); return false; }
-      S.projects.find(p=>p.id===id).ms.push([n,$('#ms-d',f).value.trim()||'—',false]); render();
-    });
-}
-function dlgNewOffer(){
-  openDialog(`<h2>Angebot anlegen</h2><p>Startet als Entwurf mit der Nummer A-2026-0${S.nextNo}. Weitere Positionen kommen in der Detailansicht dazu.</p>
-    <div class="field"><label for="of-c">Kunde</label><input class="input" id="of-c" placeholder="Firma"><span class="err" id="of-err" hidden></span></div>
-    <div class="field"><label for="of-m">Kontakt (E-Mail)</label><input class="input" id="of-m" type="email" placeholder="einkauf@firma.example"></div>
-    <div class="field"><label for="of-t">Erste Position</label><input class="input" id="of-t" placeholder="Beratung"></div>
-    <div class="field-row"><div class="field"><label for="of-q">Menge</label><input class="input" id="of-q" inputmode="decimal" value="1"></div>
-    <div class="field"><label for="of-u">Einheit</label><input class="input" id="of-u" value="PT"></div>
-    <div class="field"><label for="of-p">Einzelpreis (€)</label><input class="input" id="of-p" inputmode="decimal" placeholder="1150"></div></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Als Entwurf anlegen</button></div>`, f=>{
-      const c=$('#of-c',f).value.trim(), q=parseFloat($('#of-q',f).value.replace(',','.')), pr=parseFloat($('#of-p',f).value.replace(',','.')), err=$('#of-err',f);
-      let msg=''; if(!c) msg='Bitte den Kunden angeben.'; else if(!(q>0)||!(pr>=0)) msg='Menge und Einzelpreis müssen Zahlen sein, die Menge größer als null.';
-      if(msg){ err.textContent=msg; err.hidden=false; return false; }
-      const id='a'+(S.nextNo); S.offers.unshift({id, no:'A-2026-0'+S.nextNo++, client:c, contact:$('#of-m',f).value.trim()||'—', status:'entwurf', date:'heute', valid:'—', items:[[$('#of-t',f).value.trim()||'Leistung',q,$('#of-u',f).value.trim()||'Stück',pr]]});
-      location.hash='run-angebote-'+id; toast('Angebot als Entwurf angelegt');
-    });
+function runQuotes(sub){
+  const ctx={id:'quotes', name:'Quotes', nav:[{title:'Quotes', items:[['run-quotes','All quotes','audit',()=>S.offers.length]]},{title:'Platform', items:[['overview','Control plane','home']]}]};
+  if(sub){ const o=S.offers.find(x=>x.id===sub); if(o){
+    ctx.crumbs=[['Quotes','#run-quotes'],[o.no]];
+    const n=net(o), vat=Math.round(n*19)/100;
+    const acts = o.status==='draft' ? btn('Prepare email draft','offer-draft','',`data-id="${o.id}"`)+btn('Mark as sent','offer-set','primary',`data-s="sent" data-id="${o.id}"`)
+      : o.status==='sent' ? btn('Declined','offer-set','',`data-s="declined" data-id="${o.id}"`)+btn('Accepted','offer-set','primary',`data-s="accepted" data-id="${o.id}"`) : '';
+    return shell('run-quotes', head({title:`${esc(o.no)} ${tone(OFFER,o.status)}`, text:esc(o.client), actions:acts})+
+    `<div class="two detail"><section class="section"><h2 class="section-h">Line items</h2>
+      <div class="tablewrap"><table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="hide-sm">Unit</th><th class="right hide-sm">Unit price</th><th class="right">Total</th></tr></thead><tbody>${o.items.map(([t,q,u,pr],i)=>`<tr><td class="num subtle">${i+1}</td><td>${esc(t)}</td><td class="num right">${q}</td><td class="hide-sm">${esc(u)}</td><td class="num right hide-sm">${eur(pr)}</td><td class="num right">${eur(q*pr)}</td></tr>`).join('')}</tbody></table></div>
+      <dl class="totals"><dt>Net</dt><dd>${eur(n)}</dd><dt>VAT 19 %</dt><dd>${eur(vat)}</dd><dt class="sum">Gross</dt><dd class="sum">${eur(n+vat)}</dd></dl>
+      ${o.status==='draft'?toolNote('quotes.quotes.send_draft')+'<p class="toolnote">The draft lands in the person’s mailbox and is sent from there by hand.</p>':''}</section>
+      <aside class="props" aria-label="Properties"><h2 class="label">Properties</h2><dl>
+        <div class="p"><dt>Client</dt><dd>${esc(o.client)}</dd></div><div class="p"><dt>Contact</dt><dd class="mono">${esc(o.contact)}</dd></div>
+        <div class="p"><dt>Date</dt><dd>${esc(o.date)}</dd></div><div class="p"><dt>Valid until</dt><dd>${esc(o.valid)}</dd></div><div class="p"><dt>Net</dt><dd class="num">${eur(n)}</dd></div></dl></aside></div>`, ctx);
+  }}
+  ctx.crumbs=[['Quotes','#run-quotes'],['All quotes']];
+  const open=S.offers.filter(o=>o.status==='sent').reduce((s,o)=>s+net(o),0), won=S.offers.filter(o=>o.status==='accepted').reduce((s,o)=>s+net(o),0);
+  const loading=listState==='loading';
+  const stat=(k,v,h)=>`<div class="stat"><span class="k">${k}</span>${loading?'<span class="sk big"></span>':`<span class="v">${v}</span><span class="h">${h}</span>`}</div>`;
+  return shell('run-quotes', head({eyebrow:'Quotes', title:'All quotes', text:'Sales quotes from draft to signature. Amounts are net.', actions:btn(`${ic('plus')} New quote`,'new-offer','primary')})+appNote('quotes')+
+    (listState==='data'||loading?`<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr))">${stat('Open · sent',eur(open),`${S.offers.filter(o=>o.status==='sent').length} quotes`)}${stat('Accepted',eur(won),'this quarter')}${stat('Drafts',S.offers.filter(o=>o.status==='draft').length,'not sent yet')}</div>`:'')+
+    dataTable('quotes',{label:'Quotes', noun:'quotes', items:S.offers, text:o=>`${o.no} ${o.client} ${o.contact}`,
+      filters:[['all','All'],['draft','Draft'],['sent','Sent'],['accepted','Accepted']], filter:(o,f)=>o.status===f,
+      cols:[{key:'no',label:'Number',sort:o=>o.no},{key:'c',label:'Client',sort:o=>o.client},{key:'s',label:'Status',sort:o=>o.status},{key:'n',label:'Net',right:1,cls:'right',sort:o=>net(o)},{key:'v',label:'Valid until',cls:'hide-sm'}],
+      row:o=>`<tr class="link" data-href="#run-quotes-${o.id}" tabindex="0"><td><div class="title mono">${esc(o.no)}</div><div class="sub">${esc(o.date)}</div></td><td>${esc(o.client)}</td><td>${tone(OFFER,o.status)}</td><td class="num right">${eur(net(o))}</td><td class="hide-sm num">${esc(o.valid)}</td></tr>`,
+      emptyTitle:'No quotes yet', emptyText:'Create a quote. It starts as a draft and only goes out when you send it.', emptyAction:btn('New quote','new-offer','primary'), errorTitle:'Quotes could not be loaded'})+
+    toolNote('quotes.quotes.list'), ctx);
 }
 
 /* ---------- Dialoge ---------- */
 const dlg = $('#dlg');
-function openDialog(html, onSubmit){
-  dlg.innerHTML = `<form method="dialog" novalidate>${html}</form>`;
-  const f = $('form', dlg);
-  f.addEventListener('submit', e=>{ e.preventDefault(); const btn=e.submitter; if(btn && btn.value==='cancel'){ dlg.close(); return; } if(onSubmit(f)!==false) dlg.close(); });
-  dlg.showModal(); const first = $('input,select', dlg); if(first) first.focus();
+const cancelBtn = '<button class="btn" value="cancel" formnovalidate>Cancel</button>';
+function openDialog(html, onSubmit, cls=''){
+  dlg.className=cls; dlg.innerHTML=`<form method="dialog" novalidate>${html}</form>`;
+  const f=$('form',dlg);
+  f.addEventListener('submit', e=>{ e.preventDefault(); const b=e.submitter; if(b && b.value==='cancel'){ dlg.close(); return; } if(onSubmit(f)!==false) dlg.close(); });
+  dlg.showModal(); const first=$('input,select',dlg) || $('[value="cancel"]',dlg); if(first) first.focus();
 }
-const cancelBtn = '<button class="btn" value="cancel" formnovalidate>Abbrechen</button>';
+function confirmDialog({title, text, confirm}, onYes){
+  openDialog(`<h2>${title}</h2><p>${text}</p><div class="dialog-actions">${cancelBtn}<button class="btn danger" value="ok">${confirm}</button></div>`, ()=>{ onYes(); }, 'sm');
+}
+function fieldErr(f, inputSel, errSel, msg){ const e=$(errSel,f); e.textContent=msg; e.hidden=false; const i=$(inputSel,f); i.setAttribute('aria-invalid','true'); i.focus(); return false; }
+function rand(n){ const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'; let s=''; for(let i=0;i<n;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+const audit = (what,on,out='allowed') => S.audit.unshift({at:'now', who:S.user.email, what, on, out});
 
 function dlgNewAgent(){
-  openDialog(`<h2>Agent anlegen</h2><p>Der Agent bekommt eine eigene Identität. Er darf nichts, bis du ihm Freigaben gibst.</p>
-    <div class="field"><label for="ag-name">Kennung</label><input class="input mono" id="ag-name" placeholder="claude-lena" autocomplete="off"><span class="hint">Kleinbuchstaben, Ziffern, Bindestrich. Steht in Freigaben als agent:&lt;kennung&gt;.</span><span class="err" id="ag-err" hidden></span></div>
-    <div class="field"><label for="ag-display">Anzeigename</label><input class="input" id="ag-display" placeholder="Claude Code (Lena)"></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
-      const n=$('#ag-name',f).value.trim(), d=$('#ag-display',f).value.trim()||n, err=$('#ag-err',f), inp=$('#ag-name',f);
-      let msg='';
-      if(!/^[a-z][a-z0-9-]{1,62}$/.test(n)) msg='Bitte mit einem Kleinbuchstaben beginnen, mindestens zwei Zeichen, nur a–z, 0–9 und Bindestrich.';
-      else if(S.agents.some(a=>a.name===n)) msg='Diese Kennung gibt es schon.';
-      if(msg){ err.textContent=msg; err.hidden=false; inp.setAttribute('aria-invalid','true'); inp.focus(); return false; }
-      S.agents.unshift({name:n, display:d, owner:S.user.email, seen:'noch nie', disabled:false});
-      S.audit.unshift({at:'jetzt', who:S.user.email, what:'create_agent', on:'agent:'+n, out:'allowed'});
+  openDialog(`<h2>Create agent</h2><p>The agent gets its own identity. It may do nothing until you grant it something.</p>
+    <div class="field"><label for="ag-name">Handle</label><input class="input mono" id="ag-name" placeholder="claude-lena" autocomplete="off" aria-describedby="ag-hint"><span class="hint" id="ag-hint">Lower case, digits and hyphens. Appears in grants as agent:&lt;handle&gt;.</span><span class="err" id="ag-err" hidden></span></div>
+    <div class="field"><label for="ag-display">Display name</label><input class="input" id="ag-display" placeholder="Claude Code (Lena)"></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Create agent</button></div>`, f=>{
+      const n=$('#ag-name',f).value.trim(), d=$('#ag-display',f).value.trim()||n;
+      if(!/^[a-z][a-z0-9-]{1,62}$/.test(n)) return fieldErr(f,'#ag-name','#ag-err','Start with a lower-case letter, at least two characters, only a–z, 0–9 and hyphens.');
+      if(S.agents.some(a=>a.name===n)) return fieldErr(f,'#ag-name','#ag-err','This handle is taken.');
+      S.agents.unshift({name:n, display:d, owner:S.user.email, seen:'never', ord:0, disabled:false}); audit('create_agent','agent:'+n);
       setTimeout(()=>dlgToken(n),0); render();
     });
 }
 function dlgToken(n){
-  const tok = 'oac_'+rand(16)+'.'+rand(43);
-  openDialog(`<h2>Token für agent:${esc(n)}</h2><p>Dieses Token wird nur jetzt angezeigt. Gespeichert ist nur sein Hash; verlierst du es, legst du den Agent neu an.</p>
-    <div class="secret"><code id="tok">${tok}</code><button class="btn" type="button" id="copy">Kopieren</button></div>
-    <div class="callout">Beispielwert aus dem Klickdummy, nicht verwendbar. Ein echtes Token gehört nur in die Konfiguration deines MCP-Clients, nicht in einen Chat oder ein Repo.</div>
-    <pre class="code">claude mcp add --transport http openapps https://cp.enaibler.ai/mcp \\
-  --header "Authorization: Bearer ${tok.slice(0,12)}…"</pre>
-    <div class="dialog-actions"><a class="btn" href="#grants" id="to-grants">Freigaben geben</a><button class="btn primary" value="ok">Fertig</button></div>`, ()=>true);
-  $('#copy',dlg).addEventListener('click',()=>{ navigator.clipboard?.writeText(tok).then(()=>toast('Kopiert'),()=>{ const r=document.createRange(); r.selectNodeContents($('#tok',dlg)); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Markiert, mit Cmd+C kopieren'); }); });
+  const tok='oac_'+rand(16)+'.'+rand(43);
+  openDialog(`<h2>Token for agent:${esc(n)}</h2><p>This token is shown only now. Only its hash is stored; if you lose it, create the agent again.</p>
+    <div class="secret"><code id="tok">${tok}</code><button class="btn" type="button" id="copy">${ic('copy')} Copy</button></div>
+    <div class="callout"><div>Sample value from the prototype, not usable. A real token belongs in your MCP client’s config only, never in a chat or a repo.</div></div>
+    <div class="dialog-actions"><a class="btn" href="#grants" id="to-grants">Grant access</a><button class="btn primary" value="ok">Done</button></div>`, ()=>true);
+  $('#copy',dlg).addEventListener('click',()=>copy(tok));
   $('#to-grants',dlg).addEventListener('click',()=>dlg.close());
 }
-function rand(n){ const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'; let s=''; for(let i=0;i<n;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
-
+function copy(text){ navigator.clipboard?.writeText(text).then(()=>toast('Copied to clipboard'),()=>toast('Copy failed, select the text instead')); }
 function dlgNewGrant(res){
-  const subjects = [...S.groups.map(g=>'group:'+g.name), ...S.agents.filter(a=>!a.disabled).map(a=>'agent:'+a.name), ...S.apps.map(a=>'app:'+a.id)];
-  const resources = [...S.apps.map(a=>'app:'+a.id), ...S.apps.flatMap(a=>a.tables.map(t=>`table:${a.id}.${t}`)), ...S.apps.flatMap(a=>a.tools.map(t=>`tool:${a.id}.${t}`)), 'group:*', 'agent:*'];
-  openDialog(`<h2>Freigabe vergeben</h2><p>Gilt ab dem nächsten Aufruf. Widerrufen geht jederzeit.</p>
-    <div class="field"><label for="gr-s">Wer</label><select class="select" id="gr-s">${subjects.map(s=>`<option>${esc(s)}</option>`).join('')}</select></div>
-    <div class="field"><label for="gr-v">Darf</label><select class="select" id="gr-v"><option value="read">lesen</option><option value="write">schreiben</option><option value="execute">ausführen</option></select></div>
-    <div class="field"><label for="gr-r">Worauf</label><select class="select" id="gr-r">${resources.map(r=>`<option ${r===res?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Freigeben</button></div>`, f=>{
-      const g={id:S.nextGrant++, subject:$('#gr-s',f).value, verb:$('#gr-v',f).value, resource:$('#gr-r',f).value, by:S.user.email, at:'heute'};
-      S.grants.unshift(g); S.audit.unshift({at:'jetzt', who:S.user.email, what:'grant', on:g.resource, out:'allowed'});
-      render(); toast(`Freigegeben: ${g.subject} → ${g.resource}`);
+  const subjects=[...S.groups.map(g=>'group:'+g.name), ...S.agents.filter(a=>!a.disabled).map(a=>'agent:'+a.name), ...S.apps.map(a=>'app:'+a.id)];
+  const resources=[...S.apps.map(a=>'app:'+a.id), ...S.apps.flatMap(a=>a.tables.map(t=>`table:${a.id}.${t}`)), ...S.apps.flatMap(a=>a.tools.map(t=>`tool:${a.id}.${t}`)), 'group:*', 'agent:*'];
+  openDialog(`<h2>Grant access</h2><p>Takes effect on the next call. You can revoke it at any time.</p>
+    <div class="field"><label for="gr-s">Who</label><select class="select mono" id="gr-s">${subjects.map(s=>`<option>${esc(s)}</option>`).join('')}</select></div>
+    <div class="field"><label for="gr-v">Can</label><select class="select" id="gr-v"><option value="read">read</option><option value="write">write</option><option value="execute">execute</option></select></div>
+    <div class="field"><label for="gr-r">On</label><select class="select mono" id="gr-r">${resources.map(r=>`<option ${r===res?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Grant</button></div>`, f=>{
+      const g={id:S.nextGrant++, subject:$('#gr-s',f).value, verb:$('#gr-v',f).value, resource:$('#gr-r',f).value, by:S.user.email, at:'today'};
+      if(S.grants.some(x=>x.subject===g.subject&&x.verb===g.verb&&x.resource===g.resource)){ toast('This grant already exists'); return; }
+      S.grants.unshift(g); audit('grant',g.resource); render(); toast(`Granted: ${g.subject} can ${g.verb} ${g.resource}`);
     });
 }
 function dlgNewGroup(){
-  openDialog(`<h2>Gruppe anlegen</h2>
-    <div class="field"><label for="gp-n">Name</label><input class="input mono" id="gp-n" placeholder="marketing"><span class="hint">Kleinbuchstaben und Bindestrich. Steht im Header X-Auth-Groups, deshalb kein Komma.</span><span class="err" id="gp-err" hidden></span></div>
-    <div class="field"><label for="gp-d">Beschreibung</label><input class="input" id="gp-d" placeholder="Marketing-Team"></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
-      const n=$('#gp-n',f).value.trim(), err=$('#gp-err',f);
-      if(!/^[a-z][a-z0-9-]*[a-z0-9]$/.test(n)||n.length<3){ err.textContent='Mindestens drei Zeichen, nur a–z, 0–9 und Bindestrich, nicht am Rand.'; err.hidden=false; $('#gp-n',f).setAttribute('aria-invalid','true'); return false; }
-      if(S.groups.some(g=>g.name===n)){ err.textContent='Diese Gruppe gibt es schon.'; err.hidden=false; return false; }
-      S.groups.push({name:n, desc:$('#gp-d',f).value.trim(), members:[]}); render(); toast('Gruppe angelegt: '+n);
+  openDialog(`<h2>Create group</h2>
+    <div class="field"><label for="gp-n">Name</label><input class="input mono" id="gp-n" placeholder="marketing"><span class="hint">Lower case and hyphens. Travels in the X-Auth-Groups header, so no commas.</span><span class="err" id="gp-err" hidden></span></div>
+    <div class="field"><label for="gp-d">Description</label><input class="input" id="gp-d" placeholder="Marketing team"></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Create group</button></div>`, f=>{
+      const n=$('#gp-n',f).value.trim();
+      if(!/^[a-z][a-z0-9-]*[a-z0-9]$/.test(n)||n.length<3) return fieldErr(f,'#gp-n','#gp-err','At least three characters, only a–z, 0–9 and hyphens, not at the edges.');
+      if(S.groups.some(g=>g.name===n)) return fieldErr(f,'#gp-n','#gp-err','This group already exists.');
+      S.groups.push({name:n, desc:$('#gp-d',f).value.trim(), members:[]}); audit('create_group','group:'+n); render(); toast('Group created: '+n);
     });
 }
 function dlgAddMember(g){
-  openDialog(`<h2>In ${esc(g)} aufnehmen</h2><p>Die Person bekommt die Rechte der Gruppe beim nächsten Aufruf.</p>
-    <div class="field"><label for="mb-e">E-Mail</label><input class="input" id="mb-e" type="email" placeholder="name@blyck.de"><span class="err" id="mb-err" hidden></span></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Aufnehmen</button></div>`, f=>{
-      const e=$('#mb-e',f).value.trim().toLowerCase(), err=$('#mb-err',f);
-      if(!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(e)){ err.textContent='Bitte eine E-Mail-Adresse ohne Komma eingeben.'; err.hidden=false; $('#mb-e',f).setAttribute('aria-invalid','true'); return false; }
-      if(!e.endsWith('@blyck.de')){ err.textContent='Nur Adressen von blyck.de dürfen sich anmelden (AUTH_ALLOWED_EMAIL_DOMAINS).'; err.hidden=false; return false; }
-      const grp=S.groups.find(x=>x.name===g); if(!grp.members.includes(e)) grp.members.push(e); render(); toast(`${e} ist jetzt in ${g}`);
+  openDialog(`<h2>Add to ${esc(g)}</h2><p>The person gets the group’s rights on their next call.</p>
+    <div class="field"><label for="mb-e">Email</label><input class="input" id="mb-e" type="email" placeholder="name@example.com"><span class="err" id="mb-err" hidden></span></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Add person</button></div>`, f=>{
+      const e=$('#mb-e',f).value.trim().toLowerCase();
+      if(!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(e)) return fieldErr(f,'#mb-e','#mb-err','Enter an email address without commas.');
+      if(!e.endsWith('@example.com')) return fieldErr(f,'#mb-e','#mb-err','Only example.com addresses can sign in (AUTH_ALLOWED_EMAIL_DOMAINS).');
+      const grp=S.groups.find(x=>x.name===g); if(!grp.members.includes(e)) grp.members.push(e); audit('grant_group_member','group:'+g); render(); toast(`${e} is now in ${g}`);
     });
 }
 function dlgNewApp(){
-  openDialog(`<h2>App anlegen</h2><p>Legt ein Repo aus dem Starter-Template an, dazu Schema und Rolle. Live ist die App erst nach dem ersten grünen Review-Gate.</p>
-    <div class="field"><label for="ap-n">Name</label><input class="input mono" id="ap-n" placeholder="reisekosten"><span class="hint">Wird zum Pfad apps.enaibler.ai/&lt;name&gt; und zum Schema app_&lt;name&gt;.</span><span class="err" id="ap-err" hidden></span></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Anlegen</button></div>`, f=>{
-      const n=$('#ap-n',f).value.trim(), err=$('#ap-err',f);
-      if(!/^[a-z][a-z0-9-]{1,40}$/.test(n)){ err.textContent='Kleinbuchstaben, Ziffern und Bindestrich, mindestens zwei Zeichen.'; err.hidden=false; $('#ap-n',f).setAttribute('aria-invalid','true'); return false; }
-      if(S.apps.some(a=>a.id===n)){ err.textContent='Diese App gibt es schon.'; err.hidden=false; return false; }
-      S.apps.push({id:n, name:n[0].toUpperCase()+n.slice(1), status:'neu', version:null, sha:null, deployedAt:null, by:null, schema:'app_'+n.replace(/-/g,'_'), tools:['items.list','items.create'], tables:['items'], deploys:[]});
-      S.audit.unshift({at:'jetzt', who:S.user.email, what:'create_app', on:'app:'+n, out:'allowed'});
-      location.hash='app-'+n; toast('Repo angelegt: blyck/'+n);
+  openDialog(`<h2>Create app</h2><p>Creates a repo from the starter template, plus schema and role. The app goes live after its first green review gate.</p>
+    <div class="field"><label for="ap-n">Name</label><input class="input mono" id="ap-n" placeholder="expenses"><span class="hint">Becomes the path apps.example.com/&lt;name&gt; and the schema app_&lt;name&gt;.</span><span class="err" id="ap-err" hidden></span></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Create app</button></div>`, f=>{
+      const n=$('#ap-n',f).value.trim();
+      if(!/^[a-z][a-z0-9-]{1,40}$/.test(n)) return fieldErr(f,'#ap-n','#ap-err','Lower case, digits and hyphens, at least two characters.');
+      if(S.apps.some(a=>a.id===n)) return fieldErr(f,'#ap-n','#ap-err','This app already exists.');
+      S.apps.push({id:n, name:n[0].toUpperCase()+n.slice(1), status:'new', version:null, sha:null, deployedAt:null, ord:9, by:null, schema:'app_'+n.replace(/-/g,'_'), tools:['items.list','items.create'], tables:['items'], deploys:[]});
+      audit('create_app','app:'+n); location.hash='app-'+n; toast('Repo created: example/'+n);
     });
 }
 function dlgDeploy(a){
-  const ver = a.version ? a.version.replace(/(\d+)$/, m=>String(+m+1)) : 'v0.1.0';
-  openDialog(`<h2>Deploy anfordern: ${esc(a.name)}</h2><p>Die Control Plane holt den Commit selbst von GitHub und prüft ihn. Ein lokaler Pfad ist nicht nötig.</p>
-    <div class="field"><label for="dp-v">Version</label><input class="input mono" id="dp-v" value="${ver}"></div>
-    <div class="field"><label for="dp-s">Commit</label><input class="input mono" id="dp-s" value="${rand(7).toLowerCase().replace(/[^a-f0-9]/g,'e')}"></div>
-    <div class="field"><label for="dp-x">Ergebnis im Klickdummy</label><select class="select" id="dp-x"><option value="ok">Gate grün, wird deployt</option><option value="secret">gitleaks findet ein Secret</option></select><span class="hint">Nur im Dummy, um beide Wege zu sehen.</span></div>
-    <div class="section"><div class="gate" id="dp-gate">${gateRows([])}</div></div>
-    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok" id="dp-go">Prüfen und deployen</button></div>`, f=>{
-      const go=$('#dp-go',f); if(go.dataset.done){ return true; }
-      go.disabled=true; const fail=$('#dp-x',f).value==='secret';
-      const v=$('#dp-v',f).value.trim(), sha=$('#dp-s',f).value.trim();
-      const st=[]; let i=0;
+  const ver=a.version ? a.version.replace(/(\d+)$/, m=>String(+m+1)) : 'v0.1.0';
+  openDialog(`<h2>Request deploy: ${esc(a.name)}</h2><p>The control plane fetches the commit from GitHub itself and checks it. No local path needed.</p>
+    <div class="field-row"><div class="field"><label for="dp-v">Version</label><input class="input mono" id="dp-v" value="${ver}"></div>
+    <div class="field"><label for="dp-s">Commit</label><input class="input mono" id="dp-s" value="${rand(7).toLowerCase().replace(/[^a-f0-9]/g,'e')}"></div></div>
+    <div class="field"><label for="dp-x">Outcome in the prototype</label><select class="select" id="dp-x"><option value="ok">Gate passes, gets deployed</option><option value="secret">gitleaks finds a secret</option></select><span class="hint">Prototype only, to see both paths.</span></div>
+    <div class="gate" id="dp-gate">${gateRows([])}</div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok" id="dp-go">Check and deploy</button></div>`, f=>{
+      const go=$('#dp-go',f); if(go.dataset.done) return true;
+      go.disabled=true; go.textContent='Checking…'; const fail=$('#dp-x',f).value==='secret';
+      const v=$('#dp-v',f).value.trim(), sha=$('#dp-s',f).value.trim(); const st=[]; let i=0;
       const tick=()=>{
-        if(i>0) st[i-1] = (fail && i-1===0) ? 'fail' : (i-1===5 ? 'info' : 'ok');
-        if(fail && i===1){ $('#dp-gate',f).innerHTML=gateRows(st); finish(false); return; }
+        if(i>0) st[i-1]=(fail&&i-1===0)?'fail':(i-1===5?'info':'ok');
+        if(fail&&i===1){ $('#dp-gate',f).innerHTML=gateRows(st); finish(false); return; }
         if(i===6){ $('#dp-gate',f).innerHTML=gateRows(st); finish(true); return; }
-        st[i]='run'; $('#dp-gate',f).innerHTML=gateRows(st); i++; setTimeout(tick,450);
+        st[i]='run'; $('#dp-gate',f).innerHTML=gateRows(st); i++; setTimeout(tick,420);
       };
-      const finish=(ok)=>{
-        a.deploys.forEach(d=>{ if(ok && (d.status==='live'||d.status==='degraded')) d.status='abgelöst'; });
-        a.deploys.unshift({v, sha, at:'gerade eben', by:S.user.email, status: ok?'live':'blockiert', gate: ok?'grün':'gitleaks: 1 Secret in src/config.ts:12'});
-        if(ok){ Object.assign(a,{status:'live', version:v, sha, deployedAt:'gerade eben', by:S.user.email}); }
-        S.audit.unshift({at:'jetzt', who:S.user.email, what:'request_deploy', on:'app:'+a.id, out: ok?'allowed':'denied'});
-        go.disabled=false; go.dataset.done='1'; go.textContent='Schließen'; const c=$('[value="cancel"]',f); if(c) c.remove();
-        toast(ok?`${a.name} ${v} ist live`:`${a.name} ${v} blockiert: Secret im Code`); S.appTab='deploys';
-        dlg.addEventListener('close',render,{once:true});
+      const finish=ok=>{
+        a.deploys.forEach(d=>{ if(ok&&(d.status==='live'||d.status==='degraded')) d.status='replaced'; });
+        a.deploys.unshift({v, sha, at:'just now', by:S.user.email, status:ok?'live':'blocked', gate:ok?'passed':'gitleaks: 1 secret in src/config.ts:12'});
+        if(ok) Object.assign(a,{status:'live', version:v, sha, deployedAt:'just now', ord:0, by:S.user.email});
+        audit('request_deploy','app:'+a.id, ok?'allowed':'denied');
+        go.disabled=false; go.dataset.done='1'; go.textContent='Close'; $('[value="cancel"]',f)?.remove();
+        toast(ok?`${a.name} ${v} is live`:`${a.name} ${v} blocked: secret in the code`); S.appTab='deploys';
+        render(); /* Dialog liegt ausserhalb von #root: die Seite dahinter aktualisiert sich sofort */
       };
       tick(); return false;
     });
 }
+function dlgNewProject(){
+  openDialog(`<h2>New project</h2>
+    <div class="field"><label for="pj-n">Name</label><input class="input" id="pj-n" placeholder="Website relaunch"><span class="err" id="pj-err" hidden></span></div>
+    <div class="field"><label for="pj-c">Client</label><input class="input" id="pj-c" placeholder="Company"></div>
+    <div class="field-row"><div class="field"><label for="pj-o">Owner</label><select class="select" id="pj-o">${S.groups.find(g=>g.name==='everyone').members.map(m=>`<option>${esc(m)}</option>`).join('')}</select></div>
+    <div class="field"><label for="pj-d">Due</label><input class="input" id="pj-d" placeholder="DD Mon YYYY"></div></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Create project</button></div>`, f=>{
+      const n=$('#pj-n',f).value.trim(); if(n.length<3) return fieldErr(f,'#pj-n','#pj-err','Enter a name with at least three characters.');
+      const id='p'+(S.projects.length+1)+rand(3).toLowerCase().replace(/[^a-z0-9]/g,'x');
+      S.projects.unshift({id, name:n, client:$('#pj-c',f).value.trim()||'—', owner:$('#pj-o',f).value, status:'active', due:$('#pj-d',f).value.trim()||'—', ms:[]});
+      location.hash='run-projects-'+id; toast('Project created');
+    });
+}
+function dlgAddMs(id){
+  openDialog(`<h2>Add milestone</h2>
+    <div class="field"><label for="ms-n">What</label><input class="input" id="ms-n" placeholder="Design signed off"><span class="err" id="ms-err" hidden></span></div>
+    <div class="field"><label for="ms-d">By when</label><input class="input" id="ms-d" placeholder="DD Mon"></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Add milestone</button></div>`, f=>{
+      const n=$('#ms-n',f).value.trim(); if(!n) return fieldErr(f,'#ms-n','#ms-err','Describe what should be done.');
+      S.projects.find(p=>p.id===id).ms.push([n,$('#ms-d',f).value.trim()||'—',false]); render();
+    });
+}
+function dlgNewOffer(){
+  openDialog(`<h2>New quote</h2><p>Starts as a draft with number Q-2026-0${S.nextNo}. More line items are added on the detail page.</p>
+    <div class="field"><label for="of-c">Client</label><input class="input" id="of-c" placeholder="Company"><span class="err" id="of-err" hidden></span></div>
+    <div class="field"><label for="of-m">Contact email</label><input class="input" id="of-m" type="email" placeholder="purchasing@company.example"></div>
+    <div class="field"><label for="of-t">First line item</label><input class="input" id="of-t" placeholder="Consulting"></div>
+    <div class="field-row"><div class="field"><label for="of-q">Qty</label><input class="input" id="of-q" inputmode="decimal" value="1"></div>
+    <div class="field"><label for="of-u">Unit</label><input class="input" id="of-u" value="day"></div>
+    <div class="field"><label for="of-p">Unit price (€)</label><input class="input" id="of-p" inputmode="decimal" placeholder="1150"></div></div>
+    <div class="dialog-actions">${cancelBtn}<button class="btn primary" value="ok">Create draft</button></div>`, f=>{
+      const c=$('#of-c',f).value.trim(), q=parseFloat($('#of-q',f).value.replace(',','.')), pr=parseFloat($('#of-p',f).value.replace(',','.'));
+      if(!c) return fieldErr(f,'#of-c','#of-err','Enter the client.');
+      if(!(q>0)||!(pr>=0)) return fieldErr(f,'#of-p','#of-err','Quantity and unit price must be numbers, quantity above zero.');
+      const id='a'+S.nextNo; S.offers.unshift({id, no:'Q-2026-0'+S.nextNo++, client:c, contact:$('#of-m',f).value.trim()||'—', status:'draft', date:'today', valid:'—', items:[[$('#of-t',f).value.trim()||'Service',q,$('#of-u',f).value.trim()||'unit',pr]]});
+      location.hash='run-quotes-'+id; toast('Quote created as draft');
+    });
+}
+
+/* ---------- Befehlspalette ---------- */
+function commands(){
+  const go=(l,h,icon,g='Go to')=>({l,h,icon,g,run:()=>{ location.hash=h.slice(1); }});
+  const act=(l,icon,fn)=>({l,icon,g:'Actions',h:'',run:fn});
+  return [
+    ...NAV.flatMap(g=>g.items.map(([id,l,icon])=>go(l,'#'+id,icon))),
+    ...S.apps.map(a=>go(a.name,'#app-'+a.id,'apps','Apps')),
+    ...S.apps.filter(a=>a.status!=='new').map(a=>go(`Open ${a.name}`,'#run-'+a.id,'arrow','Apps')),
+    act('Create app','plus',dlgNewApp), act('Grant access','grants',()=>dlgNewGrant()), act('Create agent','agents',dlgNewAgent), act('Create group','groups',dlgNewGroup),
+    act('Toggle light and dark',isDark()?'sun':'moon',toggleTheme), act('Sign out','out',signOut)
+  ];
+}
+let pal=null;
+function openPalette(){
+  pal={q:'', i:0, restore:document.activeElement};
+  const box=$('#palette');
+  box.innerHTML=`<div class="palette"><div class="bg" data-act="palette-close"></div><div class="box" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="in">${ic('search')}<input id="pal-in" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list" aria-label="Command palette" placeholder="Type a page, app or action…" autocomplete="off"><kbd>Esc</kbd></div>
+    <ul id="pal-list" role="listbox" aria-label="Results"></ul>
+    <div class="foot"><span>↑↓ to move</span><span>↵ to open</span><span>esc to close</span></div></div></div>`;
+  const inp=$('#pal-in');
+  inp.addEventListener('input',()=>{ pal.q=inp.value; pal.i=0; drawPalette(); });
+  inp.addEventListener('keydown',e=>{
+    const n=pal.items.length;
+    if(e.key==='ArrowDown'){ e.preventDefault(); pal.i=n?(pal.i+1)%n:0; drawPalette(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); pal.i=n?(pal.i-1+n)%n:0; drawPalette(); }
+    else if(e.key==='Enter'){ e.preventDefault(); runCommand(pal.items[pal.i]); }
+    else if(e.key==='Escape'){ e.preventDefault(); closePalette(); }
+    else if(e.key==='Tab'){ e.preventDefault(); }
+  });
+  drawPalette(); inp.focus();
+}
+function drawPalette(){
+  const q=pal.q.trim().toLowerCase();
+  const all=commands();
+  pal.items = !q ? all : all.map((c,idx)=>[c.l.toLowerCase().startsWith(q)?0:c.l.toLowerCase().includes(q)?1:(c.g+' '+c.h).toLowerCase().includes(q)?2:9, idx, c]).filter(x=>x[0]<9).sort((a,b)=>a[0]-b[0]||a[1]-b[1]).map(x=>x[2]);
+  let g=null;
+  $('#pal-list').innerHTML = pal.items.length ? pal.items.map((c,i)=>{ const h=c.g!==g?`<li class="g label" role="presentation">${c.g}</li>`:''; g=c.g; return h+`<li class="o" role="option" id="pal-o${i}" data-pi="${i}" aria-selected="${i===pal.i}">${ic(c.icon)}<span class="l">${esc(c.l)}</span>${c.h?`<span class="h">${esc(c.h)}</span>`:''}</li>`; }).join('') : '<li class="none" role="presentation">No matches. Try “grant” or “quotes”.</li>';
+  $('#pal-in').setAttribute('aria-activedescendant', pal.items.length?`pal-o${pal.i}`:'');
+  $(`#pal-o${pal.i}`)?.scrollIntoView({block:'nearest'});
+}
+function closePalette(){ if(!pal) return; const r=pal.restore; pal=null; $('#palette').innerHTML=''; r?.focus?.(); }
+function runCommand(c){ if(!c) return; closePalette(); c.run(); }
 
 /* ---------- Popover ---------- */
 function popover(kind){
-  const p=$('#pop'); if(!p) return;
+  const p=$('#pop');
   if(p.dataset.kind===kind){ p.innerHTML=''; p.dataset.kind=''; return; }
   p.dataset.kind=kind;
-  if(kind==='notes') p.innerHTML=`<div class="pop" role="dialog" aria-label="Benachrichtigungen"><h3>Benachrichtigungen</h3>${S.notes.length?S.notes.map(n=>`<a class="item" href="${n.href}" style="text-decoration:none;color:inherit"><span class="t">${esc(n.t)}</span><span class="s">${esc(n.s)}</span></a>`).join(''):'<div class="item"><span class="s">Nichts Neues.</span></div>'}${S.notes.length?'<button class="btn sm ghost" data-act="read-all">Alle als gelesen markieren</button>':''}</div>`;
-  if(kind==='user') p.innerHTML=`<div class="pop" role="menu"><div class="item"><span class="t">${esc(S.user.name)}</span><span class="s">${esc(S.user.email)} · platform-admins</span></div><button class="item" data-act="theme" role="menuitem"><span class="t">Hell / dunkel umschalten</span></button><button class="item" data-act="logout" role="menuitem"><span class="t">Abmelden</span></button></div>`;
-  if(kind==='switcher') p.innerHTML=`<div class="pop" role="menu"><h3>Apps</h3><a class="item" href="#apps" style="text-decoration:none;color:inherit"><span class="t">Control Plane</span><span class="s">cp.enaibler.ai</span></a>${S.apps.filter(a=>a.status!=='neu').map(a=>`<a class="item" href="#run-${a.id}" style="text-decoration:none;color:inherit"><span class="t">${esc(a.name)}</span><span class="s">apps.enaibler.ai/${esc(a.id)}</span></a>`).join('')}</div>`;
+  if(kind==='notes') p.innerHTML=`<div class="pop tr" role="dialog" aria-label="Notifications"><h3 class="label">Notifications</h3>${S.notes.length?S.notes.map(n=>`<a class="item" href="${n.href}"><span class="t">${esc(n.t)}</span><span class="s">${esc(n.s)}</span></a>`).join('')+'<div class="sep"></div><button class="item" data-act="read-all"><span class="s">Mark all as read</span></button>':'<div class="item"><span class="s">Nothing new. Findings and blocked deployments show up here.</span></div>'}</div>`;
+  if(kind==='switcher') p.innerHTML=`<div class="pop tr" role="menu" aria-label="Switch app"><h3 class="label">Switch app</h3><a class="item" role="menuitem" href="#overview"><span class="t">Control plane</span><span class="s">cp.example.com</span></a>${S.apps.filter(a=>a.status!=='new').map(a=>`<a class="item" role="menuitem" href="#run-${a.id}"><span class="t">${esc(a.name)}</span><span class="s">apps.example.com/${esc(a.id)}</span></a>`).join('')}</div>`;
+  if(kind==='user') p.innerHTML=`<div class="pop bl" role="menu" aria-label="Account"><div class="item" style="cursor:default"><span class="t">${esc(S.user.name)}</span><span class="s">${esc(S.user.email)} · platform-admins</span></div><div class="sep"></div><button class="item row" role="menuitem" data-act="theme"><span class="t">Toggle light and dark</span><span class="s">${isDark()?'dark':'light'}</span></button><button class="item row" role="menuitem" data-act="palette"><span class="t">Command palette</span><kbd>⌘K</kbd></button><div class="sep"></div><button class="item" role="menuitem" data-act="logout"><span class="t">Sign out</span></button></div>`;
 }
+const closePop = () => { const p=$('#pop'); p.innerHTML=''; p.dataset.kind=''; };
 
 /* ---------- Router ---------- */
 function route(){
-  const h=(location.hash||'#apps').slice(1);
-  if(!S.loggedIn && h!=='login'){ location.hash='login'; return {html:pageLogin(), bare:true}; }
-  if(h==='login') return {html:pageLogin(), bare:true};
-  if(h.startsWith('run-')){ const rest=h.slice(4); const [id,...sub]=rest.split('-'); const st=S.apps.find(a=>a.id===id);
-    if(st && st.status==='neu') return {html:shell('apps', `<div class="state"><h2>${esc(st.name)} ist noch nicht deployt</h2><p>Die App läuft erst nach dem ersten grünen Review-Gate.</p><a class="btn primary" href="#app-${st.id}">Zur App</a></div>`)};
-    if(id==='projektliste') return {html:runProjektliste(sub.join('-'))};
-    if(id==='angebote') return {html:runAngebote(sub.join('-'))}; }
-  if(h.startsWith('app-')) return {html:shell('apps', pageApp(h.slice(4))), id:h.slice(4)};
-  const pages={apps:pageApps, grants:pageGrants, groups:pageGroups, agents:pageAgents, connect:pageConnect, audit:pageAudit};
-  return {html:shell(pages[h]?h:'apps', (pages[h]||pageApps)())};
+  const h=(location.hash||'#overview').slice(1);
+  if(!S.loggedIn && h!=='login'){ location.hash='login'; return {html:pageLogin()}; }
+  if(h==='login') return {html:pageLogin()};
+  if(h.startsWith('run-')){ const [id,...sub]=h.slice(4).split('-'); const st=S.apps.find(a=>a.id===id);
+    if(st && st.status==='new'){ CRUMBS=[['Platform','#overview'],['Apps','#apps'],[st.name]]; return {html:shell('apps', EMPTY(`${st.name} is not deployed yet`,'The app runs after its first green review gate.', `<a class="btn primary" href="#app-${st.id}">Go to app settings</a>`))}; }
+    if(id==='projects') return {html:runProjects(sub.join('-'))};
+    if(id==='quotes') return {html:runQuotes(sub.join('-'))}; }
+  if(h.startsWith('app-')){ const id=h.slice(4); return {html:shell('apps', pageApp(id)), id}; }
+  const pages={overview:pageOverview, apps:pageApps, grants:pageGrants, groups:pageGroups, agents:pageAgents, connect:pageConnect, audit:pageAudit};
+  const key=pages[h]?h:'overview';
+  return {html:shell(key, pages[key]())};
 }
+const DEMO=$('.demo');
 let currentApp=null;
 function render(){
+  const ae=document.activeElement, sid=ae?.dataset?.search, pos=ae?.selectionStart;
   const r=route(); currentApp=r.id||null;
-  $('#root').innerHTML=r.html; document.body.classList.remove('nav-open'); $('.scrim')?.remove();
+  $('#root').innerHTML=r.html; ($('.col')||$('#root')).prepend(DEMO); document.body.classList.remove('nav-open'); $('.scrim')?.remove(); closePop();
+  if(sid){ const i=$(`[data-search="${sid}"]`); if(i){ i.focus(); try{ i.setSelectionRange(pos,pos); }catch(e){} } }
 }
-window.addEventListener('hashchange',()=>{ S.appTab='overview'; render(); window.scrollTo(0,0); });
+function toggleTheme(){ document.documentElement.dataset.theme = isDark()?'light':'dark'; render(); }
+function signOut(){ S.loggedIn=false; location.hash='login'; render(); }
+window.addEventListener('hashchange',()=>{ S.appTab='overview'; render(); window.scrollTo(0,0); $('#main')?.focus({preventScroll:true}); });
 
+document.addEventListener('input', e=>{ const s=e.target.closest?.('[data-search]'); if(s){ tbl(s.dataset.search).q=s.value; render(); } });
 document.addEventListener('click', e=>{
-  const tr=e.target.closest('tr[data-href]'); if(tr && !e.target.closest('button,a')){ location.hash=tr.dataset.href.slice(1); return; }
-  const tab=e.target.closest('[data-tab]'); if(tab){ S.appTab=tab.dataset.tab; render(); return; }
-  const el=e.target.closest('[data-act]'); if(!el) { if(!e.target.closest('.pop,.iconbtn')){ const p=$('#pop'); if(p){p.innerHTML='';p.dataset.kind='';} } return; }
-  const act=el.dataset.act; const app=S.apps.find(a=>a.id===currentApp);
+  const tr=e.target.closest('tr[data-href]'); if(tr && !e.target.closest('button,a,input')){ location.hash=tr.dataset.href.slice(1); return; }
+  const tab=e.target.closest('[data-tab]'); if(tab){ e.preventDefault(); S.appTab=tab.dataset.tab; render(); return; }
+  const sb=e.target.closest('[data-sort]'); if(sb){ const st=tbl(sb.dataset.sort); if(st.sort===sb.dataset.k){ if(st.dir>0) st.dir=-1; else { st.sort=null; st.dir=1; } } else { st.sort=sb.dataset.k; st.dir=1; } render(); $(`[data-sort="${sb.dataset.sort}"][data-k="${sb.dataset.k}"]`)?.focus(); return; }
+  const fb=e.target.closest('[data-filter]'); if(fb){ tbl(fb.dataset.filter).f=fb.dataset.v; render(); $(`[data-filter="${fb.dataset.filter}"][data-v="${fb.dataset.v}"]`)?.focus(); return; }
+  const po=e.target.closest('[data-pi]'); if(po){ runCommand(pal.items[+po.dataset.pi]); return; }
+  const el=e.target.closest('[data-act]');
+  if(!el){ if(!e.target.closest('.pop')) closePop(); return; }
+  const act=el.dataset.act, app=S.apps.find(a=>a.id===currentApp);
+  if(!['notes','switcher','user'].includes(act)) closePop();
   switch(act){
-    case 'nav': document.body.classList.add('nav-open'); { const s=document.createElement('div'); s.className='scrim'; s.addEventListener('click',()=>{document.body.classList.remove('nav-open'); s.remove();}); document.body.appendChild(s); $('nav.side a')?.focus(); } break;
-    case 'notes': case 'user': case 'switcher': popover(act); break;
-    case 'read-all': S.notes=[]; render(); break;
-    case 'theme': { const d=document.documentElement; const dark = d.dataset.theme ? d.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; d.dataset.theme = dark?'light':'dark'; popover('user'); } break;
-    case 'logout': S.loggedIn=false; location.hash='login'; render(); break;
-    case 'login': S.loggedIn=true; location.hash='apps'; render(); toast('Angemeldet als '+S.user.email); break;
-    case 'retry': document.getElementById('demo-state').value='data'; listState='data'; render(); break;
+    case 'nav': document.body.classList.add('nav-open'); { const s=document.createElement('div'); s.className='scrim'; s.addEventListener('click',()=>{ document.body.classList.remove('nav-open'); s.remove(); }); document.body.appendChild(s); $('.side .searchbtn')?.focus(); } break;
+    case 'palette': document.body.classList.remove('nav-open'); $('.scrim')?.remove(); openPalette(); break;
+    case 'palette-close': closePalette(); break;
+    case 'notes': case 'switcher': case 'user': popover(act); break;
+    case 'read-all': S.notes=[]; render(); toast('All notifications marked as read'); break;
+    case 'theme': toggleTheme(); break;
+    case 'logout': signOut(); break;
+    case 'login': S.loggedIn=true; location.hash='overview'; render(); toast('Signed in as '+S.user.email); break;
+    case 'retry': $('#demo-state').value='data'; listState='data'; render(); break;
+    case 'clear-filters': { const st=tbl(el.dataset.id); st.q=''; st.f='all'; render(); $(`[data-search="${el.dataset.id}"]`)?.focus(); } break;
+    case 'copy-cmd': copy($('#cmd').textContent); break;
     case 'new-agent': dlgNewAgent(); break;
-    case 'disable-agent': { const a=S.agents.find(x=>x.name===el.dataset.n); a.disabled=true; S.audit.unshift({at:'jetzt', who:S.user.email, what:'disable_agent', on:'agent:'+a.name, out:'allowed'}); render(); toast(`agent:${a.name} gesperrt. Der nächste Aufruf bekommt 401.`); } break;
+    case 'disable-agent': { const a=S.agents.find(x=>x.name===el.dataset.n);
+      confirmDialog({title:`Disable agent:${esc(a.name)}?`, text:'Its token stops working immediately; the next call gets 401. Its grants stay, so you can enable it again.', confirm:'Disable agent'}, ()=>{
+        a.disabled=true; audit('disable_agent','agent:'+a.name); render();
+        toast(`agent:${a.name} disabled`, ()=>{ a.disabled=false; audit('enable_agent','agent:'+a.name); render(); });
+      }); } break;
     case 'new-grant': dlgNewGrant(el.dataset.res); break;
-    case 'revoke': { const g=S.grants.find(x=>x.id===+el.dataset.id); S.grants=S.grants.filter(x=>x!==g); S.audit.unshift({at:'jetzt', who:S.user.email, what:'revoke', on:g.resource, out:'allowed'}); render(); toast(`Widerrufen: ${g.subject} → ${g.resource}`); } break;
+    case 'revoke': { const g=S.grants.find(x=>x.id===+el.dataset.id);
+      confirmDialog({title:'Revoke this grant?', text:`<span class="mono">${esc(g.subject)}</span> will no longer be able to ${g.verb} <span class="mono">${esc(g.resource)}</span>, starting with the next call.`, confirm:'Revoke'}, ()=>{
+        const idx=S.grants.indexOf(g); S.grants=S.grants.filter(x=>x!==g); audit('revoke',g.resource); render();
+        toast('Grant revoked', ()=>{ S.grants.splice(idx,0,g); audit('grant',g.resource); render(); });
+      }); } break;
     case 'new-group': dlgNewGroup(); break;
     case 'add-member': dlgAddMember(el.dataset.g); break;
     case 'new-app': dlgNewApp(); break;
     case 'deploy': if(app) dlgDeploy(app); break;
-    case 'proj-filter': S.projFilter=el.dataset.f; render(); break;
     case 'new-project': dlgNewProject(); break;
     case 'add-ms': dlgAddMs(el.dataset.id); break;
-    case 'proj-status': { const p=S.projects.find(x=>x.id===el.dataset.id); p.status = p.status==='abgeschlossen'?'aktiv':'abgeschlossen'; render(); toast(p.status==='abgeschlossen'?'Projekt abgeschlossen':'Projekt wieder geöffnet'); } break;
+    case 'proj-status': { const p=S.projects.find(x=>x.id===el.dataset.id); p.status=p.status==='done'?'active':'done'; render(); toast(p.status==='done'?'Project marked as done':'Project reopened'); } break;
     case 'new-offer': dlgNewOffer(); break;
-    case 'offer-set': { const o=S.offers.find(x=>x.id===el.dataset.id); o.status=el.dataset.s; if(o.status==='versendet'){ o.date='heute'; o.valid='in 30 Tagen'; } render(); toast(`${o.no}: ${OFFER[o.status][1]}`); } break;
-    case 'offer-draft': { const o=S.offers.find(x=>x.id===el.dataset.id); toast(`Entwurf an ${o.contact} liegt in deinem Postfach. Im Dummy wird nichts gesendet.`); } break;
-    case 'open-app': e.preventDefault(); toast(app && app.status!=='neu' ? `Öffnet apps.enaibler.ai/${app.id} (im Dummy nicht verfügbar)` : 'Die App ist noch nicht deployt'); break;
-    case 'rollback': { const d=app.deploys[+el.dataset.i]; app.deploys.forEach(x=>{ if(x.status==='live'||x.status==='degraded') x.status='abgelöst'; }); d.status='live'; Object.assign(app,{status:'live', version:d.v, sha:d.sha, deployedAt:'gerade eben', by:S.user.email}); S.audit.unshift({at:'jetzt', who:S.user.email, what:'rollback', on:'app:'+app.id, out:'allowed'}); render(); toast(`${app.name} läuft wieder mit ${d.v}`); } break;
+    case 'offer-set': { const o=S.offers.find(x=>x.id===el.dataset.id); const prev=o.status; o.status=el.dataset.s; if(o.status==='sent'){ o.date='today'; o.valid='in 30 days'; } render(); toast(`${o.no} marked as ${OFFER[o.status][1]}`, ()=>{ o.status=prev; render(); }); } break;
+    case 'offer-draft': { const o=S.offers.find(x=>x.id===el.dataset.id); toast(`Draft to ${o.contact} is in your mailbox. Nothing is sent in the prototype.`); } break;
+    case 'rollback': { if(!app) break; const d=app.deploys[+el.dataset.i]; if(!d) break;
+      confirmDialog({title:`Roll back to ${esc(d.v)}?`, text:`${esc(app.name)} will run ${esc(d.v)} (${esc(d.sha)}) again. The current version stays in the history.`, confirm:'Roll back'}, ()=>{
+        app.deploys.forEach(x=>{ if(x.status==='live'||x.status==='degraded') x.status='replaced'; }); d.status='live';
+        Object.assign(app,{status:'live', version:d.v, sha:d.sha, deployedAt:'just now', ord:0, by:S.user.email}); audit('rollback','app:'+app.id); render(); toast(`${app.name} runs ${d.v} again`);
+      }); } break;
   }
 });
 document.addEventListener('keydown', e=>{
-  if(e.key==='Enter'){ const tr=e.target.closest?.('tr[data-href]'); if(tr) location.hash=tr.dataset.href.slice(1); }
-  if(e.key==='Escape' && document.body.classList.contains('nav-open')){ document.body.classList.remove('nav-open'); $('.scrim')?.remove(); }
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); if(pal) closePalette(); else if(!dlg.open && S.loggedIn) openPalette(); return; }
+  if(pal) return;
+  const typing=/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+  if(e.key==='/' && !typing && !dlg.open){ const s=$('[data-search]'); if(s){ e.preventDefault(); s.focus(); } }
+  if(e.key==='Escape'){ if(document.body.classList.contains('nav-open')){ document.body.classList.remove('nav-open'); $('.scrim')?.remove(); } closePop(); if(typing && e.target.dataset.search){ e.target.value=''; tbl(e.target.dataset.search).q=''; render(); } }
+  if(e.key==='Enter' && !typing){ const tr=e.target.closest?.('tr[data-href]'); if(tr) location.hash=tr.dataset.href.slice(1); }
 });
 document.addEventListener('change', e=>{ const cb=e.target.closest?.('input[data-ms]'); if(!cb) return; const p=S.projects.find(x=>x.id===cb.dataset.p); p.ms[+cb.dataset.ms][2]=cb.checked; render(); $('#'+cb.id)?.focus(); });
-document.getElementById('demo-state').addEventListener('change', e=>{ listState=e.target.value; render(); });
+$('#demo-state').addEventListener('change', e=>{ listState=e.target.value; render(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>render());
 render();
 })();
 </script>

@@ -81,6 +81,7 @@ export default async function AgentsPage() {
         caption="Agent identities on this instance"
         columns={COLUMNS}
         rows={agents.map(toRow)}
+        searchable
         {...(failure === undefined
           ? {}
           : { error: { title: 'Agents could not be loaded', description: failure } })}

@@ -18,6 +18,12 @@ import {
   Table,
   Tabs,
   useToast,
+  Icon,
+  Kbd,
+  PageHeader,
+  Skeleton,
+  Stat,
+  StatGroup,
 } from '../src/index.ts';
 import type { TableColumn } from '../src/index.ts';
 import { DetailPattern, FormPattern, ListPattern } from '../src/index.ts';
@@ -49,9 +55,9 @@ const NAV: readonly ShellNavGroup[] = [
   {
     title: 'Leave',
     items: [
-      { id: 'open', label: 'Open requests', href: '#open', badge: 3, current: true },
-      { id: 'all', label: 'All requests', href: '#all' },
-      { id: 'calendar', label: 'Calendar', href: '#calendar' },
+      { id: 'open', label: 'Open requests', href: '#open', badge: 3, current: true, icon: <Icon name="home" /> },
+      { id: 'all', label: 'All requests', href: '#all', icon: <Icon name="apps" /> },
+      { id: 'calendar', label: 'Calendar', href: '#calendar', icon: <Icon name="book" /> },
       { id: 'lang', label: LONG, href: '#lang' },
     ],
   },
@@ -181,6 +187,40 @@ function Content(): JSX.Element {
 
   return (
     <div className="flex min-w-0 flex-col gap-10">
+      <Section id="overview" title="Overview building blocks">
+        <StatGroup>
+          <Stat label="Apps live" value="4" hint="1 with findings" tone="warning" href="#apps" />
+          <Stat label="Agents active" value="2" hint="1 disabled" />
+          <Stat label="Grants" value="18" hint="3 added this week" tone="success" />
+          <Stat label="Denied calls · 24h" value="7" hint="2 from codex-team" tone="danger" />
+        </StatGroup>
+        <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+          <Demo label="Table with search, toolbar and tooltips">
+            <Table
+              caption="Requests"
+              columns={COLUMNS}
+              rows={ROWS}
+              searchable
+              toolbar={<Button size="sm" variant="secondary">Export</Button>}
+            />
+          </Demo>
+          <Demo label="Skeleton, Kbd, Icon">
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton />
+              <Skeleton className="w-3/4" />
+              <p className="text-sm text-fg-muted">
+                Press <Kbd>⌘K</Kbd> to open the command palette.
+              </p>
+              <div className="flex flex-wrap gap-3 text-fg-muted">
+                <Icon name="home" /><Icon name="apps" /><Icon name="agents" /><Icon name="grants" />
+                <Icon name="groups" /><Icon name="audit" /><Icon name="plug" /><Icon name="book" />
+                <Icon name="database" /><Icon name="terminal" /><Icon name="settings" /><Icon name="search" />
+              </div>
+            </div>
+          </Demo>
+        </div>
+      </Section>
       <Section id="components" title="Components">
         <div className="grid min-w-0 gap-4 lg:grid-cols-2">
           <Demo label="Button — all variants and states">
@@ -476,15 +516,13 @@ export function Showcase(): JSX.Element {
       onSignOut={() => {}}
     >
       <div className="flex min-w-0 flex-col gap-8">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-3xl font-semibold text-fg">@openapps/ui</h1>
-            <p className="mt-1 text-sm text-fg-muted">
-              All components, all five patterns and the app shell — in light and dark.
-            </p>
-          </div>
-          <ThemeSwitch theme={theme} onChange={setTheme} />
-        </header>
+        <PageHeader
+          className="mb-0"
+          breadcrumbs={[{ label: 'Design system', href: '#' }, { label: 'Showcase' }]}
+          title="@openapps/ui"
+          description="All components, all five patterns and the app shell — in light and dark."
+          actions={<ThemeSwitch theme={theme} onChange={setTheme} />}
+        />
         <Content />
       </div>
     </AppShell>

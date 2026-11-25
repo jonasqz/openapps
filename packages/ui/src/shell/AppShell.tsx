@@ -9,6 +9,10 @@ import { ToastProvider } from '../components/Toast.tsx';
 import { AppSwitcher } from './AppSwitcher.tsx';
 import { NotificationBell } from './NotificationBell.tsx';
 import { UserMenu } from './UserMenu.tsx';
+import { CommandPalette } from './CommandPalette.tsx';
+import type { CommandItem } from './CommandPalette.tsx';
+import { Icon } from '../components/Icon.tsx';
+import { Kbd } from '../components/Kbd.tsx';
 import type { ShellApp, ShellNavGroup, ShellNotification, ShellUser } from './types.ts';
 import { strings } from '../strings.ts';
 
@@ -34,6 +38,11 @@ export interface AppShellProps {
   onNavigate?: (href: string) => void;
   onProfile?: () => void;
   onSignOut?: () => void;
+  /**
+   * Befehlspalette (⌘K / Strg+K) mit allen Navigationseinträgen und Apps.
+   * Vorgabe: an, sobald es Navigation oder Apps gibt.
+   */
+  commandPalette?: boolean;
   /** Der Inhalt der App. Nur das baut ein App-Agent. */
   children: ReactNode;
   className?: string;
@@ -71,6 +80,7 @@ export function AppShell({
   onNavigate,
   onProfile,
   onSignOut,
+  commandPalette = true,
   children,
   className,
 }: AppShellProps): JSX.Element {
@@ -80,6 +90,61 @@ export function AppShell({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const hasNav = nav.some((group) => group.items.length > 0);
   const product = productName ?? strings.shell.productName;
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const commands: CommandItem[] = [
+    ...nav.flatMap((group) =>
+      group.items.map((item) => ({
+        id: `nav-${item.id}`,
+        label: item.label,
+        href: item.href,
+        group: group.title ?? strings.commandPalette.navigationGroup,
+        hint: item.href,
+        ...(item.icon === undefined ? {} : { icon: item.icon }),
+      })),
+    ),
+    ...apps.map((app) => ({
+      id: `app-${app.id}`,
+      label: app.name,
+      href: app.href,
+      group: strings.commandPalette.appsGroup,
+      hint: app.href,
+    })),
+  ];
+  const paletteEnabled = commandPalette && commands.length > 0;
+
+  useEffect(() => {
+    if (!paletteEnabled) return undefined;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setDrawerOpen(false);
+        setPaletteOpen((value) => !value);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [paletteEnabled]);
+
+  const searchTrigger = paletteEnabled ? (
+    <button
+      type="button"
+      onClick={() => {
+        setDrawerOpen(false);
+        setPaletteOpen(true);
+      }}
+      aria-haspopup="dialog"
+      aria-keyshortcuts="Meta+K Control+K"
+      className={cn(
+        'mb-5 flex w-full min-w-0 items-center gap-2 rounded-md border border-border bg-bg px-3 py-2 text-left text-sm text-fg-subtle',
+        'transition-colors duration-150 hover:border-border-strong hover:text-fg-muted',
+        focusRing,
+      )}
+    >
+      <Icon name="search" />
+      <span className="min-w-0 flex-1 truncate">{strings.commandPalette.trigger}</span>
+      <Kbd aria-hidden="true">⌘K</Kbd>
+    </button>
+  ) : null;
 
   useEffect(() => {
     if (!drawerOpen) return undefined;
@@ -121,15 +186,18 @@ export function AppShell({
                     setDrawerOpen(false);
                   }}
                   className={cn(
-                    'flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-sm',
+                    'flex min-w-0 items-center gap-2.5 rounded-sm px-3 py-2 text-sm transition-colors duration-150',
                     focusRing,
                     item.current === true
-                      ? 'bg-primary-subtle font-medium text-primary-subtle-fg'
+                      ? "relative bg-surface-hover font-medium text-fg before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:bg-primary before:content-['']"
                       : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
                   )}
                 >
                   {item.icon === undefined ? null : (
-                    <span aria-hidden="true" className="shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className={cn('shrink-0', item.current === true ? 'text-fg' : 'text-fg-subtle')}
+                    >
                       {item.icon}
                     </span>
                   )}
@@ -212,7 +280,8 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1">
           {hasNav ? (
-            <aside className="hidden w-nav min-w-0 shrink-0 overflow-hidden border-r border-border bg-bg px-3 py-5 md:block">
+            <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-nav min-w-0 shrink-0 overflow-y-auto border-r border-border bg-bg px-3 py-5 md:block">
+              {searchTrigger}
               {navList}
             </aside>
           ) : null}
@@ -252,9 +321,24 @@ export function AppShell({
                   <span className="sr-only">{strings.shell.closeNavigation}</span>
                 </button>
               </div>
-              <div className="min-w-0 overflow-y-auto">{navList}</div>
+              <div className="min-w-0 overflow-y-auto">
+                {searchTrigger}
+                {navList}
+              </div>
             </div>
           </div>
+        ) : null}
+
+        {paletteEnabled ? (
+          <CommandPalette
+            open={paletteOpen}
+            onClose={() => setPaletteOpen(false)}
+            items={commands}
+            onSelect={(item) => {
+              if (onNavigate !== undefined) onNavigate(item.href);
+              else window.location.assign(item.href);
+            }}
+          />
         ) : null}
       </div>
     </ToastProvider>

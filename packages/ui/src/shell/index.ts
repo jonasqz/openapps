@@ -7,3 +7,5 @@ export type { NotificationBellProps } from './NotificationBell.tsx';
 export { UserMenu, initialsOf } from './UserMenu.tsx';
 export type { UserMenuProps } from './UserMenu.tsx';
 export type { ShellApp, ShellNavGroup, ShellNavItem, ShellNotification, ShellUser } from './types.ts';
+export { CommandPalette, filterCommands } from './CommandPalette.tsx';
+export type { CommandItem, CommandPaletteProps } from './CommandPalette.tsx';

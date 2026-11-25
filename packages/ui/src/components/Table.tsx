@@ -1,6 +1,9 @@
 'use client';
 
+import { useId, useState } from 'react';
 import type { JSX, ReactNode } from 'react';
+import { focusRing } from '../lib/focus.ts';
+import { Icon } from './Icon.tsx';
 import { cn } from '../lib/cn.ts';
 import { EmptyState } from './EmptyState.tsx';
 import { ErrorState } from './ErrorState.tsx';
@@ -115,6 +118,14 @@ export interface TableProps<Row> {
    * Funktion, also **nur aus Client-Komponenten**.
    */
   onRowActivate?: ((row: Row) => void) | undefined;
+  /**
+   * Suchfeld über der Tabelle. Filtert im Browser über alle Spalten mit
+   * `field` und zeigt „3 of 12". Serverfähig, weil nur ein Boolean.
+   * Für lange Listen gehört die Suche auf den Server (`ListPattern`).
+   */
+  searchable?: boolean | undefined;
+  /** Weitere Bedienelemente rechts in der Werkzeugleiste, z. B. Filter. */
+  toolbar?: ReactNode;
   className?: string | undefined;
 }
 
@@ -181,8 +192,13 @@ export function Table<Row>({
   error,
   empty,
   onRowActivate,
+  searchable = false,
+  toolbar,
   className,
 }: TableProps<Row>): JSX.Element {
+  const searchId = useId();
+  const [query, setQuery] = useState('');
+
   if (error !== undefined) {
     return (
       <ErrorState
@@ -193,11 +209,58 @@ export function Table<Row>({
     );
   }
 
+  const needle = query.trim().toLowerCase();
+  const shown =
+    searchable && needle !== ''
+      ? rows.filter((row) =>
+          columns.some((column) => {
+            if (column.cell !== undefined) return false;
+            const value = readField(row, column.field);
+            const text = value instanceof Date ? strings.table.date(value) : value;
+            return (
+              (typeof text === 'string' || typeof text === 'number' || typeof text === 'bigint') &&
+              String(text).toLowerCase().includes(needle)
+            );
+          }),
+        )
+      : rows;
   const showEmpty = !loading && rows.length === 0;
+  const showNoMatch = !loading && rows.length > 0 && shown.length === 0;
+  const hasToolbar = searchable || toolbar !== undefined;
 
   return (
     <div className={cn('min-w-0', className)}>
-      <div className="overflow-hidden rounded-lg border border-border">
+      {hasToolbar ? (
+        <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2">
+          {searchable ? (
+            <div className="relative flex min-w-0 flex-1 items-center sm:max-w-field">
+              <label htmlFor={searchId} className="sr-only">
+                {strings.tableSearch.label(caption)}
+              </label>
+              <Icon name="search" className="pointer-events-none absolute left-3 text-fg-subtle" />
+              <input
+                id={searchId}
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={strings.tableSearch.placeholder}
+                className={cn(
+                  'h-10 w-full min-w-0 rounded-md border border-border-strong bg-bg pl-10 pr-3 text-sm text-fg',
+                  'placeholder:text-fg-subtle transition-colors duration-150 hover:border-fg-muted',
+                  focusRing,
+                )}
+              />
+            </div>
+          ) : null}
+          {searchable && !loading ? (
+            <span aria-live="polite" className="font-mono text-2xs tabular-nums text-fg-muted">
+              {strings.tableSearch.count(shown.length, rows.length)}
+            </span>
+          ) : null}
+          {toolbar === undefined ? null : <div className="ml-auto flex flex-wrap gap-2">{toolbar}</div>}
+        </div>
+      ) : null}
+      <div className="relative overflow-hidden rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-left text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="bg-bg">
@@ -235,7 +298,7 @@ export function Table<Row>({
                     ))}
                   </tr>
                 ))
-              : rows.map((row, index) => (
+              : shown.map((row, index) => (
                   <tr
                     key={resolveRowKey(row, index, rowKey)}
                     className="bg-bg transition-colors duration-150 hover:bg-surface [&:last-child>td]:border-b-0"
@@ -264,7 +327,12 @@ export function Table<Row>({
                               {content}
                             </button>
                           ) : (
-                            <span className="block truncate">{content}</span>
+                            <span
+                              className="block truncate"
+                              title={typeof content === 'string' || typeof content === 'number' ? String(content) : undefined}
+                            >
+                              {content}
+                            </span>
                           )}
                         </td>
                       );
@@ -277,6 +345,23 @@ export function Table<Row>({
       {loading ? (
         <div className="mt-2">
           <Spinner size="sm" label={strings.table.loadingLabel(caption)} />
+        </div>
+      ) : null}
+      {showNoMatch ? (
+        <div className="mt-3">
+          <EmptyState
+            title={strings.tableSearch.noMatchTitle}
+            description={strings.tableSearch.noMatchDescription(query.trim())}
+            action={
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className={cn('rounded-full border border-border-strong px-4 py-1.5 text-sm font-medium text-fg hover:border-fg', focusRing)}
+              >
+                {strings.tableSearch.clear}
+              </button>
+            }
+          />
         </div>
       ) : null}
       {showEmpty ? (

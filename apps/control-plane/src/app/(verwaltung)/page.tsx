@@ -73,6 +73,7 @@ export default async function AppsPage() {
         caption="Apps on this instance"
         columns={COLUMNS}
         rows={apps.map(toRow)}
+        searchable
         {...(failure === undefined
           ? {}
           : { error: { title: 'Apps could not be loaded', description: failure } })}

@@ -87,6 +87,7 @@ export default async function GrantsPage() {
         caption={all ? 'All grants' : 'Your grants'}
         columns={COLUMNS}
         rows={grants.map(toRow)}
+        searchable
         {...(failure === undefined
           ? {}
           : { error: { title: 'Grants could not be loaded', description: failure } })}
