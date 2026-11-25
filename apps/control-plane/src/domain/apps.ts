@@ -33,9 +33,7 @@ export async function requireAppPermission(
   app: Pick<App, 'id' | 'name'>,
 ): Promise<void> {
   if (!(await canAccessApp(ctx, actor, verb, app))) {
-    throw new PermissionDeniedError(
-      `${actor.kind}:${actor.id} darf nicht ${verb} auf app:${app.name}`,
-    );
+    throw new PermissionDeniedError(`${actor.kind}:${actor.id} may not ${verb} on app:${app.name}`);
   }
 }
 
@@ -89,7 +87,7 @@ export async function createApp(ctx: DomainContext, input: CreateAppInput): Prom
       await requirePermission(ctx, actor, 'write', { kind: 'app', id: ANY });
 
       if (await ctx.apps.findByName(name)) {
-        throw new ConflictError(`App "${name}" gibt es schon`);
+        throw new ConflictError(`App "${name}" already exists`);
       }
 
       const schemaName = schemaNameFor(name);
@@ -178,7 +176,7 @@ async function createRepository(
 
 export async function getApp(ctx: DomainContext, actor: Actor, appIdOrName: string): Promise<App> {
   const app = (await ctx.apps.findById(appIdOrName)) ?? (await ctx.apps.findByName(appIdOrName));
-  if (app === null) throw new NotFoundError(`App "${appIdOrName}" gibt es nicht`);
+  if (app === null) throw new NotFoundError(`App "${appIdOrName}" does not exist`);
   await requireAppPermission(ctx, actor, 'read', app);
   return app;
 }

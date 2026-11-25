@@ -7,127 +7,127 @@ insert into pages (id, parent_id, title, content_md, tags, created_by, updated_b
 (
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001',
   null,
-  'Nordlicht Handbuch',
-  $md$# Willkommen bei der Nordlicht GmbH
+  'Northlight Handbook',
+  $md$# Welcome to Northlight Ltd
 
-Dieses Handbuch sammelt alles, was du für den Alltag bei **Nordlicht** brauchst.
-Es wird von Menschen und von Agents gepflegt. Jede Änderung steht im *Verlauf*.
+This handbook collects everything you need for day-to-day work at **Northlight**.
+It is maintained by humans and by agents. Every change is in the *history*.
 
-## Wo fange ich an?
+## Where do I start?
 
-- Neu im Team? Lies zuerst das **Onboarding**.
-- Urlaub planen? Siehe **Urlaubsregel**.
-- Zugang zu einem Werkzeug fehlt? Siehe **Tools & Zugänge**.
+- New to the team? Read the **Onboarding** page first.
+- Planning time off? See the **Leave policy**.
+- Missing access to a tool? See **Tools & access**.
 
-Fehlt etwas, lege eine Unterseite an oder ergänze die passende Seite.
+If something is missing, add a subpage or extend the page that fits.
 $md$,
-  array['handbuch', 'start'],
-  'system:beispieldaten',
-  'system:beispieldaten'
+  array['handbook', 'start'],
+  'system:sample-data',
+  'system:sample-data'
 ),
 (
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000002',
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001',
   'Onboarding',
-  $md$# Deine erste Woche
+  $md$# Your first week
 
-Schön, dass du da bist. Diese Liste führt dich durch die ersten Tage.
+Great to have you here. This list walks you through your first few days.
 
-## Tag 1
+## Day 1
 
-1. Laptop abholen und einrichten
-2. Im Passwort-Manager anmelden
-3. Vorstellungsrunde im Team-Kanal
+1. Pick up and set up your laptop
+2. Sign in to the password manager
+3. Say hello in the team channel
 
-## Bis Ende der Woche
+## By the end of the week
 
-- Ein Gespräch mit deiner **Patin** oder deinem **Paten**
-- Die Seite *Tools & Zugänge* durchgehen
-- Eine erste kleine Aufgabe aus dem Board übernehmen
+- Have a chat with your **onboarding buddy**
+- Go through the *Tools & access* page
+- Pick up a first small task from the board
 
-> Fragen sind ausdrücklich erwünscht. Niemand erwartet, dass du in der ersten Woche alles weißt.
+> Questions are very welcome. Nobody expects you to know everything in your first week.
 
-Mehr über das Unternehmen: [nordlicht.example](https://nordlicht.example)
+More about the company: [northlight.example](https://northlight.example)
 $md$,
-  array['onboarding', 'personal'],
-  'system:beispieldaten',
-  'system:beispieldaten'
+  array['onboarding', 'people'],
+  'system:sample-data',
+  'system:sample-data'
 ),
 (
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000003',
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001',
-  'Urlaubsregel',
-  $md$# Urlaub bei Nordlicht
+  'Leave policy',
+  $md$# Annual leave at Northlight
 
-Alle Vollzeitkräfte haben **30 Urlaubstage** im Kalenderjahr. Teilzeit anteilig.
+Everyone working full time gets **30 days of annual leave** per calendar year. Part-time staff get a pro-rata share.
 
-## So beantragst du Urlaub
+## How to request leave
 
-1. Mit dem Team abstimmen, wer dich vertritt
-2. Antrag im Personalsystem stellen, mindestens **zwei Wochen** vorher
-3. Abwesenheit in den Teamkalender eintragen
+1. Agree with your team who covers for you
+2. Submit the request in the HR system at least **two weeks** ahead
+3. Add your absence to the team calendar
 
-## Regeln
+## Rules
 
-- Zwischen dem 22. Dezember und dem 1. Januar ist das Büro geschlossen. Diese Tage zählen als Urlaub.
-- Resturlaub verfällt am *31. März* des Folgejahres.
-- Mehr als drei Wochen am Stück bitte früh mit der Teamleitung klären.
+- The office is closed between 22 December and 1 January. These days count as leave.
+- Unused leave expires on *31 March* of the following year.
+- Please clear more than three weeks in a row with your team lead early on.
 $md$,
-  array['personal', 'urlaub'],
-  'system:beispieldaten',
-  'system:beispieldaten'
+  array['people', 'leave'],
+  'system:sample-data',
+  'system:sample-data'
 ),
 (
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000004',
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001',
-  'Tools & Zugänge',
-  $md$# Werkzeuge im Alltag
+  'Tools & access',
+  $md$# Tools we use every day
 
-Hier steht, **welche** Werkzeuge wir nutzen und **wie** du Zugang bekommst.
-Zugangsdaten stehen nie in diesem Wiki und gehen nie per Mail herum.
+This page lists **which** tools we use and **how** you get access.
+Credentials never go into this wiki and are never sent around by email.
 
-## Werkzeuge
+## Tools
 
-- **Chat**: Team-Kanäle für den Alltag
-- **Board**: Aufgaben und Projekte
-- **Passwort-Manager**: alle geteilten Zugänge
-- **openapps**: interne Apps, auch dieses Wiki
+- **Chat**: team channels for everyday work
+- **Board**: tasks and projects
+- **Password manager**: all shared credentials
+- **openapps**: internal apps, including this wiki
 
-## Zugang beantragen
+## Requesting access
 
-1. Anfrage im Kanal `#it-hilfe` stellen
-2. Die IT gibt den Zugang im Passwort-Manager frei
-3. Fertig, kein Passwort im Klartext
+1. Ask in the `#it-help` channel
+2. IT grants access in the password manager
+3. Done, no password in plain text
 
-Wer einen Zugang nicht mehr braucht, meldet das ebenfalls in `#it-hilfe`.
+If you no longer need an account, say so in `#it-help` as well.
 $md$,
-  array['it', 'zugang'],
-  'system:beispieldaten',
-  'system:beispieldaten'
+  array['it', 'access'],
+  'system:sample-data',
+  'system:sample-data'
 ),
 (
   '6f1c2a4e-1b7d-4c2a-9e51-0a0000000005',
   null,
-  'Meeting-Notizen',
-  $md$# Wochenrunde
+  'Meeting notes',
+  $md$# Weekly meeting
 
-Notizen aus der Wochenrunde. Neue Runden werden unten **angehängt**,
-damit der Verlauf an einer Stelle bleibt.
+Notes from the weekly meeting. New meetings are **appended** at the bottom,
+so the history stays in one place.
 
-## Runde vom 16. November
+## Meeting on 16 November
 
-- Quartalsziele: zwei von drei auf Kurs
-- Neues Wiki eingeführt, Feedback bis Freitag in `#wiki`
-- *Offen:* Wer übernimmt die Planung der Weihnachtsfeier?
+- Quarterly goals: two out of three on track
+- New wiki introduced, feedback by Friday in `#wiki`
+- *Open:* Who plans the end-of-year party?
 
-## Runde vom 23. November
+## Meeting on 23 November
 
-- Weihnachtsfeier: Team Vertrieb plant
-- Onboarding-Seite überarbeitet
+- End-of-year party: the sales team plans it
+- Onboarding page reworked
 $md$,
-  array['meeting', 'notizen'],
-  'system:beispieldaten',
-  'system:beispieldaten'
+  array['meeting', 'notes'],
+  'system:sample-data',
+  'system:sample-data'
 );
 
 -- Auch die Beispielseiten haben einen ersten Eintrag im Verlauf.

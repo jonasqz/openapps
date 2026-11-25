@@ -279,7 +279,7 @@ describe('kein Router ohne Middlewares — ueber die ganze Ausgabe', () => {
     } as unknown as GatewayDynamicConfig;
 
     const problems = gatewayConfigProblems(vertauscht);
-    expect(problems.join(' ')).toContain('in genau dieser Reihenfolge');
+    expect(problems.join(' ')).toContain('in exactly this order');
   });
 
   it('der Lint faengt einen Router ganz ohne Middlewares (erzwungen)', () => {
@@ -296,7 +296,7 @@ describe('kein Router ohne Middlewares — ueber die ganze Ausgabe', () => {
       },
     } as unknown as GatewayDynamicConfig;
 
-    expect(gatewayConfigProblems(ohne).join(' ')).toContain('erwartet genau zwei');
+    expect(gatewayConfigProblems(ohne).join(' ')).toContain('expected exactly two');
   });
 
   it('der Lint faengt eine Strip-Middleware, die einen der fuenf Header nicht loescht', () => {
@@ -375,7 +375,7 @@ describe('die Datei auf dem Host', () => {
     for (const reserved of RESERVED_DYNAMIC_FILENAMES) {
       expect(() =>
         createFileGatewayConfigStore({ directory: '/traefik/dynamic', filename: reserved }),
-      ).toThrow(/reservierte/);
+      ).toThrow(/reserved by Coolify/);
     }
   });
 });

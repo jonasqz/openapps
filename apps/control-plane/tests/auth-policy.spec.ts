@@ -39,7 +39,7 @@ describe('Domain-Schranke', () => {
   it('weist eine E-Mail ausserhalb der erlaubten Domains ab', () => {
     expect(emailDomainAllowed('eve@evil.com', ALLOWED)).toBe(false);
     expect(() => assertEmailDomainAllowed('eve@evil.com', ALLOWED)).toThrow(
-      /nicht in AUTH_ALLOWED_EMAIL_DOMAINS/,
+      /is not in AUTH_ALLOWED_EMAIL_DOMAINS/,
     );
   });
 
@@ -98,7 +98,7 @@ describe('Domain-Schranke', () => {
     }
     // Ein zu kurzes Secret ist kein Secret.
     expect(() => readAuthEnv({ ...complete, BETTER_AUTH_SECRET: 'kurz' })).toThrow(
-      /BETTER_AUTH_SECRET ist kuerzer/,
+      /BETTER_AUTH_SECRET is shorter/,
     );
   });
 });

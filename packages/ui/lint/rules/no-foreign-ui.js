@@ -48,7 +48,7 @@ const fileCache = new Map();
  * Alternativ ein Objekt mit `allow`, damit Platz für Kommentare bleibt:
  *
  * ```json
- * { "_kommentar": "Gepflegt von der Control Plane.", "allow": ["zod"] }
+ * { "_comment": "Maintained by the control plane.", "allow": ["zod"] }
  * ```
  *
  * **Fehlt die Datei, gilt nur die eingebaute Allowlist — nie „alles erlaubt".**
@@ -64,7 +64,7 @@ function readAllowlistFile(filePath) {
     const parsed = JSON.parse(raw);
     const list = Array.isArray(parsed) ? parsed : parsed?.allow;
     if (!Array.isArray(list) || list.some((entry) => typeof entry !== 'string')) {
-      result = { packages: [], error: `${filePath}: erwartet wird eine Liste von Paketnamen.` };
+      result = { packages: [], error: `${filePath}: expected a list of package names.` };
     } else {
       result = { packages: list, error: null };
     }
@@ -72,7 +72,7 @@ function readAllowlistFile(filePath) {
     result =
       cause?.code === 'ENOENT'
         ? null
-        : { packages: [], error: `${filePath}: ${cause?.message ?? 'nicht lesbar'}` };
+        : { packages: [], error: `${filePath}: ${cause?.message ?? 'not readable'}` };
   }
 
   fileCache.set(filePath, result);
@@ -103,7 +103,7 @@ export const noForeignUi = {
     type: 'problem',
     docs: {
       description:
-        'Nur @openapps/ui, React, Next und Tailwind-Utilities importieren — keine zweite UI-Bibliothek.',
+        'Import only @openapps/ui, React, Next and Tailwind utilities — no second UI library.',
     },
     schema: [
       {
@@ -128,9 +128,9 @@ export const noForeignUi = {
     ],
     messages: {
       foreign:
-        'Import aus "{{source}}" ist nicht erlaubt. UI kommt aus @openapps/ui; erlaubt sind außerdem: {{allowed}}. Ein weiteres Paket trägt die Control Plane in {{file}} ein.',
+        'Import from "{{source}}" is not allowed. UI comes from @openapps/ui; also allowed: {{allowed}}. The control plane adds further packages to {{file}}.',
       badAllowlist:
-        'Die Liste erlaubter Pakete ist nicht lesbar: {{reason}} Es gilt nur die eingebaute Allowlist.',
+        'The list of allowed packages is not readable: {{reason}} Only the built-in allowlist applies.',
     },
   },
   create(context) {

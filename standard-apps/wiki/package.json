@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Standard-App Wiki: Wissensseiten mit Baum, Volltextsuche und Verlauf, für Menschen und Agents.",
+  "description": "Standard app Wiki: knowledge pages with a tree, full-text search and history, for humans and agents.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

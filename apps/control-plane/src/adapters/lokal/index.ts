@@ -71,7 +71,7 @@ export function lokalConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LokalC
     sourceDir === undefined ||
     sourceDir === ''
   ) {
-    throw new Error('OPENAPPS_BACKEND=lokal braucht LOKAL_RUNTIME_DIR und LOKAL_SOURCE_DIR');
+    throw new Error('OPENAPPS_BACKEND=lokal needs LOKAL_RUNTIME_DIR and LOKAL_SOURCE_DIR');
   }
   const templateDir = env.LOKAL_TEMPLATE_DIR;
   return {
@@ -106,7 +106,7 @@ export async function scaffoldFromTemplate(
   if (exists) return 'vorhanden';
   if (config.templateDir === undefined) {
     throw new Error(
-      `lokal lassen sich ohne LOKAL_TEMPLATE_DIR nur vorhandene Apps anlegen (${config.sourceDir}/${spec.appName} fehlt)`,
+      `locally, without LOKAL_TEMPLATE_DIR only existing apps can be created (${config.sourceDir}/${spec.appName} is missing)`,
     );
   }
   await cp(config.templateDir, target, {
@@ -134,7 +134,7 @@ export async function scaffoldFromTemplate(
 
 function appNameFromRef(backendRef: string): string {
   const name = backendRef.startsWith(REF_PREFIX) ? backendRef.slice(REF_PREFIX.length) : '';
-  if (!APP_NAME.test(name)) throw new Error(`unbekannte lokale Referenz "${backendRef}"`);
+  if (!APP_NAME.test(name)) throw new Error(`unknown local reference "${backendRef}"`);
   return name;
 }
 
@@ -194,11 +194,11 @@ export function createLokalBackend(config: LokalConfig): DeploymentBackend {
 
   return {
     async createApp(spec: BackendAppSpec) {
-      if (!APP_NAME.test(spec.appName)) throw new Error(`ungueltiger App-Name "${spec.appName}"`);
+      if (!APP_NAME.test(spec.appName)) throw new Error(`invalid app name "${spec.appName}"`);
       // Nur Apps, fuer die es lokal einen Container gibt. Alles andere waere
       // ein Deploy, der nie antwortet.
       await stat(join(config.sourceDir, spec.appName, 'app.json')).catch(() => {
-        throw new Error(`lokal gibt es keine App "${spec.appName}" in ${config.sourceDir}`);
+        throw new Error(`there is no local app "${spec.appName}" in ${config.sourceDir}`);
       });
       const record: Spec = {
         appName: spec.appName,
@@ -234,7 +234,7 @@ export function createLokalBackend(config: LokalConfig): DeploymentBackend {
         : {
             backendRef: request.backendRef,
             ok: false,
-            message: `App "${name}" hat nach dem Startsignal nicht geantwortet`,
+            message: `App "${name}" did not answer after the start signal`,
           };
     },
 
@@ -251,7 +251,7 @@ export function createLokalBackend(config: LokalConfig): DeploymentBackend {
       return {
         backendRef,
         ok: await probe(name),
-        message: 'lokal: nur das Etikett gewechselt, der Container bleibt derselbe',
+        message: 'local: only the label changed, the container stays the same',
       };
     },
 
@@ -262,7 +262,7 @@ export function createLokalBackend(config: LokalConfig): DeploymentBackend {
       // aussieht.
       return {
         state: 'unreachable',
-        reason: 'lokaler Betrieb: kein Backend-Inventar (die Container stehen in infra/lokal)',
+        reason: 'local mode: no backend inventory (the containers are defined in infra/lokal)',
       };
     },
   };
@@ -271,7 +271,7 @@ export function createLokalBackend(config: LokalConfig): DeploymentBackend {
 export function createLokalRepositoryBackend(config: LokalConfig): RepositoryBackend {
   return {
     async createFromTemplate(spec: NewRepositorySpec): Promise<CreatedRepository> {
-      if (!APP_NAME.test(spec.appName)) throw new Error(`ungueltiger App-Name "${spec.appName}"`);
+      if (!APP_NAME.test(spec.appName)) throw new Error(`invalid app name "${spec.appName}"`);
       await scaffoldFromTemplate(config, spec);
       return { gitUrl: `${GIT_PREFIX}${spec.appName}`, tag: 'lokal' };
     },
@@ -279,7 +279,7 @@ export function createLokalRepositoryBackend(config: LokalConfig): RepositoryBac
     async checkout(input: RepositoryCheckoutRequest): Promise<RepositoryCheckout> {
       const name = input.gitUrl.startsWith(GIT_PREFIX) ? input.gitUrl.slice(GIT_PREFIX.length) : '';
       if (!APP_NAME.test(name)) {
-        throw new Error(`lokal nur https://lokal.invalid/<app>, nicht "${input.gitUrl}"`);
+        throw new Error(`locally only https://lokal.invalid/<app>, not "${input.gitUrl}"`);
       }
       const root = await mkdtemp(join(tmpdir(), 'openapps-checkout-'));
       const dir = join(root, name);

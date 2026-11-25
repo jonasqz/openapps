@@ -4,8 +4,8 @@
  * ohne Sprachmodell und deshalb wiederholbar. Gefunden hatten jene Laeufe
  * sieben Fehler, die kein Unit-Test sah. Dieser Test haelt sie fest.
  *
- * Laeuft nur mit `LOKAL_E2E=1` und braucht das Token von `betrieb` aus
- * `infra/lokal/.agents/betrieb.token` (legt `apps-ausrollen.sh` an):
+ * Laeuft nur mit `LOKAL_E2E=1` und braucht das Token von `operator` aus
+ * `infra/lokal/.agents/operator.token` (legt `apps-ausrollen.sh` an):
  *
  *   LOKAL_E2E=1 pnpm --filter @openapps/platform-mcp test lokal-e2e
  *
@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const ENABLED = process.env.LOKAL_E2E === '1';
 const MCP_URL = process.env.LOKAL_MCP_URL ?? 'http://localhost:8080/mcp';
-const TOKEN_FILE = join(__dirname, '../../../infra/lokal/.agents/betrieb.token');
+const TOKEN_FILE = join(__dirname, '../../../infra/lokal/.agents/operator.token');
 
 interface ToolResult {
   readonly ok: boolean;
@@ -53,10 +53,10 @@ async function toolNames(client: Client): Promise<string[]> {
   return (await client.listTools()).tools.map((tool) => tool.name);
 }
 
-describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () => {
+describe.skipIf(!ENABLED)('local stack: agents through the platform MCP', () => {
   const stamp = Date.now().toString(36);
-  const leser = `e2e-leser-${stamp}`;
-  const schreiber = `e2e-schreiber-${stamp}`;
+  const leser = `e2e-reader-${stamp}`;
+  const schreiber = `e2e-writer-${stamp}`;
   let betrieb: Client;
   let leserClient: Client;
   let schreiberClient: Client;
@@ -102,7 +102,7 @@ describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () =
     await Promise.all([betrieb?.close(), leserClient?.close(), schreiberClient?.close()]);
   });
 
-  it('zeigt jedem Agent nur seine Tools, unter gueltigen Namen', async () => {
+  it('shows each agent only its own tools, under valid names', async () => {
     const names = await toolNames(leserClient);
     // Fehler 4: Punkte im Namen machten die Tools fuer Claude unsichtbar.
     expect(names).toContain('wiki__pages__list');
@@ -112,34 +112,34 @@ describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () =
     for (const name of names) expect(name).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
   });
 
-  it('kommt mit Argumenten bis in die App und zurueck', async () => {
+  it('gets arguments into the app and back', async () => {
     // Fehler 1 und 5: Aufrufe scheiterten am Gateway, Argumente gingen verloren.
     const found = await call(leserClient, 'wiki__pages__search', {
-      args: { query: 'Urlaub', limit: 3 },
+      args: { query: 'annual leave', limit: 3 },
     });
     expect(found.ok, JSON.stringify(found.error)).toBe(true);
-    expect(JSON.stringify(found.value)).toContain('Urlaubsregel');
+    expect(JSON.stringify(found.value)).toContain('Leave policy');
   });
 
-  it('gibt die Meldung der App bei falschen Argumenten weiter', async () => {
-    const wrong = await call(leserClient, 'wiki__pages__search', { args: { q: 'Urlaub' } });
+  it('passes on the app message for wrong arguments', async () => {
+    const wrong = await call(leserClient, 'wiki__pages__search', { args: { q: 'annual leave' } });
     expect(wrong.ok).toBe(false);
     expect(wrong.error?.code).toBe('app_error');
     expect(wrong.error?.message).toMatch(/400/);
   });
 
-  it('bietet ein nicht freigegebenes Tool nicht an und fuehrt es nicht aus', async () => {
+  it('neither offers nor runs a tool without a grant', async () => {
     // Nicht angemeldet heisst: Der MCP kennt das Tool fuer diesen Agent gar
     // nicht und antwortet mit einem Protokollfehler, nicht mit einem Ergebnis.
     await expect(
       leserClient.callTool({
         name: 'wiki__pages__create',
-        arguments: { args: { title: 'Heimlich', content: 'x' } },
+        arguments: { args: { title: 'Secret', contentMd: 'x' } },
       }),
     ).rejects.toThrow(/not found/i);
   });
 
-  it('zeigt einem Agent seine eigenen Freigaben, aber nicht alle', async () => {
+  it('shows an agent its own grants, but not all of them', async () => {
     // Zweiter Agent-Lauf: Der Praktikant bekam hier permission_denied.
     const own = await call(leserClient, 'list_grants', {});
     expect(own.ok, JSON.stringify(own.error)).toBe(true);
@@ -153,7 +153,7 @@ describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () =
     expect(all.error?.code).toBe('permission_denied');
   });
 
-  it('lehnt eine Selbstfreigabe ab', async () => {
+  it('rejects a self-grant', async () => {
     const self = await call(leserClient, 'grant', {
       subjectKind: 'agent',
       subjectId: leser,
@@ -165,8 +165,8 @@ describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () =
     expect(self.error?.code).toBe('permission_denied');
   });
 
-  it('schreibt mit dem Agent als Urheber', async () => {
-    const name = `E2E Firma ${stamp}`;
+  it('writes with the agent as author', async () => {
+    const name = `E2E Company ${stamp}`;
     const created = await call(schreiberClient, 'crm__companies__create', { args: { name } });
     expect(created.ok, JSON.stringify(created.error)).toBe(true);
     const companyId = (created.value as { company: { id: string } }).company.id;
@@ -176,7 +176,7 @@ describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () =
 
     // Die App bekommt den Agent als Nutzer: `user.id` ist `agent:<name>`.
     const logged = await call(schreiberClient, 'crm__activities__log', {
-      args: { kind: 'notiz', subject: 'E2E', companyId },
+      args: { kind: 'note', subject: 'E2E', companyId },
     });
     expect(logged.ok, JSON.stringify(logged.error)).toBe(true);
     expect((logged.value as { activity: { createdBy: string } }).activity.createdBy).toBe(
@@ -184,7 +184,7 @@ describe.skipIf(!ENABLED)('lokaler Stapel: Agents ueber den Plattform-MCP', () =
     );
   });
 
-  it('sperrt einen Agent mit sofortiger Wirkung', async () => {
+  it('disables an agent with immediate effect', async () => {
     const disabled = await call(betrieb, 'disable_agent', { name: schreiber });
     expect(disabled.ok, JSON.stringify(disabled.error)).toBe(true);
     await expect(connect(schreiberToken)).rejects.toThrow();

@@ -1,82 +1,93 @@
 # @openapps/platform-mcp
 
-Der MCP-Server der Plattform. Er bietet die sechs Tools des Briefs plus
-Nachsehen und Gruppenpflege an, liefert `AGENTS.md` als Prompt aus und leitet
-die Tools der Apps weiter — jeweils nur an Aufrufer, die eine Freigabe haben.
+The platform's MCP server. It offers the six tools of the brief plus lookup
+and group management, serves `AGENTS.md` and the get-started guide as prompts,
+and forwards the apps' tools — each only to callers that have a grant.
 
-## Die Tools
+## The tools
 
-| Tool             | Was es tut                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| `create_app`     | Repo aus dem Starter-Template anlegen, App registrieren, Schema und DB-Rolle einrichten |
-| `request_deploy` | Review-Gate starten, bei Freigabe deployen                                              |
-| `list_apps`      | Apps auflisten, auf die der Aufrufer `read` hat                                         |
-| `rollback`       | zurück auf die Vorversion                                                               |
-| `grant`          | eine Freigabe vergeben                                                                  |
-| `revoke`         | eine Freigabe widerrufen                                                                |
-| `list_grants`    | Freigaben nachsehen                                                                     |
+| Tool             | What it does                                                                      |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `create_app`     | create a repo from the starter template, register the app, set up schema and role |
+| `request_deploy` | start the review gate, deploy if it passes                                        |
+| `list_apps`      | list the apps the caller has `read` on                                            |
+| `rollback`       | roll back to the previous version                                                 |
+| `grant`          | grant a permission                                                                |
+| `revoke`         | revoke a grant                                                                    |
+| `list_grants`    | look up grants                                                                    |
 
-Gruppenpflege (Migration 0009 und 0011 — eine Gruppe ist Subjekt **und**
-Ressource):
+Group management (migrations 0009 and 0011 — a group is a subject **and** a
+resource):
 
-| Tool                  | Was es tut                                                | Braucht                |
-| --------------------- | --------------------------------------------------------- | ---------------------- |
-| `list_groups`         | Gruppen auflisten, auf die der Aufrufer `read` hat        | `read` auf die Gruppe  |
-| `create_group`        | eine Gruppe anlegen, leer                                 | `write` auf `group:*`  |
-| `list_group_members`  | Mitglieder einer Gruppe                                   | `read` auf die Gruppe  |
-| `grant_group_member`  | eine E-Mail-Adresse aufnehmen, idempotent                 | `write` auf die Gruppe |
-| `revoke_group_member` | eine E-Mail-Adresse entfernen, wirkt beim nächsten Aufruf | `write` auf die Gruppe |
+| Tool                  | What it does                                           | Needs                |
+| --------------------- | ------------------------------------------------------ | -------------------- |
+| `list_groups`         | list the groups the caller has `read` on               | `read` on the group  |
+| `create_group`        | create a group, empty                                  | `write` on `group:*` |
+| `list_group_members`  | members of a group                                     | `read` on the group  |
+| `grant_group_member`  | add an email address, idempotent                       | `write` on the group |
+| `revoke_group_member` | remove an email address, takes effect on the next call | `write` on the group |
 
-`write` auf `group:*` fürs Anlegen und nicht auf den neuen Namen: Vor dem
-Anlegen gibt es den Namen nicht, eine Freigabe darauf könnte sich jeder selbst
-ausstellen, der irgendeine Gruppe pflegt.
+Agent identities (migration 0014):
 
-Dazu kommen die App-Tools, benannt als `<app-name>.<tool>`. Angemeldet werden
-nur die freigegebenen; aufgerufen werden dürfen auch nur die — der Aufruf prüft
-ein zweites Mal, weil Ausblenden keine Durchsetzung ist.
+| Tool            | What it does                                       | Needs                |
+| --------------- | -------------------------------------------------- | -------------------- |
+| `list_agents`   | list the agent identities the caller has `read` on | `read` on the agent  |
+| `create_agent`  | create an agent identity, returns its token once   | `write` on `agent:*` |
+| `disable_agent` | disable an agent identity                          | `write` on the agent |
 
-## Prompt
+`write` on `group:*` for creating, not on the new name: before it is created
+the name does not exist, so anyone who manages some group could grant
+themselves a permission on it.
 
-`how_to_build_app` liefert den Inhalt von `AGENTS.md`, bei jedem Aufruf neu
-gelesen. Damit haben Agents über MCP dieselben Regeln wie Agents in Claude Code
-— eine Quelle, keine Kopie.
+On top of that come the app tools, named `<app-name>.<tool>`. Only the granted
+ones are registered, and only those may be called — the call checks a second
+time, because hiding is not enforcement.
 
-## Aufbau
+## Prompts
+
+- `how_to_build_app` returns the content of `AGENTS.md`, read fresh on every
+  call. Agents on MCP get the same rules as agents in Claude Code — one source,
+  no copy.
+- `get_started` returns the same guide as the `/get-started` page of the
+  control plane: plugin, agent access, address and token, example requests.
+
+## Layout
 
 ```
-src/tools.ts       die Plattform-Tools als Daten: Name, Schema, Handler
-src/app-tools.ts   Sichtbarkeit und Aufruf der App-Tools
-src/identity.ts    ein OAuth-Client pro Agent
-src/invoker.ts     Weiterleitung an die App, durch das Gateway
-src/server.ts      dünne Verdrahtung mit dem MCP-SDK
-src/index.ts       Start über stdio
-src/http.ts        Start über HTTP, Identität pro Aufruf
+src/tools.ts       the platform tools as data: name, schema, handler
+src/app-tools.ts   visibility and invocation of app tools
+src/identity.ts    one OAuth client per agent
+src/invoker.ts     forwarding to the app, through the gateway
+src/server.ts      thin wiring to the MCP SDK
+src/prompts.ts     the prompts
+src/index.ts       start over stdio
+src/http.ts        start over HTTP, identity per call
 tests/             DoD 6
 ```
 
-Die Tools enthalten keine eigene Logik und keine eigene Rechteprüfung: sie
-rufen die Domänenfunktionen von `@openapps/control-plane`. Dadurch kann ein
-Endpunkt nicht von seinem Tool abweichen. Das Manifest prüft
-`appManifestSchema` aus `@openapps/app-manifest` — nicht ein zweites Schema.
+The tools contain no logic and no permission checks of their own: they call
+the domain functions of `@openapps/control-plane`. That way an endpoint cannot
+drift from its tool. The manifest is checked with `appManifestSchema` from
+`@openapps/app-manifest`, not a second schema.
 
-Ein weitergeleiteter Aufruf trägt die Identität des Agents in denselben fünf
-Headern wie ein Aufruf durch das Gateway, signiert mit dem Secret **dieser**
-App (`identityHeadersForApp`). Der MCP kennt kein App-Secret: er leitet es aus
-`OPENAPPS_AUTH_MASTER_SECRET` ab, genau wie die Forward-Auth.
+A forwarded call carries the agent's identity in the same five headers as a
+call through the gateway, signed with the secret of **that** app
+(`identityHeadersForApp`). The MCP knows no app secret: it derives it from
+`OPENAPPS_AUTH_MASTER_SECRET`, just like the forward auth.
 
-## Starten
+## Running
 
 ```bash
-pnpm --filter @openapps/platform-mcp start        # stdio, für Claude Code
-pnpm --filter @openapps/platform-mcp start:http   # HTTP, für Agents
-pnpm --filter @openapps/platform-mcp test         # DoD-6-Test
+pnpm --filter @openapps/platform-mcp start        # stdio, for Claude Code
+pnpm --filter @openapps/platform-mcp start:http   # HTTP, for agents
+pnpm --filter @openapps/platform-mcp test         # DoD 6 test
 ```
 
-Es gibt keinen Build-Schritt: der Server läuft über `tsx` aus der
-TypeScript-Quelle, weil er die Domäne der Control Plane als Quelle einbindet.
+There is no build step: the server runs from the TypeScript source via `tsx`,
+because it includes the control plane's domain as source.
 
-## Nachweis
+## Evidence
 
-`tests/agent-grants.spec.ts` — DoD 6: zwei Agents (mit und ohne Freigabe),
-Sichtbarkeit, Blockade, sofortige Wirkung des Widerrufs und je ein
-Audit-Eintrag. Was einen echten Transport braucht, steht dort als `it.todo`.
+`tests/agent-grants.spec.ts` — DoD 6: two agents (with and without a grant),
+visibility, blocking, immediate effect of revocation and one audit entry each.
+Anything that needs a real transport is listed there as `it.todo`.

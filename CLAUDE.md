@@ -21,6 +21,9 @@ Dies ist der App-Layer neben Coolify. `AGENTS.md` richtet sich an Agents, die
 
 ## Konventionen
 
+- Produktsprache Englisch: alles, was Nutzer und Agents sehen (UI, URLs,
+  Tool-Beschreibungen, Fehlermeldungen, README, Skill). ADRs, diese Datei und
+  Code-Kommentare bleiben deutsch (ADR 0016).
 - TypeScript, strict. Keine `any` ohne Kommentar mit Begründung.
 - Datenbank: eine Migration pro Änderung, nie eine bestehende Migration ändern.
 - DB-Rollen nie mit `BYPASSRLS` oder `SUPERUSER`.

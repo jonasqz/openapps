@@ -130,7 +130,7 @@ describe('App im Deploy-Backend anlegen (ADR 0008)', () => {
           networkAlias: gatewayAliasFor('crm'),
           port: 3000,
         }),
-      ).rejects.toThrow(/keine Referenz/);
+      ).rejects.toThrow(/no reference/);
     } finally {
       restore();
     }

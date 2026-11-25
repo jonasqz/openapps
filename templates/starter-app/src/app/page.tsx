@@ -9,18 +9,18 @@ import { listItems, type Item } from '@/lib/items';
  * Diese Seite rendert auf dem Server. Deshalb nennt jede Spalte ihr `field`
  * und keine `cell`: React reicht keine Funktion von einer Server-Komponente in
  * eine Client-Komponente, und `Table` ist eine. Was die Zelle zeigen soll,
- * wird vorher hier ausgerechnet (`angelegt`) und als Feld in die Zeile gelegt.
+ * wird vorher hier ausgerechnet (`created`) und als Feld in die Zeile gelegt.
  */
 interface ItemRow {
   id: string;
   title: string;
-  angelegt: string;
+  created: string;
 }
 
 const toRow = (item: Item): ItemRow => ({
   id: item.id,
   title: item.title,
-  angelegt: new Date(item.createdAt).toLocaleDateString('de-DE'),
+  created: new Date(item.createdAt).toLocaleDateString('en-GB'),
 });
 
 /**
@@ -43,21 +43,21 @@ export default async function ItemsPage() {
   return (
     <main className="p-6">
       <Table<ItemRow>
-        caption="Einträge"
+        caption="Items"
         rows={failed ? [] : items.map(toRow)}
         columns={[
-          { field: 'title', header: 'Titel' },
-          { field: 'angelegt', header: 'Angelegt', hideBelow: 'sm' },
+          { field: 'title', header: 'Title' },
+          { field: 'created', header: 'Created', hideBelow: 'sm' },
         ]}
         empty={{
-          title: 'Noch keine Einträge',
-          description: 'Lege den ersten Eintrag an, dann erscheint er hier.',
+          title: 'No items yet',
+          description: 'Create the first item and it appears here.',
         }}
         error={
           failed
             ? {
-                title: 'Einträge konnten nicht geladen werden',
-                description: 'Die Datenbank hat nicht geantwortet. Lade die Seite neu.',
+                title: 'Items could not be loaded',
+                description: 'The database did not respond. Reload the page.',
               }
             : undefined
         }

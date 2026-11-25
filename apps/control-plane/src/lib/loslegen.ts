@@ -1,7 +1,7 @@
 /**
  * Das Onboarding: wie jemand mit dem eigenen Assistenten Apps baut und
  * ändert. Eine Quelle für zwei Wege. Die Verwaltung zeigt es als Seite
- * (`/loslegen`), der Plattform-MCP gibt es als Prompt `loslegen` aus. So weiß
+ * (`/get-started`), der Plattform-MCP gibt es als Prompt `get_started` aus. So weiß
  * ein Assistent ohne Browser dasselbe wie ein Mensch (CLAUDE.md, Agents first).
  *
  * Hier steht nie ein Token: Es erscheint genau einmal beim Anlegen eines
@@ -42,64 +42,64 @@ export function loslegenSchritte(env: LoslegenEnv = process.env): readonly Losle
   const marketplace = env.OPENAPPS_PLUGIN_MARKETPLACE?.trim() || 'jonasqz/openapps';
   return [
     {
-      titel: 'Plugin installieren',
-      text: 'In Claude Code, einmal. Das Plugin bringt die Verbindung zur Plattform, ihre Regeln als Skill und drei Befehle mit.',
+      titel: 'Install the plugin',
+      text: 'In Claude Code, once. The plugin brings the connection to the platform, its rules as a skill, and three commands.',
       befehle: [`/plugin marketplace add ${marketplace}`, '/plugin install openapps@openapps'],
     },
     {
-      titel: 'Eigenen Zugang anlegen',
-      text: 'Jeder Assistent bekommt einen eigenen Agent-Zugang. Das Token erscheint beim Anlegen genau einmal. Es gehört in deine Umgebung, nicht in ein Repo und nicht in einen Chat. Ohne Recht dazu legt ihn jemand aus platform-admins für dich an.',
-      verweis: { text: 'Zu den Agents', href: '/agents' },
+      titel: 'Create your own access',
+      text: 'Each assistant gets its own agent access. The token is shown exactly once, when the agent is created. It belongs in your environment, not in a repo and not in a chat. If you lack the right to create one, someone from platform-admins creates it for you.',
+      verweis: { text: 'Go to Agents', href: '/agents' },
     },
     {
-      titel: 'Verbinden',
-      text: 'Setze Adresse und Token in deiner Shell und starte Claude Code. Mit /openapps:status siehst du, was dein Zugang darf.',
+      titel: 'Connect',
+      text: 'Set the address and token in your shell and start Claude Code. /openapps:status shows what your access may do.',
       befehle: [
         `export OPENAPPS_MCP_URL="${mcpUrl}"`,
-        'export OPENAPPS_TOKEN="<dein Token>"',
+        'export OPENAPPS_TOKEN="<your token>"',
         'claude',
       ],
     },
     {
-      titel: 'Apps bauen und ändern',
-      text: 'Sag deinem Assistenten, was du brauchst. Er hält sich an die Regeln der Plattform und fragt vor dem Anlegen nach.',
+      titel: 'Build and change apps',
+      text: 'Tell your assistant what you need. It follows the platform rules and asks before creating anything.',
       befehle: [
-        '/openapps:neue-app Urlaubsanträge mit Genehmigung durch die Teamleitung',
-        '/openapps:app-aendern crm Feld „Lead-Quelle“ an Deals',
+        '/openapps:new-app Holiday requests approved by the team lead',
+        '/openapps:change-app crm Add a "lead source" field to deals',
         '/openapps:status',
       ],
     },
     {
-      titel: 'Was dann passiert',
-      text: 'Jeder Schritt geht durch die Plattform, nichts daran vorbei.',
+      titel: 'What happens next',
+      text: 'Every step goes through the platform, nothing bypasses it.',
       punkte: [
-        'create_app legt die App aus der Vorlage an, mit eigenem Schema und eigener Datenbank-Rolle.',
-        'Jeder neue Stand geht durch das Review-Gate (gitleaks, semgrep, Prüfungen der Plattform). Befunde werden behoben, nicht umgangen.',
-        'Live ist die App erst nach dem Review. Sehen kann sie erst, wer eine Freigabe hat. Was nicht freigegeben ist, ist gesperrt.',
-        'Jeder Aufruf deines Assistenten steht im Audit-Log, auch die abgelehnten.',
+        'create_app creates the app from the template, with its own schema and its own database role.',
+        'Every new version goes through the review gate (gitleaks, semgrep, platform checks). Findings are fixed, not worked around.',
+        'The app only goes live after the review. Only people with a grant can see it. Whatever is not granted is locked.',
+        'Every call your assistant makes is in the audit log, including the rejected ones.',
       ],
     },
     {
-      titel: 'Ohne Claude Code',
-      text: 'Jeder Assistent, der MCP spricht, kann sich verbinden. Die Regeln für das Bauen liefert der Prompt how_to_build_app, diese Anleitung der Prompt loslegen.',
-      punkte: [`Adresse: ${mcpUrl}`, 'Header: Authorization: Bearer <dein Token>'],
+      titel: 'Without Claude Code',
+      text: 'Any assistant that speaks MCP can connect. The prompt how_to_build_app provides the building rules, the prompt get_started provides this guide.',
+      punkte: [`Adresse: ${mcpUrl}`, 'Header: Authorization: Bearer <your token>'],
     },
   ];
 }
 
-/** Dieselben Schritte als Markdown, für den MCP-Prompt `loslegen`. */
+/** Dieselben Schritte als Markdown, für den MCP-Prompt `get_started`. */
 export function loslegenAlsText(env: LoslegenEnv = process.env): string {
   const teile = loslegenSchritte(env).map((schritt, i) => {
     const zeilen = [`## ${String(i + 1)}. ${schritt.titel}`, '', schritt.text];
     if (schritt.befehle !== undefined) zeilen.push('', '```', ...schritt.befehle, '```');
     if (schritt.punkte !== undefined) zeilen.push('', ...schritt.punkte.map((p) => `- ${p}`));
     if (schritt.verweis !== undefined) {
-      zeilen.push('', `${schritt.verweis.text}: ${schritt.verweis.href} in der Verwaltung.`);
+      zeilen.push('', `${schritt.verweis.text}: ${schritt.verweis.href} in the admin area.`);
     }
     return zeilen.join('\n');
   });
   return [
-    '# Loslegen: Apps mit dem eigenen Assistenten bauen',
+    '# Get started: build apps with your own assistant',
     '',
     ...teile.flatMap((t) => [t, '']),
   ].join('\n');

@@ -1,0 +1,154 @@
+# The source of truth for what this app can do.
+# The platform generates the MCP tools from this file. A UI action without a
+# matching operation here blocks the review gate.
+#
+# Every tool is `POST /tools/<toolname>` with the arguments as the JSON body
+# (createToolRoute from @openapps/sdk). The name in the path is byte-for-byte
+# equal to `offeredTools[].name` in app.json, the operationId to
+# `offeredTools[].operationId`. src/lib/tools.test.ts keeps both in sync.
+openapi: 3.1.0
+info:
+  title: Tasks
+  version: 0.1.0
+  description: >-
+    Team tasks for people and agents: title, assignee, due date, completed
+    yes/no. Dates are YYYY-MM-DD, timestamps ISO 8601, ids UUIDs.
+servers:
+  # Every app lives under a path on the shared domain (ADR 0007).
+  # `basePath` is byte-for-byte equal to OPENAPPS_APP_BASE_PATH.
+  - url: '{basePath}/api'
+    description: This app behind the gateway.
+    variables:
+      basePath:
+        default: /tasks
+        description: Path of the app, byte-for-byte equal to OPENAPPS_APP_BASE_PATH.
+paths:
+  /tools/tasks.list:
+    post:
+      operationId: listTasks
+      summary: List tasks, open ones first
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                completed: { type: boolean, description: true for completed tasks only, false for open tasks only. }
+                assignee: { type: string, maxLength: 200, description: Name of the person responsible. }
+                limit: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tasks]
+                properties:
+                  tasks:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/tasks.create:
+    post:
+      operationId: createTask
+      summary: Create a task
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, assignee]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                assignee: { type: string, minLength: 1, maxLength: 200 }
+                dueDate: { type: string, format: date }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task]
+                properties:
+                  task: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/tasks.complete:
+    post:
+      operationId: completeTask
+      summary: Mark a task as completed
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Completed (or it already was)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task, changed]
+                properties:
+                  task: { $ref: '#/components/schemas/Task' }
+                  changed: { type: boolean }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  responses:
+    Invalid:
+      description: The arguments do not match the tool. message and issues say which field.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Not a valid call through the platform (the signature is missing or wrong).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: There is no task with this id.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        issues: { type: array, items: {} }
+    Task:
+      type: object
+      required: [id, title, assignee, dueDate, completed, completedAt, completedBy, createdBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        assignee: { type: string }
+        dueDate: { type: [string, 'null'], format: date }
+        completed: { type: boolean }
+        completedAt: { type: [string, 'null'], format: date-time }
+        completedBy: { type: [string, 'null'] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }

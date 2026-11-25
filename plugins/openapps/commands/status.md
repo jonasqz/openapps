@@ -1,7 +1,7 @@
 ---
-description: Zeigen, welche Apps es gibt und was dein Zugang darf
+description: Show which apps exist and what your access allows
 ---
 
-Rufe `list_apps` und `list_grants` (ohne Argumente) auf und fasse knapp
-zusammen: welche Apps du sehen kannst, welche Tools du aufrufen darfst und was
-dir für das, was ich vorhabe, noch fehlt. Vergib dir keine Rechte selbst.
+Call `list_apps` and `list_grants` (without arguments) and summarize briefly:
+which apps you can see, which tools you may call, and what you are still
+missing for what I am planning. Do not grant yourself any permissions.

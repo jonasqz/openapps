@@ -38,7 +38,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     const { group } = await context.params;
     const body = await readJson<MemberBody>(request);
     if (body.email === undefined) {
-      return jsonResponse({ error: 'validation_failed', message: 'email ist nötig' }, 422);
+      return jsonResponse({ error: 'validation_failed', message: 'email is required' }, 422);
     }
     const result = await addGroupMember(domainContext(), { actor, group, email: body.email });
     // 200, nicht 201: Der Aufruf ist idempotent, und `added: false` heisst
@@ -57,7 +57,7 @@ export async function DELETE(request: Request, context: RouteContext): Promise<R
     const email = new URL(request.url).searchParams.get('email');
     if (email === null) {
       return jsonResponse(
-        { error: 'validation_failed', message: 'email als Parameter ist nötig' },
+        { error: 'validation_failed', message: 'email is required as a parameter' },
         422,
       );
     }

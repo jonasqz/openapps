@@ -50,10 +50,10 @@ export function createGitHubRepositoryBackend(config: GitHubConfig): RepositoryB
       // Die Meldung sagt das, statt „403" zu sein.
       const hint =
         response.status === 403 || response.status === 404
-          ? ' — hat der Token Schreibrecht auf die Organisation und Leserecht auf das Template?'
+          ? ': does the token have write access to the organisation and read access to the template?'
           : '';
       throw new Error(
-        `Repo-Backend antwortete ${String(response.status)}: ${text.slice(0, 500)}${hint}`,
+        `repo backend answered ${String(response.status)}: ${text.slice(0, 500)}${hint}`,
       );
     }
     return (await response.json()) as T;
@@ -66,14 +66,14 @@ export function createGitHubRepositoryBackend(config: GitHubConfig): RepositoryB
         body: {
           owner: config.owner,
           name: spec.appName,
-          description: `${spec.description} (angelegt von ${spec.requestedBy})`,
+          description: `${spec.description} (created by ${spec.requestedBy})`,
           private: config.private,
           include_all_branches: false,
         },
       });
 
       if (created.clone_url === undefined) {
-        throw new Error('Repo-Backend lieferte keine Klon-URL fuer das neue Repo');
+        throw new Error('repo backend returned no clone URL for the new repo');
       }
 
       return {
@@ -93,7 +93,7 @@ export function createGitHubRepositoryBackend(config: GitHubConfig): RepositoryB
     async checkout(request: RepositoryCheckoutRequest): Promise<RepositoryCheckout> {
       const slug = repositorySlug(request.gitUrl);
       if (!/^[0-9a-f]{7,40}$/i.test(request.gitSha)) {
-        throw new Error(`"${request.gitSha}" ist kein Commit-Hash`);
+        throw new Error(`"${request.gitSha}" is not a commit hash`);
       }
 
       const response = await fetch(`${config.apiBaseUrl}/repos/${slug}/tarball/${request.gitSha}`, {
@@ -108,16 +108,16 @@ export function createGitHubRepositoryBackend(config: GitHubConfig): RepositoryB
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         throw new Error(
-          `Repo-Backend lieferte den Commit ${request.gitSha} von ${slug} nicht ` +
-            `(${String(response.status)}): ${text.slice(0, 300)} — ist der Commit gepusht, ` +
-            'und hat der Token Leserecht auf den Inhalt des Repos?',
+          `repo backend did not return commit ${request.gitSha} of ${slug} ` +
+            `(${String(response.status)}): ${text.slice(0, 300)}: is the commit pushed, ` +
+            'and does the token have read access to the repo contents?',
         );
       }
 
       const archive = Buffer.from(await response.arrayBuffer());
       if (archive.byteLength > config.checkoutMaxBytes) {
         throw new Error(
-          `der Commit ist als Archiv ${String(archive.byteLength)} Bytes gross, erlaubt sind ` +
+          `the commit archive is ${String(archive.byteLength)} bytes, the limit is ` +
             `${String(config.checkoutMaxBytes)} (GITHUB_CHECKOUT_MAX_BYTES)`,
         );
       }
@@ -162,7 +162,7 @@ export function repositorySlug(gitUrl: string): string {
     dots(match[1]) ||
     dots(match[2])
   ) {
-    throw new Error(`"${gitUrl}" ist keine Repo-URL der Form https://host/owner/name(.git)`);
+    throw new Error(`"${gitUrl}" is not a repo URL of the form https://host/owner/name(.git)`);
   }
   return `${match[1]}/${match[2]}`;
 }

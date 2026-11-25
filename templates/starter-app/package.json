@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Starter-Template f\u00fcr eine App auf der openapps-Plattform. OpenAPI zuerst, Screens danach.",
+  "description": "Starter template for an app on the openapps platform. OpenAPI first, screens after.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

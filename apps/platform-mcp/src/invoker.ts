@@ -61,7 +61,7 @@ export function createHttpInvoker(options: HttpInvokerOptions): AppToolInvoker {
       if (app.primaryDomain === null) {
         // Noch nie deployt: Es gibt keinen Container, und auch kein Secret,
         // mit dem er rechnen koennte.
-        throw new Error(`App "${app.name}" ist nicht deployt und nicht aufrufbar`);
+        throw new Error(`app "${app.name}" is not deployed and cannot be called`);
       }
 
       // Dieselbe Funktion, die auch die Forward-Auth benutzt. Der Agent ist
@@ -96,7 +96,7 @@ export function createHttpInvoker(options: HttpInvokerOptions): AppToolInvoker {
 
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`App "${app.name}" antwortete ${response.status}: ${text.slice(0, 500)}`);
+        throw new Error(`app "${app.name}" responded ${response.status}: ${text.slice(0, 500)}`);
       }
       return response.json();
     },

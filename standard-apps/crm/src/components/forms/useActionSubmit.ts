@@ -26,7 +26,7 @@ export function useActionSubmit(
     try {
       result = await action(values);
     } catch {
-      setFormError('Keine Verbindung zum Server. Prüfe die Verbindung und versuche es erneut.');
+      setFormError('No connection to the server. Check your connection and try again.');
       return undefined;
     }
     if (result.ok) {

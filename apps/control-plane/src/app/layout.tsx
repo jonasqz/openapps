@@ -12,12 +12,12 @@ import './globals.css';
 
 export const metadata = {
   title: 'openapps Control Plane',
-  description: 'Apps, Deployments und Freigaben',
+  description: 'Apps, deployments and grants',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="en">
       <body className="min-h-screen bg-bg text-fg antialiased">{children}</body>
     </html>
   );

@@ -1,0 +1,82 @@
+{
+  "manifestVersion": 1,
+  "name": "tasks",
+  "displayName": "Tasks",
+  "description": "Team tasks with title, assignee, due date and completion status. For people and agents.",
+  "category": "internal",
+  "version": "0.1.0",
+  "source": {
+    "git": "https://lokal.invalid/tasks",
+    "tag": "lokal"
+  },
+  "requiredTables": [
+    {
+      "name": "tasks",
+      "description": "Team tasks: title, assignee, due date, completed yes/no, creator and timestamps."
+    }
+  ],
+  "offeredTools": [
+    {
+      "name": "tasks.list",
+      "description": "Lists tasks: open ones first, then by due date (tasks without a date last), then newest. Arguments, all optional: completed (true/false, only completed or only open tasks), assignee (name of the person, case-insensitive, exact match), limit (1 to 200, default 50). Returns { tasks: [{ id, title, assignee, dueDate (YYYY-MM-DD or null), completed, completedAt, completedBy, createdBy, createdAt }] }. You need the id for tasks.complete.",
+      "operationId": "listTasks",
+      "verb": "read"
+    },
+    {
+      "name": "tasks.create",
+      "description": "Creates an open task. Arguments: title (required, 1 to 200 characters), assignee (required, name of the person responsible), dueDate (optional, YYYY-MM-DD). The caller is stored as createdBy. Returns { task } with the new id. Check with tasks.list first whether the task already exists.",
+      "operationId": "createTask",
+      "verb": "write"
+    },
+    {
+      "name": "tasks.complete",
+      "description": "Marks a task as completed and records who completed it and when. Argument: id (UUID from tasks.list). If it is already completed, nothing changes (changed: false). An unknown id returns 404. Returns { task, changed }.",
+      "operationId": "completeTask",
+      "verb": "write"
+    }
+  ],
+  "requestedGrants": [
+    {
+      "subjectKind": "group",
+      "verb": "read",
+      "resource": {
+        "kind": "app",
+        "app": "tasks"
+      },
+      "reason": "Who may open the app. Which group is decided by the grant in the control plane — a requested right is an application, not a grant."
+    }
+  ],
+  "env": [
+    {
+      "name": "DATABASE_URL",
+      "secret": true,
+      "description": "Connection to the app's own schema, with the app role. Set by the control plane."
+    },
+    {
+      "name": "DATABASE_SCHEMA",
+      "secret": false,
+      "description": "The app's own schema. The SDK derives the search_path from it; a DSN with options= is rejected."
+    },
+    {
+      "name": "OPENAPPS_AUTH_SECRET",
+      "secret": true,
+      "description": "The app's own secret, used by the SDK to verify the gateway signature. Set by the control plane per deployment."
+    },
+    {
+      "name": "OPENAPPS_APP_ID",
+      "secret": false,
+      "description": "Id of this app in the signature material. Must match byte-for-byte what the gateway writes."
+    },
+    {
+      "name": "OPENAPPS_APP_HOST",
+      "secret": false,
+      "description": "Shared domain in the signature material, trimmed and lowercased."
+    },
+    {
+      "name": "OPENAPPS_APP_BASE_PATH",
+      "secret": false,
+      "description": "Path the app lives under (/tasks). Must be set at build time, otherwise links and images point nowhere."
+    }
+  ],
+  "egress": []
+}

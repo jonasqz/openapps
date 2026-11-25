@@ -14,7 +14,7 @@ function channels(hex: string): [number, number, number] {
           .join('')
       : value;
   if (!/^[0-9a-fA-F]{6}$/.test(full)) {
-    throw new Error(`Kein Hex-Farbwert: ${hex}`);
+    throw new Error(`not a hex colour: ${hex}`);
   }
   return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255) as [number, number, number];
 }

@@ -22,7 +22,7 @@ export type ActionResult =
 
 const UNAUTHORIZED: ActionResult = {
   ok: false,
-  formError: 'Nicht angemeldet: Die Anfrage kam nicht nachweisbar über das Gateway. Lade die Seite neu.',
+  formError: 'Not signed in: the request could not be shown to come through the gateway. Reload the page.',
 };
 
 async function actor(): Promise<string | undefined> {
@@ -48,7 +48,7 @@ function fieldErrors(issues: readonly ZodIssue[]): ActionResult {
   return {
     ok: false,
     fieldErrors: errors,
-    formError: formError ?? 'Bitte prüfe die markierten Felder.',
+    formError: formError ?? 'Please check the highlighted fields.',
   };
 }
 
@@ -57,7 +57,7 @@ function failure(error: unknown, action: string): ActionResult {
     return { ok: false, formError: error.message };
   }
   console.error(`[wiki] ${action}:`, error);
-  return { ok: false, formError: 'Speichern ist fehlgeschlagen. Versuche es gleich noch einmal.' };
+  return { ok: false, formError: 'Saving failed. Please try again in a moment.' };
 }
 
 export async function createPageAction(input: unknown): Promise<ActionResult> {

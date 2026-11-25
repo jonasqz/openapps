@@ -17,7 +17,7 @@ export const semverSchema = z
   .string()
   .regex(
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/,
-    'erwartet eine exakte Semver-Version, z. B. 1.2.3',
+    'expected an exact semver version, e.g. 1.2.3',
   );
 
 /**
@@ -34,7 +34,7 @@ export const requiredTableSchema = z
       .string()
       .min(1)
       .max(63)
-      .regex(/^[a-z][a-z0-9_]*$/, 'erwartet einen Postgres-Namen aus [a-z0-9_]'),
+      .regex(/^[a-z][a-z0-9_]*$/, 'expected a Postgres name of [a-z0-9_]'),
     description,
   })
   .strict();
@@ -52,7 +52,7 @@ export const offeredToolSchema = z
       .string()
       .min(1)
       .max(128)
-      .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/, 'erwartet [a-z0-9._-]'),
+      .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/, 'expected [a-z0-9._-]'),
     description,
     verb: verbSchema,
     /** `operationId` der zugehörigen Operation in `openapi.yaml`. */
@@ -72,7 +72,7 @@ export const envVarSchema = z
       .string()
       .min(1)
       .max(128)
-      .regex(/^[A-Z][A-Z0-9_]*$/, 'erwartet SCREAMING_SNAKE_CASE'),
+      .regex(/^[A-Z][A-Z0-9_]*$/, 'expected SCREAMING_SNAKE_CASE'),
     secret: z.boolean(),
     description,
     /** Nur für Nicht-Secrets. Ein Default für ein Secret ist ein Code-Secret. */
@@ -85,7 +85,7 @@ export const envVarSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['default'],
-        message: 'ein Secret darf keinen Default im Manifest haben',
+        message: 'a secret must not have a default in the manifest',
       });
     }
   });
@@ -104,7 +104,7 @@ export const egressTargetSchema = z
       .max(253)
       .regex(
         /^(\*\.)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/,
-        'erwartet einen Hostnamen ohne Schema und Pfad, Wildcard nur als *.example.com',
+        'expected a hostname without scheme and path, wildcard only as *.example.com',
       ),
     protocol: z.enum(['https', 'http', 'tcp']),
     port: z.number().int().min(1).max(65535).optional(),
@@ -116,7 +116,7 @@ export const egressTargetSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['port'],
-        message: "bei protocol 'tcp' ist 'port' nötig",
+        message: "protocol 'tcp' requires 'port'",
       });
     }
   });
@@ -129,7 +129,7 @@ export const manifestSourceSchema = z
       .string()
       .min(1)
       .max(500)
-      .regex(/^(https:\/\/|git@)/, 'erwartet eine https:// oder git@ URL'),
+      .regex(/^(https:\/\/|git@)/, 'expected an https:// or git@ URL'),
     tag: z.string().min(1).max(128),
   })
   .strict();
@@ -185,7 +185,7 @@ function reportDuplicates(
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...path, index, 'name'],
-        message: `doppelter Name: ${name}`,
+        message: `duplicate name: ${name}`,
       });
     }
     seen.add(name);

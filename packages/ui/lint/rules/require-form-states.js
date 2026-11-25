@@ -36,12 +36,12 @@ export const requireFormStates = {
     type: 'problem',
     docs: {
       description:
-        'Jedes Formular nutzt FormPattern aus @openapps/ui — damit ist die Validierung sichtbar am Feld.',
+        'Every form uses FormPattern from @openapps/ui — that keeps validation visible at the field.',
     },
     schema: [],
     messages: {
       missing:
-        'Diese Datei baut ein Formular, importiert aber FormPattern nicht aus @openapps/ui. Jedes Formular zeigt Validierungsfehler sichtbar am Feld — FormPattern bringt das mit.',
+        'This file builds a form but does not import FormPattern from @openapps/ui. Every form shows validation errors visibly at the field — FormPattern provides that.',
     },
   },
   create(context) {

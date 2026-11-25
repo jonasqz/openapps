@@ -12,7 +12,7 @@
  *   `AUTH_ALLOWED_EMAIL_DOMAINS` bekommt auch hier keine Session.
  * - **Nicht umgangen** wird das Rechtemodell. Die Control Plane liest die
  *   Session wie immer, die Gruppen aus der Datenbank, und jede Aktion prueft
- *   die Freigabe. Als `nutzer` siehst du genau das, was ein Mensch ohne
+ *   die Freigabe. Als `user` siehst du genau das, was ein Mensch ohne
  *   Freigaben sieht.
  *
  * Das Session-Cookie bekommt der Browser nie. Der Proxy haengt es nur an die
@@ -27,10 +27,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { Readable } from 'node:stream';
 import { IDENTITY_HEADERS } from '../domain';
 
-export const ROLLEN = ['admin', 'nutzer'] as const;
+export const ROLLEN = ['admin', 'user'] as const;
 export type Rolle = (typeof ROLLEN)[number];
 
-export const ROLLEN_COOKIE = 'openapps_lokal_rolle';
+export const ROLLEN_COOKIE = 'openapps_local_role';
 export const CP_OWN_ORIGINS: ReadonlySet<string> = new Set([
   'http://127.0.0.1:8091',
   'http://localhost:8091',
@@ -38,7 +38,7 @@ export const CP_OWN_ORIGINS: ReadonlySet<string> = new Set([
 
 /**
  * Die Adresse je Rolle. `admin` ist der erste Bootstrap-Admin (landet ueber
- * den Hook in `platform-admins`), `nutzer` eine Adresse in der ersten
+ * den Hook in `platform-admins`), `user` eine Adresse in der ersten
  * erlaubten Domain, ohne Gruppe und ohne Freigabe.
  */
 export function emailFuerRolle(
@@ -50,13 +50,12 @@ export function emailFuerRolle(
 ): string {
   if (rolle === 'admin') {
     const admin = env.bootstrapAdmins[0];
-    if (admin === undefined) throw new Error('AUTH_BOOTSTRAP_ADMINS ist leer: kein lokaler Admin');
+    if (admin === undefined) throw new Error('AUTH_BOOTSTRAP_ADMINS is empty: no local admin');
     return admin;
   }
   const domain = env.allowedEmailDomains[0];
-  if (domain === undefined)
-    throw new Error('AUTH_ALLOWED_EMAIL_DOMAINS ist leer: kein lokaler Nutzer');
-  return `nutzer@${domain}`;
+  if (domain === undefined) throw new Error('AUTH_ALLOWED_EMAIL_DOMAINS is empty: no local user');
+  return `user@${domain}`;
 }
 
 /** Wie better-call: `encodeURIComponent(token + "." + base64(HMAC-SHA256))`. */
@@ -68,12 +67,12 @@ export function signSessionToken(token: string, secret: string): string {
 export function rolleAusCookie(cookieHeader: string | undefined): Rolle {
   const match = new RegExp(`(?:^|;\\s*)${ROLLEN_COOKIE}=([a-z]+)`).exec(cookieHeader ?? '');
   const value = match?.[1];
-  return value === 'nutzer' ? 'nutzer' : 'admin';
+  return value === 'user' ? 'user' : 'admin';
 }
 
-/** `/_lokal/als/nutzer` → `nutzer`; alles andere `null`. */
+/** `/_local/as/user` → `user`; alles andere `null`. */
 export function rollenwechsel(path: string): Rolle | null {
-  const match = /^\/_lokal\/als\/([a-z]+)\/?$/.exec(path);
+  const match = /^\/_local\/as\/([a-z]+)\/?$/.exec(path);
   const value = match?.[1];
   return value !== undefined && (ROLLEN as readonly string[]).includes(value)
     ? (value as Rolle)
@@ -113,7 +112,7 @@ export function buildCpForward(params: {
   const ownOrigin = typeof origin === 'string' && CP_OWN_ORIGINS.has(origin);
   if (!SAFE_METHODS.has(params.method.toUpperCase()) && !ownOrigin) {
     throw new FremdeHerkunftError(
-      `schreibende Anfrage von "${typeof origin === 'string' ? origin : 'unbekannt'}" abgelehnt`,
+      `write request from "${typeof origin === 'string' ? origin : 'unknown'}" rejected`,
     );
   }
 
@@ -271,9 +270,9 @@ export function createCpAnsichtServer(options: {
         res.end(error.message);
         return;
       }
-      console.error('[ansehen-cp]', error);
+      console.error('[view-cp]', error);
       if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('Control Plane nicht erreichbar.');
+      res.end('Control plane not reachable.');
     });
   });
 }

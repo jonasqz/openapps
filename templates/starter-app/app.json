@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "name": "starter-app",
   "displayName": "Starter App",
-  "description": "Vorlage für eine neue App. Benenne sie um, bevor du etwas baust.",
+  "description": "Template for a new app. Rename it before you build anything.",
   "category": "internal",
   "version": "0.1.0",
   "source": {
@@ -12,19 +12,19 @@
   "requiredTables": [
     {
       "name": "items",
-      "description": "Beispiel-Tabelle. Ersetze sie durch die Tabellen deiner App."
+      "description": "Example table. Replace it with your app's tables."
     }
   ],
   "offeredTools": [
     {
       "name": "items.list",
-      "description": "Listet Einträge.",
+      "description": "Lists items.",
       "operationId": "listItems",
       "verb": "read"
     },
     {
       "name": "items.create",
-      "description": "Legt einen Eintrag an.",
+      "description": "Creates an item.",
       "operationId": "createItem",
       "verb": "write"
     }
@@ -37,39 +37,39 @@
         "kind": "app",
         "app": "starter-app"
       },
-      "reason": "Wer die App öffnen darf. Welche Gruppe, entscheidet die Freigabe in der Control Plane — ein gewünschtes Recht ist ein Antrag, keine Vergabe."
+      "reason": "Who may open the app. Which group is decided by the grant in the control plane — a requested permission is a request, not a grant."
     }
   ],
   "env": [
     {
       "name": "DATABASE_URL",
       "secret": true,
-      "description": "Verbindung auf das eigene Schema, mit der App-Rolle. Setzt die Control Plane."
+      "description": "Connection to the app's own schema, with the app role. Set by the control plane."
     },
     {
       "name": "DATABASE_SCHEMA",
       "secret": false,
-      "description": "Eigenes Schema der App. Das SDK setzt daraus den search_path; eine DSN mit options= wird abgewiesen."
+      "description": "The app's own schema. The SDK derives the search_path from it; a DSN with options= is rejected."
     },
     {
       "name": "OPENAPPS_AUTH_SECRET",
       "secret": true,
-      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prüft. Setzt die Control Plane pro Deployment."
+      "description": "The app's own secret, used by the SDK to verify the gateway signature. Set by the control plane per deployment."
     },
     {
       "name": "OPENAPPS_APP_ID",
       "secret": false,
-      "description": "Id dieser App im Signatur-Material. Muss byte-gleich dem sein, was das Gateway schreibt."
+      "description": "Id of this app in the signature material. Must be byte-identical to what the gateway writes."
     },
     {
       "name": "OPENAPPS_APP_HOST",
       "secret": false,
-      "description": "Gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben."
+      "description": "Shared domain in the signature material, trimmed and lowercased."
     },
     {
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
-      "description": "Pfad, unter dem die App liegt (z. B. /starter-app). Muss beim Build gesetzt sein, sonst zeigen Verweise und Bilder ins Leere."
+      "description": "Path the app lives under (e.g. /starter-app). Must be set at build time, otherwise links and images point nowhere."
     }
   ],
   "egress": []

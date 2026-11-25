@@ -56,7 +56,7 @@ export function CreateAgentForm({ mcpUrl }: CreateAgentFormProps): JSX.Element {
           ? (payload as { token?: unknown }).token
           : undefined;
       if (!response.ok || typeof token !== 'string') {
-        setError(messageOf(payload, 'Der Agent konnte nicht angelegt werden.'));
+        setError(messageOf(payload, 'The agent could not be created.'));
         return;
       }
 
@@ -79,14 +79,14 @@ export function CreateAgentForm({ mcpUrl }: CreateAgentFormProps): JSX.Element {
           });
           if (!granted.ok) {
             const reason: unknown = await granted.json().catch(() => null);
-            grantProblems.push(`${verb} auf app:*: ${messageOf(reason, 'abgelehnt')}`);
+            grantProblems.push(`${verb} on app:*: ${messageOf(reason, 'rejected')}`);
           }
         }
       }
       setCreated({ name: name.trim(), token, grantProblems });
       setName('');
     } catch {
-      setError('Die Control Plane war nicht erreichbar.');
+      setError('The control plane could not be reached.');
     } finally {
       setPending(false);
     }
@@ -95,13 +95,13 @@ export function CreateAgentForm({ mcpUrl }: CreateAgentFormProps): JSX.Element {
   return (
     <Card className="mt-6 gap-4 p-4">
       <CardHeader
-        title="Neuer Agent"
-        description="Eine neue Identität darf nichts. Was der Agent tun darf, entscheiden Freigaben."
+        title="New agent"
+        description="A new identity may do nothing. Grants decide what the agent may do."
       />
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
         <Input
           label="Name"
-          hint="Klein geschrieben, Buchstaben, Ziffern, Bindestriche — zum Beispiel claude-jonas. Wird zum Subjekt agent:<name>."
+          hint="Lower case letters, digits and hyphens, for example claude-jonas. Becomes the subject agent:<name>."
           value={name}
           onChange={(event) => setName(event.target.value)}
           required
@@ -109,39 +109,39 @@ export function CreateAgentForm({ mcpUrl }: CreateAgentFormProps): JSX.Element {
           spellCheck={false}
         />
         <Checkbox
-          label="Darf Apps anlegen, deployen und zurücksetzen"
-          hint="Vergibt read, write und execute auf app:* — dieselben Rechte, die platform-admins auf Apps hat. Ohne Haken ist der Agent angelegt, aber gesperrt."
+          label="May create, deploy and roll back apps"
+          hint="Grants read, write and execute on app:*, the same rights platform-admins has on apps. Without the tick, the agent is created but locked."
           checked={operator}
           onChange={(event) => setOperator(event.target.checked)}
         />
         <div>
-          <Button type="submit" loading={pending} loadingLabel="Agent wird angelegt">
-            Agent anlegen
+          <Button type="submit" loading={pending} loadingLabel="Creating agent">
+            Create agent
           </Button>
         </div>
       </form>
 
       {error === undefined ? null : (
-        <ErrorState title="Der Agent wurde nicht angelegt" description={error} />
+        <ErrorState title="The agent was not created" description={error} />
       )}
 
       {created === undefined ? null : (
         <div className="flex flex-col gap-3" role="status">
           <p className="text-sm font-medium text-fg">
-            agent:{created.name} ist angelegt. Das Token steht nur jetzt hier — nach dem Neuladen
-            kennt es niemand mehr.
+            agent:{created.name} has been created. The token is shown only now; after a reload,
+            nobody knows it any more.
           </p>
           <Input label="Token" value={created.token} readOnly spellCheck={false} />
           <Input
-            label="Für Claude Code"
-            hint="Im Terminal ausführen. Das Token gehört nicht in ein Repo und nicht in einen Chat."
+            label="For Claude Code"
+            hint="Run this in a terminal. The token does not belong in a repo or a chat."
             value={`claude mcp add --transport http openapps ${mcpUrl} --header "Authorization: Bearer ${created.token}"`}
             readOnly
             spellCheck={false}
           />
           {created.grantProblems.length === 0 ? null : (
             <ErrorState
-              title="Nicht alle Freigaben wurden gesetzt"
+              title="Not all grants were set"
               description={created.grantProblems.join(' · ')}
             />
           )}

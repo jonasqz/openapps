@@ -11,13 +11,13 @@ import path from 'node:path';
 
 export const HOW_TO_BUILD_APP = 'how_to_build_app';
 
-export const LOSLEGEN = 'loslegen';
+export const LOSLEGEN = 'get_started';
 
 export const LOSLEGEN_DESCRIPTION =
-  'Wie man sich mit dem eigenen Assistenten verbindet und Apps baut oder aendert: Plugin, eigener Agent-Zugang, Adresse und Token, Beispiel-Auftraege, was danach passiert.';
+  'How to connect your own assistant and build or change apps: plugin, your own agent access, address and token, example requests, what happens next.';
 
 export const HOW_TO_BUILD_APP_DESCRIPTION =
-  'Die Regeln der Plattform fuer Agents, die eine App bauen: Login ueber Header, eigenes Schema, API vor UI, Manifest pflegen, keine Secrets, nur das Design System, nichts am Gateway vorbei.';
+  'The platform rules for agents that build an app: login via headers, own schema, API before UI, keep the manifest current, no secrets, only the design system, nothing bypasses the gateway.';
 
 /**
  * Sucht `AGENTS.md` ueber `AGENTS_MD_PATH` oder von hier aus nach oben. Die
@@ -40,7 +40,7 @@ export async function readAgentsMd(options?: {
     } catch {
       const parent = path.dirname(dir);
       if (parent === dir) {
-        throw new Error('AGENTS.md nicht gefunden. Setze AGENTS_MD_PATH auf den Pfad der Datei.');
+        throw new Error('AGENTS.md not found. Set AGENTS_MD_PATH to the path of the file.');
       }
       dir = parent;
     }

@@ -15,7 +15,7 @@ export default async function DealStagePage({
   try {
     options = (await deals()).map(dealOption);
   } catch (error) {
-    console.error('[crm] Deals fuer Stage-Formular laden:', error);
+    console.error('[crm] load deals for stage form:', error);
   }
 
   return (
@@ -25,8 +25,8 @@ export default async function DealStagePage({
       </TextLink>
       {options === null ? (
         <ErrorState
-          title="Formular konnte nicht geladen werden"
-          description="Die Deals fehlen, weil die Datenbank nicht geantwortet hat. Lade die Seite neu."
+          title="Form could not be loaded"
+          description="The deals are missing because the database did not respond. Reload the page."
         />
       ) : (
         <StageForm deals={options} dealId={dealId} />

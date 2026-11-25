@@ -2,7 +2,7 @@
  * Datum fuer die Anzeige. Feste Zeitzone und Sprache, damit Server und
  * Browser dasselbe zeigen — die Seiten rendern auf dem Server.
  */
-const DATE_TIME = new Intl.DateTimeFormat('de-DE', {
+const DATE_TIME = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium',
   timeStyle: 'short',
   timeZone: 'Europe/Berlin',
@@ -14,7 +14,7 @@ export function formatDateTime(iso: string): string {
 }
 
 export const CHANGE_LABEL = {
-  create: 'Angelegt',
-  update: 'Bearbeitet',
-  archive: 'Archiviert',
+  create: 'Created',
+  update: 'Edited',
+  archive: 'Archived',
 } as const;

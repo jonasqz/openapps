@@ -9,12 +9,12 @@ import { useActionSubmit } from './useActionSubmit';
 /** Neue Firma. Tool: `companies.create`. */
 export function CompanyForm(): JSX.Element {
   const router = useRouter();
-  const { onSubmit, formError } = useActionSubmit(createCompanyAction, (id) => `/firmen/${id}`);
+  const { onSubmit, formError } = useActionSubmit(createCompanyAction, (id) => `/companies/${id}`);
 
   return (
     <FormPattern
-      title="Neue Firma"
-      description="Name ist Pflicht, der Rest lässt sich später ergänzen."
+      title="New company"
+      description="Name is required; you can add the rest later."
       columns={2}
       fields={[
         { name: 'name', label: 'Name', kind: 'text', required: true },
@@ -23,12 +23,12 @@ export function CompanyForm(): JSX.Element {
           label: 'Website',
           kind: 'text',
           placeholder: 'https://example.com',
-          hint: 'Ohne https:// wird es ergänzt.',
+          hint: 'https:// is added if missing.',
         },
-        { name: 'branche', label: 'Branche', kind: 'text' },
-        { name: 'notes', label: 'Notizen', kind: 'text' },
+        { name: 'industry', label: 'Industry', kind: 'text' },
+        { name: 'notes', label: 'Notes', kind: 'text' },
       ]}
-      submitLabel="Firma anlegen"
+      submitLabel="Create company"
       onCancel={() => router.back()}
       onSubmit={onSubmit}
       {...(formError === undefined ? {} : { formError })}

@@ -39,7 +39,7 @@ function operations(): Map<string, { path: string; verb: string }> {
     const verbMatch = /^ {6}x-openapps-verb:\s*(\S+)\s*$/.exec(line);
     if (verbMatch !== null) {
       if (path === undefined || operationId === undefined || verbMatch[1] === undefined) {
-        throw new Error(`x-openapps-verb ohne Pfad oder operationId: ${line}`);
+        throw new Error(`x-openapps-verb without path or operationId: ${line}`);
       }
       result.set(operationId, { path, verb: verbMatch[1] });
     }
@@ -47,13 +47,13 @@ function operations(): Map<string, { path: string; verb: string }> {
   return result;
 }
 
-describe('Tool-Zuordnung — Manifest, OpenAPI und Route passen zusammen', () => {
-  it('das Manifest besteht das echte Schema der Plattform', () => {
+describe('tool mapping — manifest, OpenAPI and route match', () => {
+  it('the manifest passes the real schema of the platform', () => {
     expect(manifest.name).toBe('wiki');
     expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual(['page_revisions', 'pages']);
   });
 
-  it('bietet genau die sieben Tools des Wikis an', () => {
+  it('offers exactly the seven tools of the wiki', () => {
     expect(manifest.offeredTools.map((tool) => tool.name).sort()).toEqual(
       [
         'pages.archive',
@@ -67,24 +67,24 @@ describe('Tool-Zuordnung — Manifest, OpenAPI und Route passen zusammen', () =>
     );
   });
 
-  it('jedes Tool im Manifest hat einen Handler und ein Schema — und umgekehrt', () => {
+  it('every tool in the manifest has a handler and a schema — and vice versa', () => {
     const declared = manifest.offeredTools.map((tool) => tool.name).sort();
     expect(Object.keys(toolHandlers).sort()).toEqual(declared);
     expect(Object.keys(toolSchemas).sort()).toEqual(declared);
   });
 
-  it('jedes Tool hat eine Operation mit gleicher operationId, gleichem Verb und Pfad /tools/<name>', () => {
+  it('every tool has an operation with the same operationId, verb and path /tools/<name>', () => {
     const ops = operations();
     expect(ops.size).toBe(manifest.offeredTools.length);
     for (const tool of manifest.offeredTools) {
       const op = ops.get(tool.operationId);
-      expect(op, `Operation ${tool.operationId} fehlt in openapi.yaml`).toBeDefined();
+      expect(op, `operation ${tool.operationId} is missing in openapi.yaml`).toBeDefined();
       expect(op?.path).toBe(`/tools/${tool.name}`);
       expect(op?.verb).toBe(tool.verb);
     }
   });
 
-  it('nur lesende Tools sind read, alle schreibenden write', () => {
+  it('only reading tools are read, all writing ones write', () => {
     const verbs = Object.fromEntries(manifest.offeredTools.map((tool) => [tool.name, tool.verb]));
     expect(verbs).toEqual({
       'pages.list': 'read',
@@ -97,12 +97,12 @@ describe('Tool-Zuordnung — Manifest, OpenAPI und Route passen zusammen', () =>
     });
   });
 
-  it('der Server-Pfad in openapi.yaml ist der App-Pfad', () => {
+  it('the server path in openapi.yaml is the app path', () => {
     expect(openapi).toMatch(/default: \/wiki\s*$/m);
   });
 });
 
-describe('Tool-Route — Signatur zuerst, dann Argumente', () => {
+describe('tool route — signature first, then arguments', () => {
   const SECRET = 'w'.repeat(48);
   const APP_HOST = 'intern.example';
 
@@ -122,8 +122,8 @@ describe('Tool-Route — Signatur zuerst, dann Argumente', () => {
 
   function signed(secret = SECRET): Record<string, string> {
     const values = {
-      userId: 'agent:redaktion',
-      email: 'redaktion@agents.invalid',
+      userId: 'agent:editor',
+      email: 'editor@agents.invalid',
       groups: '',
       issuedAt: String(Math.floor(Date.now() / 1000)),
     };
@@ -145,39 +145,39 @@ describe('Tool-Route — Signatur zuerst, dann Argumente', () => {
     return POST(request, { params: Promise.resolve({ tool }) });
   }
 
-  it('weist jedes Tool ohne Signatur mit 401 ab', async () => {
+  it('rejects every tool without a signature with 401', async () => {
     for (const tool of Object.keys(toolHandlers)) {
       const response = await call(tool, {}, {});
       expect(response.status, tool).toBe(401);
     }
   });
 
-  it('weist eine Signatur mit fremdem Secret ab', async () => {
+  it('rejects a signature made with a foreign secret', async () => {
     const response = await call('pages.create', { title: 'x', contentMd: '' }, signed('z'.repeat(48)));
     expect(response.status).toBe(401);
   });
 
-  it('weist selbst gesetzte Identitaets-Header ohne passende Signatur ab', async () => {
+  it('rejects self-set identity headers without a matching signature', async () => {
     const headers = { ...signed(), [USER_ID_HEADER]: 'admin' };
     expect((await call('pages.list', {}, headers)).status).toBe(401);
   });
 
-  it('kennt kein Tool, das nicht im Manifest steht', async () => {
+  it('knows no tool that is not in the manifest', async () => {
     const response = await call('pages.delete', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001' }, signed());
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ error: 'unknown_tool' });
   });
 
-  it('beantwortet falsche Argumente mit 400 und den Befunden, ohne die Datenbank zu fragen', async () => {
+  it('answers wrong arguments with 400 and the findings without asking the database', async () => {
     const cases: Array<[string, unknown]> = [
-      ['pages.get', { id: 'keine-uuid' }],
+      ['pages.get', { id: 'not-a-uuid' }],
       ['pages.create', { title: '' }],
       ['pages.update', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001' }],
       ['pages.update', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', contentMd: 'a', appendMd: 'b' }],
       ['pages.search', { query: '' }],
       ['pages.archive', {}],
       ['pages.history', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', limit: 9999 }],
-      ['pages.list', { unbekannt: 1 }],
+      ['pages.list', { unknown: 1 }],
     ];
     for (const [tool, args] of cases) {
       const response = await call(tool, args, signed());

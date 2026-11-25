@@ -32,7 +32,7 @@ export function gitleaksStep(process: ScannerProcess): ReviewStep {
           step: GITLEAKS_STEP,
           kind: 'deterministic',
           findings,
-          error: `gitleaks beendet mit Code ${output.exitCode}: ${output.stderr ?? ''}`.trim(),
+          error: `gitleaks exited with code ${output.exitCode}: ${output.stderr ?? ''}`.trim(),
         };
       }
       return { step: GITLEAKS_STEP, kind: 'deterministic', findings };
@@ -49,10 +49,10 @@ export function parseGitleaksReport(stdout: string): readonly Finding[] {
     records = JSON.parse(trimmed);
   } catch {
     // Unlesbarer Bericht ist ein Scanner-Fehler, kein "nichts gefunden".
-    throw new Error('gitleaks-Bericht ist kein gueltiges JSON');
+    throw new Error('gitleaks report is not valid JSON');
   }
   if (!Array.isArray(records)) {
-    throw new Error('gitleaks-Bericht ist keine Liste');
+    throw new Error('gitleaks report is not a list');
   }
 
   return records.map((raw): Finding => {
@@ -62,7 +62,7 @@ export function parseGitleaksReport(stdout: string): readonly Finding[] {
       // Jedes Secret blockiert. Es gibt keine Abstufung.
       severity: 'blocking' as const,
       code: `gitleaks.${record.RuleID ?? 'secret'}`,
-      message: record.Description ?? 'Secret im Code gefunden',
+      message: record.Description ?? 'secret found in the code',
     };
     return {
       ...base,

@@ -7,8 +7,8 @@ import type { JSX, ReactNode } from 'react';
 const NAV = [
   { id: 'apps', label: 'Apps', href: '/' },
   { id: 'agents', label: 'Agents', href: '/agents' },
-  { id: 'grants', label: 'Freigaben', href: '/grants' },
-  { id: 'loslegen', label: 'Loslegen', href: '/loslegen' },
+  { id: 'grants', label: 'Grants', href: '/grants' },
+  { id: 'get-started', label: 'Get started', href: '/get-started' },
 ] as const;
 
 function isCurrent(href: string, pathname: string): boolean {
@@ -26,7 +26,7 @@ export function VerwaltungShell({
   return (
     <AppShell
       productName="openapps"
-      appName="Verwaltung"
+      appName="Admin"
       user={user}
       nav={[{ items: NAV.map((item) => ({ ...item, current: isCurrent(item.href, pathname) })) }]}
       onSignOut={() => {

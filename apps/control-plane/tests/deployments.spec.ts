@@ -142,7 +142,7 @@ describe('Deploy ohne Arbeitskopie des Aufrufers', () => {
         gitSha: 'aaaaaa1',
         manifest: manifest('ungepusht', '1.0.0'),
       }),
-    ).rejects.toThrow(/liess sich nicht holen.*404/);
+    ).rejects.toThrow(/could not be fetched.*404/);
 
     // Ohne Arbeitskopie hat das Gate nichts geprueft — also laeuft auch nichts.
     expect(harness.backend.calls.filter((call) => call.method === 'deploy')).toEqual([]);

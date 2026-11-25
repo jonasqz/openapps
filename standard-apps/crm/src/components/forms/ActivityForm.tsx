@@ -12,7 +12,7 @@ const KIND_OPTIONS: SelectOption[] = ACTIVITY_KINDS.map((kind) => ({
   label: ACTIVITY_KIND_LABELS[kind],
 }));
 
-const NEEDS_REFERENCE = 'Firma, Kontakt oder Deal wählen — mindestens eines davon.';
+const NEEDS_REFERENCE = 'Choose a company, contact or deal — at least one of them.';
 
 /** Aktivitaet erfassen. Tool: `activities.log`. */
 export function ActivityForm({
@@ -36,7 +36,7 @@ export function ActivityForm({
       companyOf[text(values, 'dealId')] ||
       companyOf[text(values, 'contactId')] ||
       '';
-    return firma === '' ? '/' : `/firmen/${firma}`;
+    return firma === '' ? '/' : `/companies/${firma}`;
   });
 
   const needsReference = (_value: string | boolean, values: FormValues): string | undefined =>
@@ -46,32 +46,32 @@ export function ActivityForm({
 
   return (
     <FormPattern
-      title="Aktivität erfassen"
-      description="Eine Notiz, ein Anruf, eine Mail oder ein Termin — zu einer Firma, einem Kontakt oder einem Deal."
+      title="Log activity"
+      description="A note, a call, an email or a meeting — for a company, a contact or a deal."
       columns={2}
-      initialValues={{ kind: 'notiz', ...initial }}
+      initialValues={{ kind: 'note', ...initial }}
       fields={[
-        { name: 'kind', label: 'Art', kind: 'select', options: KIND_OPTIONS, required: true },
-        { name: 'subject', label: 'Betreff', kind: 'text', required: true },
-        { name: 'body', label: 'Inhalt', kind: 'text' },
+        { name: 'kind', label: 'Type', kind: 'select', options: KIND_OPTIONS, required: true },
+        { name: 'subject', label: 'Subject', kind: 'text', required: true },
+        { name: 'body', label: 'Details', kind: 'text' },
         {
           name: 'companyId',
-          label: 'Firma',
+          label: 'Company',
           kind: 'select',
           options: companies,
-          placeholder: 'Keine Firma',
+          placeholder: 'No company',
           validate: needsReference,
         },
         {
           name: 'contactId',
-          label: 'Kontakt',
+          label: 'Contact',
           kind: 'select',
           options: contacts,
-          placeholder: 'Kein Kontakt',
+          placeholder: 'No contact',
         },
-        { name: 'dealId', label: 'Deal', kind: 'select', options: deals, placeholder: 'Kein Deal' },
+        { name: 'dealId', label: 'Deal', kind: 'select', options: deals, placeholder: 'No deal' },
       ]}
-      submitLabel="Aktivität speichern"
+      submitLabel="Save activity"
       onCancel={() => router.back()}
       onSubmit={onSubmit}
       {...(formError === undefined ? {} : { formError })}

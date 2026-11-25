@@ -44,7 +44,7 @@ describe.skipIf(!reachable)('gemeinsame App-Domain in Postgres', () => {
   });
 
   it('nimmt dieselbe Domain fuer mehrere Apps an', async () => {
-    for (const name of ['wiki', 'crm', 'wissen']) {
+    for (const name of ['wiki', 'crm', 'knowledge']) {
       const app = await apps.create({
         name,
         displayName: name,

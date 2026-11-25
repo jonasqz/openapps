@@ -15,7 +15,7 @@ export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
   if ((process.env.DATABASE_URL ?? '').trim() === '') {
-    console.warn('[crm] DATABASE_URL ist nicht gesetzt — Migrationen übersprungen.');
+    console.warn('[crm] DATABASE_URL is not set — skipping migrations.');
     return;
   }
 
@@ -27,12 +27,12 @@ export async function register(): Promise<void> {
 
   const result = await runMigrations(appPool(), join(process.cwd(), 'migrations'));
   if (result.applied.length > 0) {
-    console.info(`[crm] Migrationen angewendet: ${result.applied.join(', ')}`);
+    console.info(`[crm] migrations applied: ${result.applied.join(', ')}`);
   }
 
   // Beispieldaten nur, wenn die Plattform es verlangt (lokal ja, Server nein).
   const seeded = await runSeeds(appPool(), join(process.cwd(), 'seeds'));
   if (seeded !== null && seeded.applied.length > 0) {
-    console.info(`[crm] Beispieldaten eingespielt: ${seeded.applied.join(', ')}`);
+    console.info(`[crm] sample data loaded: ${seeded.applied.join(', ')}`);
   }
 }

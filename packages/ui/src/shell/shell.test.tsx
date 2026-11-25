@@ -48,10 +48,10 @@ describe('AppShell', () => {
       const active = document.activeElement;
       order.push(active?.getAttribute('aria-label') ?? active?.textContent ?? '');
     }
-    expect(order[0]).toContain('Zum Inhalt springen');
-    expect(order[1]).toContain('Navigation öffnen');
+    expect(order[0]).toContain('Skip to content');
+    expect(order[1]).toContain('Open navigation');
     expect(order[2]).toContain('Urlaub');
-    expect(order[3]).toContain('Benachrichtigungen');
+    expect(order[3]).toContain('Notifications');
     expect(order[4]).toContain('Anna Beispiel');
   });
 
@@ -72,7 +72,7 @@ describe('AppShell', () => {
         <p>Inhalt</p>
       </AppShell>,
     );
-    expect(screen.getByText('Nicht angemeldet')).toBeInTheDocument();
+    expect(screen.getByText('Not signed in')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Passwort/i)).not.toBeInTheDocument();
     expect(document.querySelector('input[type="password"]')).toBeNull();
   });
@@ -83,13 +83,13 @@ describe('AppShell', () => {
         <p>Inhalt</p>
       </AppShell>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Navigation öffnen' }));
-    const drawer = screen.getByRole('dialog', { name: 'Navigation von Urlaub' });
+    await userEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    const drawer = screen.getByRole('dialog', { name: 'Urlaub navigation' });
     expect(drawer).toHaveAttribute('aria-modal', 'true');
     expect(drawer.contains(document.activeElement)).toBe(true);
     await userEvent.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog', { name: 'Navigation von Urlaub' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Navigation öffnen' })).toHaveFocus();
+    expect(screen.queryByRole('dialog', { name: 'Urlaub navigation' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveFocus();
   });
 
   it('markiert den aktuellen Navigationseintrag', () => {
@@ -119,8 +119,8 @@ describe('AppShell', () => {
         <p>Inhalt</p>
       </AppShell>,
     );
-    expect(screen.queryByRole('button', { name: 'Navigation öffnen' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /App wechseln/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Switch app/ })).toBeInTheDocument();
   });
 });
 
@@ -157,7 +157,7 @@ describe('AppSwitcher', () => {
   it('sagt es, wenn keine App freigegeben ist', async () => {
     render(<AppSwitcher apps={[]} currentName="Urlaub" />);
     await userEvent.click(screen.getByRole('button'));
-    expect(screen.getByText('Keine App freigegeben')).toBeInTheDocument();
+    expect(screen.getByText('No apps shared with you')).toBeInTheDocument();
   });
 
   it('trägt zwanzig Apps ohne die Fläche zu sprengen', async () => {
@@ -177,13 +177,13 @@ describe('AppSwitcher', () => {
 describe('NotificationBell', () => {
   it('nennt die Zahl ungelesener Meldungen im Namen, nicht nur in Farbe', () => {
     render(<NotificationBell notifications={notifications} />);
-    expect(screen.getByRole('button', { name: 'Benachrichtigungen, 1 ungelesen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications, 1 unread' })).toBeInTheDocument();
   });
 
   it('zeigt den leeren Zustand', async () => {
     render(<NotificationBell notifications={[]} />);
     await userEvent.click(screen.getByRole('button'));
-    expect(screen.getByText('Nichts Neues')).toBeInTheDocument();
+    expect(screen.getByText('Nothing new')).toBeInTheDocument();
   });
 
   it('zeigt den Fehlerzustand', async () => {
@@ -195,7 +195,7 @@ describe('NotificationBell', () => {
   it('zeigt den Ladezustand', async () => {
     render(<NotificationBell notifications={[]} loading />);
     await userEvent.click(screen.getByRole('button'));
-    expect(screen.getByRole('status')).toHaveTextContent('Benachrichtigungen werden geladen …');
+    expect(screen.getByRole('status')).toHaveTextContent('Loading notifications…');
   });
 });
 
@@ -210,14 +210,14 @@ describe('UserMenu', () => {
     const onSignOut = vi.fn();
     render(<UserMenu user={user} onSignOut={onSignOut} />);
     await userEvent.click(screen.getByRole('button'));
-    expect(screen.queryByRole('menuitem', { name: 'Profil' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }));
+    expect(screen.queryByRole('menuitem', { name: 'Profile' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
     expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 
   it('zeigt einen Platzhalter, solange der Nutzer nicht geladen ist', () => {
     render(<UserMenu user={null} />);
-    expect(screen.getByText('Nicht angemeldet')).toBeInTheDocument();
+    expect(screen.getByText('Not signed in')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

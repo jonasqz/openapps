@@ -26,32 +26,32 @@ export default async function HistoryPage({ params }: { params: Promise<{ id: st
     revisions = history.revisions;
   } catch (error) {
     if (error instanceof ToolNotFoundError) notFound();
-    console.error('[wiki] Verlauf:', error);
+    console.error('[wiki] history:', error);
     failed = true;
   }
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
-      <TextLink href={`/pages/${parsedId.data}`}>← Zur Seite</TextLink>
+      <TextLink href={`/pages/${parsedId.data}`}>← Back to page</TextLink>
       <header>
-        <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">Verlauf</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">History</p>
         <h1 className="mt-0.5 text-2xl font-semibold text-fg [overflow-wrap:anywhere]">
-          {failed ? 'Verlauf' : title}
+          {failed ? 'History' : title}
         </h1>
         <p className="mt-1 text-sm text-fg-muted">
-          Jede Änderung, von Menschen wie von Agents, mit dem Stand danach.
+          Every change, by humans and agents alike, with the state after it.
         </p>
       </header>
 
       {failed ? (
         <ErrorState
-          title="Verlauf konnte nicht geladen werden"
-          description="Die Datenbank hat nicht geantwortet. Lade die Seite neu."
+          title="History could not be loaded"
+          description="The database did not respond. Reload the page."
         />
       ) : revisions.length === 0 ? (
         <EmptyState
-          title="Noch keine Einträge im Verlauf"
-          description="Sobald die Seite bearbeitet wird, steht hier jede Änderung."
+          title="No history entries yet"
+          description="Once the page is edited, every change shows up here."
         />
       ) : (
         <ol className="flex flex-col gap-3">
@@ -66,7 +66,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ id: st
                       <span>{formatDateTime(revision.editedAt)}</span>
                     </span>
                   }
-                  description={`von ${revision.editedBy}`}
+                  description={`by ${revision.editedBy}`}
                 />
                 <CardBody>
                   <p className="text-sm font-semibold text-fg">{revision.title}</p>
@@ -79,11 +79,11 @@ export default async function HistoryPage({ params }: { params: Promise<{ id: st
                   )}
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-primary">
-                      Inhalt dieses Stands anzeigen
+                      Show content of this version
                     </summary>
                     <div className="mt-3 border-t border-border pt-3">
                       {revision.contentMd.trim() === '' ? (
-                        <p className="text-sm text-fg-muted">Kein Inhalt.</p>
+                        <p className="text-sm text-fg-muted">No content.</p>
                       ) : (
                         <Markdown source={revision.contentMd} />
                       )}

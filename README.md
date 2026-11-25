@@ -1,78 +1,81 @@
 # openapps
 
-Ein schlanker App-Layer **neben** Coolify. Er steuert Coolify über REST-API und
-MCP, lässt Coolify selbst unverändert (Apache 2.0, kein Fork) und gibt internen
-Apps und Agents eine gemeinsame Basis: ein Login, ein Rechtemodell, ein
-Review-Gate, ein Design System.
+A lean app layer **next to** Coolify. It controls Coolify through its REST API
+and MCP, leaves Coolify itself unchanged (Apache 2.0, no fork), and gives
+internal apps and agents a shared foundation: one login, one permission model,
+one review gate, one design system.
 
-> Status: **v1 im Bau.** Erst intern bei blyck im Einsatz (Dogfooding), danach
-> die Entscheidung über ein eigenes Open-Source-Projekt. Siehe
-> [`docs/00-brief.md`](docs/00-brief.md).
+> Status: **v1 under construction.** First used internally at blyck
+> (dogfooding), then a decision on a standalone open-source project. See
+> [`docs/00-brief.md`](docs/00-brief.md) (German).
 
 ## Agents first
 
-Jede Funktion gibt es zuerst als API und MCP-Tool, die Oberfläche kommt danach
-und nutzt dieselbe API. Was ein Mensch in der UI kann, kann ein Agent über MCP —
-mit denselben Rechten aus demselben Rechtemodell.
+Every function exists first as an API and an MCP tool; the interface comes
+afterwards and uses the same API. Whatever a person can do in the UI, an agent
+can do over MCP, with the same permissions from the same permission model.
 
-## Aufbau
+## Structure
 
-| Pfad                    | Was                                                                                                               |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `apps/control-plane`    | Die einzige eigene Laufzeit-App: Apps anlegen, deployen, freigeben, zurücksetzen (Next.js, Postgres, Better Auth) |
-| `apps/platform-mcp`     | Plattform-MCP unter `/mcp`: Apps, Deploys, Freigaben, Gruppen, Agent-Identitäten (15 Tools)                       |
-| `packages/app-manifest` | Schema und Typen für `app.json` (Manifest + Katalog-Quellen)                                                      |
-| `packages/ui`           | Design System: Tokens, Komponenten, Muster (Liste, Formular, Detail, leer, Fehler)                                |
-| `packages/sdk`          | Client für Apps: Nutzer aus Headern, DB-Client auf eigenem Schema                                                 |
-| `templates/starter-app` | Starter-Template für neue Apps (OpenAPI zuerst, dann Screens)                                                     |
-| `infra/`                | Traefik-Forward-Auth, Postgres-Rollen, Betriebs-Skripte                                                           |
-| `docs/`                 | Brief, Architektur, Roadmap, DoD, Entscheidungen                                                                  |
+| Path                    | What                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `apps/control-plane`    | The only runtime app of its own: create, deploy, grant, roll back apps (Next.js, Postgres, Better Auth) |
+| `apps/platform-mcp`     | Platform MCP at `/mcp`: apps, deploys, grants, groups, agent identities (15 tools)                      |
+| `packages/app-manifest` | Schema and types for `app.json` (manifest + catalog sources)                                            |
+| `packages/ui`           | Design system: tokens, components, patterns (list, form, detail, empty, error)                          |
+| `packages/sdk`          | Client for apps: user from headers, DB client on the app's own schema                                   |
+| `templates/starter-app` | Starter template for new apps (OpenAPI first, then screens)                                             |
+| `infra/`                | Traefik forward auth, Postgres roles, operations scripts                                                |
+| `docs/`                 | Brief, architecture, roadmap, DoD, decisions (German)                                                   |
 
-## Lokal ausprobieren, mit Standard-Apps und Agents
+## Try it locally, with standard apps and agents
 
-`infra/lokal/` startet die ganze Plattform in Docker, ohne Coolify und ohne
-GitHub. Dazu kommen drei Standard-Apps aus `standard-apps/`: `wiki` (Seiten wie
-in Notion), `crm` und `wissen` (Dokumente mit Passagensuche, die
-Retrieval-Hälfte eines RAG). Anleitung: [`infra/lokal/README.md`](infra/lokal/README.md).
-Was echte Agents damit gemacht haben, steht in
-[`docs/nachweise/lokal-agents.md`](docs/nachweise/lokal-agents.md).
+`infra/lokal/` starts the whole platform in Docker, without Coolify and without
+GitHub. It comes with four standard apps from `standard-apps/`: `wiki` (pages
+like in Notion), `crm`, `knowledge` (documents with passage search, the
+retrieval half of a RAG) and `tasks`. Guide:
+[`infra/lokal/README.md`](infra/lokal/README.md) (German). What real agents
+have done with it is in
+[`docs/nachweise/lokal-agents.md`](docs/nachweise/lokal-agents.md) (German).
 
-## Apps mit dem eigenen Assistenten bauen
+Locally, you switch roles at `/_local/as/admin` and `/_local/as/user`.
 
-Apps baut und ändert dein eigener Claude Code, verbunden mit dem
-Plattform-MCP. Das Plugin [`plugins/openapps`](plugins/openapps/README.md)
-bringt drei Dinge mit:
+## Build apps with your own assistant
 
-- die Verbindung zum MCP, mit Adresse und Token aus der Umgebung;
-- die Regeln der Plattform als Skill;
-- die Befehle `/openapps:neue-app`, `/openapps:app-aendern` und
+Your own Claude Code, connected to the platform MCP, builds and changes apps.
+The plugin [`plugins/openapps`](plugins/openapps/README.md) brings three
+things:
+
+- the connection to the MCP, with address and token from the environment;
+- the rules of the platform as a skill (`build-platform-app`);
+- the commands `/openapps:new-app`, `/openapps:change-app` and
   `/openapps:status`.
 
-Installieren in Claude Code:
+Install in Claude Code:
 
 ```text
 /plugin marketplace add jonasqz/openapps
 /plugin install openapps@openapps
 ```
 
-Wie man sich verbindet, steht in der Verwaltung unter „Loslegen“. Für
-Assistenten ohne Browser steht dasselbe im MCP-Prompt `loslegen`.
+How to connect is explained in the admin on the page `/get-started`. For
+assistants without a browser, the same is in the MCP prompt `get_started`.
 
-## Auf einen Server bringen
+## Deploy to a server
 
-Ein Server mit Coolify, eine Compose-Datei, eine Liste von Variablen:
-[`infra/betrieb/README.md`](infra/betrieb/README.md). Wohin das Projekt will,
-steht in [`docs/08-zielbild.md`](docs/08-zielbild.md).
+One server with Coolify, one Compose file, one list of variables:
+[`infra/betrieb/README.md`](infra/betrieb/README.md) (German). Where the
+project is headed is in [`docs/08-zielbild.md`](docs/08-zielbild.md) (German).
 
-## Loslegen
+## Get started
 
 ```bash
 pnpm install
 pnpm check
 ```
 
-## Mitarbeiten
+## Contributing
 
-- Regeln für Agents, die Apps für diese Plattform bauen: [`AGENTS.md`](AGENTS.md)
-- Regeln für Arbeit **an** diesem Repo: [`CLAUDE.md`](CLAUDE.md)
-- Lizenz: noch offen, siehe [`docs/06-lizenz.md`](docs/06-lizenz.md)
+- Rules for agents that build apps for this platform: [`AGENTS.md`](AGENTS.md)
+- Rules for working **on** this repo: [`CLAUDE.md`](CLAUDE.md) (German)
+- License: still open, see [`docs/06-lizenz.md`](docs/06-lizenz.md) (German)

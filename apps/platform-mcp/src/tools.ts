@@ -88,9 +88,9 @@ const codeFactsSchema = z.object({
 
 export const createAppTool = defineTool({
   name: 'create_app',
-  title: 'App anlegen',
+  title: 'Create app',
   description:
-    'Legt ein Repo aus dem Starter-Template an, registriert die App und richtet ihr eigenes Schema samt eigener DB-Rolle ein. Danach ist die App weder deployt noch fuer jemanden sichtbar — dafuer braucht sie request_deploy und grant. Scheitert das Anlegen des Repos, wird nichts registriert.',
+    'Creates a repo from the starter template, registers the app and sets up its own schema with its own DB role. Afterwards the app is neither deployed nor visible to anyone; that takes request_deploy and grant. If creating the repo fails, nothing is registered.',
   schema: z.object({
     name: z.string(),
     displayName: z.string().optional(),
@@ -116,9 +116,8 @@ export const createAppTool = defineTool({
 
 export const listAppsTool = defineTool({
   name: 'list_apps',
-  title: 'Apps auflisten',
-  description:
-    'Listet die Apps, auf die der Aufrufer eine Lese-Freigabe hat. Ohne Freigabe ist die Liste leer.',
+  title: 'List apps',
+  description: 'Lists the apps the caller has a read grant on. Without a grant the list is empty.',
   schema: z.object({}),
   async handler({ ctx, actor, correlationId }) {
     const apps = await listApps(ctx, {
@@ -131,9 +130,9 @@ export const listAppsTool = defineTool({
 
 export const requestDeployTool = defineTool({
   name: 'request_deploy',
-  title: 'Deploy anfragen',
+  title: 'Request deploy',
   description:
-    'Deployt einen gepushten Commit: Die Plattform holt ihn selbst aus dem Repo der App (repoDir nur fuer lokale Laeufe angeben). Startet das Review-Gate (gitleaks, semgrep, UI-Linter, Tool-Paritaet, Manifest-Abgleich, Claude-Report) und deployt nur bei Freigabe. Ein blockierender Befund eines Scanners verhindert den Deploy; der Claude-Report allein gibt nie frei.',
+    'Deploys a pushed commit: the platform fetches it from the app repo itself (pass repoDir only for local runs). Starts the review gate (gitleaks, semgrep, UI linter, tool parity, manifest check, Claude report) and deploys only if it passes. A blocking finding from any scanner prevents the deploy; the Claude report alone never approves.',
   schema: z.object({
     app: z.string(),
     version: z.string(),
@@ -160,9 +159,9 @@ export const requestDeployTool = defineTool({
 
 export const rollbackTool = defineTool({
   name: 'rollback',
-  title: 'Zurueck auf die Vorversion',
+  title: 'Roll back to the previous version',
   description:
-    'Setzt die App auf das vorherige Deployment zurueck: ein Zeiger-Tausch plus ein Backend-Aufruf, damit es unter 2 Minuten bleibt.',
+    'Rolls the app back to the previous deployment: a pointer swap plus one backend call, so it stays under 2 minutes.',
   schema: z.object({ app: z.string() }),
   async handler({ ctx, actor, correlationId }, input) {
     const deployment = await rollback(ctx, {
@@ -176,9 +175,9 @@ export const rollbackTool = defineTool({
 
 export const grantTool = defineTool({
   name: 'grant',
-  title: 'Freigabe vergeben',
+  title: 'Grant permission',
   description:
-    'Vergibt genau ein Recht: Subjekt (Mensch, Gruppe, App, Agent) darf ein Verb (read, write, execute) auf einer Ressource (App, Tabelle, View, Tool, Gruppe, Agent). Bei Tabellen und Views zwischen Apps wird zusaetzlich der Postgres-Grant gesetzt.',
+    'Grants exactly one permission: a subject (user, group, app, agent) may perform a verb (read, write, execute) on a resource (app, table, view, tool, group, agent). For tables and views shared between apps, the Postgres grant is set as well.',
   schema: z.object({
     subjectKind,
     subjectId: z.string(),
@@ -200,9 +199,9 @@ export const grantTool = defineTool({
 
 export const revokeTool = defineTool({
   name: 'revoke',
-  title: 'Freigabe widerrufen',
+  title: 'Revoke grant',
   description:
-    'Widerruft eine Freigabe. Sie wirkt sofort nicht mehr, weil keine Pruefung ueber Freigaben cacht; bei Tabellen und Views folgt der Postgres-REVOKE.',
+    'Revokes a grant. It stops taking effect immediately because no check caches grants; for tables and views the Postgres REVOKE follows.',
   schema: z.object({ grantId: z.string() }),
   async handler({ ctx, actor, correlationId }, input) {
     const revoked = await revoke(ctx, {
@@ -216,9 +215,9 @@ export const revokeTool = defineTool({
 
 export const listGrantsTool = defineTool({
   name: 'list_grants',
-  title: 'Freigaben ansehen',
+  title: 'List grants',
   description:
-    'Listet Freigaben. Ohne Angabe die eigenen — das darf jeder. Mit Ressource die Freigaben auf diese Ressource, sofern der Aufrufer sie lesen darf. Mit all: true alle Freigaben der Plattform (braucht read auf app:*).',
+    'Lists grants. Without arguments, your own grants; anyone may do that. With a resource, the grants on that resource, provided the caller may read it. With all: true, every grant on the platform (needs read on app:*).',
   schema: z.object({
     resourceKind: resourceKind.optional(),
     resourceId: z.string().optional(),
@@ -255,9 +254,9 @@ export const listGrantsTool = defineTool({
  */
 export const listGroupsTool = defineTool({
   name: 'list_groups',
-  title: 'Gruppen auflisten',
+  title: 'List groups',
   description:
-    'Listet die Gruppen, auf die der Aufrufer eine Lese-Freigabe hat (read auf group:<name> oder group:*). Ohne Freigabe ist die Liste leer.',
+    'Lists the groups the caller has a read grant on (read on group:<name> or group:*). Without a grant the list is empty.',
   schema: z.object({}),
   async handler({ ctx, actor, correlationId }) {
     const groups = await listGroups(ctx, {
@@ -270,9 +269,9 @@ export const listGroupsTool = defineTool({
 
 export const createGroupTool = defineTool({
   name: 'create_group',
-  title: 'Gruppe anlegen',
+  title: 'Create group',
   description:
-    'Legt eine Gruppe an. Braucht write auf group:* — nicht auf den neuen Namen, denn vor dem Anlegen gibt es ihn nicht. Die Gruppe ist danach leer und wirkt erst, wenn sie Mitglieder und eine Freigabe hat.',
+    'Creates a group. Needs write on group:*, not on the new name, because it does not exist before it is created. The group starts empty and only takes effect once it has members and a grant.',
   schema: z.object({
     name: z.string(),
     description: z.string().optional(),
@@ -290,9 +289,9 @@ export const createGroupTool = defineTool({
 
 export const listGroupMembersTool = defineTool({
   name: 'list_group_members',
-  title: 'Mitglieder einer Gruppe',
+  title: 'List group members',
   description:
-    'Listet die Mitglieder einer Gruppe. Braucht read auf diese Gruppe. Mitglieder sind E-Mail-Adressen, nicht Nutzer-Ids: eine Mitgliedschaft kann vor dem ersten Login vergeben werden.',
+    'Lists the members of a group. Needs read on that group. Members are email addresses, not user ids: a membership can be granted before the first login.',
   schema: z.object({ group: z.string() }),
   async handler({ ctx, actor, correlationId }, input) {
     const members = await listGroupMembers(ctx, {
@@ -306,9 +305,9 @@ export const listGroupMembersTool = defineTool({
 
 export const grantGroupMemberTool = defineTool({
   name: 'grant_group_member',
-  title: 'Mitglied aufnehmen',
+  title: 'Add group member',
   description:
-    'Nimmt eine E-Mail-Adresse in eine Gruppe auf. Braucht write auf diese Gruppe. Idempotent: war die Adresse schon Mitglied, ist added false und nichts aendert sich. Jede Freigabe an die Gruppe wirkt danach fuer diese Adresse, ohne sie zu kopieren.',
+    'Adds an email address to a group. Needs write on that group. Idempotent: if the address was already a member, added is false and nothing changes. Every grant to the group then applies to this address without being copied.',
   schema: z.object({ group: z.string(), email: z.string() }),
   async handler({ ctx, actor, correlationId }, input) {
     return addGroupMember(ctx, {
@@ -322,9 +321,9 @@ export const grantGroupMemberTool = defineTool({
 
 export const revokeGroupMemberTool = defineTool({
   name: 'revoke_group_member',
-  title: 'Mitglied entfernen',
+  title: 'Remove group member',
   description:
-    'Entfernt eine E-Mail-Adresse aus einer Gruppe. Braucht write auf diese Gruppe. Wirkt sofort: Gruppen werden bei jedem Aufruf gelesen, nicht gecacht — jede Freigabe, die an dieser Gruppe hing, ist beim naechsten Aufruf weg.',
+    'Removes an email address from a group. Needs write on that group. Takes effect immediately: groups are read on every call, not cached, so every grant that came through this group is gone on the next call.',
   schema: z.object({ group: z.string(), email: z.string() }),
   async handler({ ctx, actor, correlationId }, input) {
     return removeGroupMember(ctx, {
@@ -345,9 +344,9 @@ export const revokeGroupMemberTool = defineTool({
  */
 export const listAgentsTool = defineTool({
   name: 'list_agents',
-  title: 'Agents auflisten',
+  title: 'List agents',
   description:
-    'Listet die Agent-Identitaeten, auf die der Aufrufer eine Lese-Freigabe hat (read auf agent:<name> oder agent:*). Secrets stehen nie in der Liste — gespeichert ist nur ihr Hash.',
+    'Lists the agent identities the caller has a read grant on (read on agent:<name> or agent:*). Secrets never appear in the list; only their hash is stored.',
   schema: z.object({}),
   async handler({ ctx, actor, correlationId }) {
     const agents = await listAgentIdentities(ctx, {
@@ -360,9 +359,9 @@ export const listAgentsTool = defineTool({
 
 export const createAgentTool = defineTool({
   name: 'create_agent',
-  title: 'Agent anlegen',
+  title: 'Create agent',
   description:
-    'Legt eine Agent-Identitaet an und gibt ihr Token zurueck — genau dieses eine Mal, danach kennt es niemand mehr. Braucht write auf agent:*. Die neue Identitaet darf nichts: Rechte bekommt sie erst ueber grant mit subjectKind agent und dem Namen als subjectId. Das Token gehoert in die Env des Agents, nicht in ein Repo.',
+    'Creates an agent identity and returns its token, exactly this once; afterwards nobody knows it. Needs write on agent:*. The new identity may do nothing: it only gets permissions through grant with subjectKind agent and its name as subjectId. The token belongs in the agent env, not in a repo.',
   schema: z.object({
     name: z.string(),
     displayName: z.string().optional(),
@@ -379,9 +378,9 @@ export const createAgentTool = defineTool({
 
 export const disableAgentTool = defineTool({
   name: 'disable_agent',
-  title: 'Agent sperren',
+  title: 'Disable agent',
   description:
-    'Sperrt eine Agent-Identitaet. Braucht write auf diesen Agent. Wirkt beim naechsten Aufruf: Das Token wird bei jedem Aufruf geprueft, nicht gecacht. Der Name bleibt vergeben, damit das Audit-Log eindeutig bleibt; ein neuer Zugang braucht einen neuen Namen.',
+    'Disables an agent identity. Needs write on that agent. Takes effect on the next call: the token is checked on every call, not cached. The name stays taken so the audit log stays unambiguous; new access needs a new name.',
   schema: z.object({ name: z.string() }),
   async handler({ ctx, actor, correlationId }, input) {
     return disableAgentIdentity(ctx, {
@@ -437,7 +436,7 @@ export async function runTool<Schema extends z.ZodTypeAny>(
       actor: call.actor,
       action: tool.name,
       outcome: 'error',
-      reason: `ungueltige Eingabe: ${parsed.error.message}`,
+      reason: `invalid input: ${parsed.error.message}`,
       ...(call.correlationId === undefined ? {} : { correlationId: call.correlationId }),
     });
     return { ok: false, error: { code: 'validation_failed', message: parsed.error.message } };

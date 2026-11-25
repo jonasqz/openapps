@@ -31,12 +31,14 @@ interface GrantRow {
 }
 
 const COLUMNS: readonly TableColumn<GrantRow>[] = [
-  { field: 'subject', header: 'Subjekt' },
+  { field: 'subject', header: 'Subject' },
   { field: 'verb', header: 'Verb' },
-  { field: 'resource', header: 'Ressource' },
-  { field: 'grantedBy', header: 'Vergeben von', hideBelow: 'md' },
-  { field: 'state', header: 'Stand' },
+  { field: 'resource', header: 'Resource' },
+  { field: 'grantedBy', header: 'Granted by', hideBelow: 'md' },
+  { field: 'state', header: 'State' },
 ];
+
+const DAY = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' });
 
 const toRow = (g: Grant): GrantRow => ({
   id: g.id,
@@ -44,7 +46,7 @@ const toRow = (g: Grant): GrantRow => ({
   verb: g.verb,
   resource: `${g.resource.kind}:${g.resource.id}`,
   grantedBy: g.grantedBy,
-  state: g.revokedAt === null ? 'offen' : `widerrufen am ${g.revokedAt.toISOString().slice(0, 10)}`,
+  state: g.revokedAt === null ? 'active' : `revoked on ${DAY.format(g.revokedAt)}`,
 });
 
 export default async function GrantsPage() {
@@ -68,29 +70,30 @@ export default async function GrantsPage() {
       all ? { actor } : { actor, subject: { kind: actor.kind, id: actor.id } },
     );
   } catch (error) {
-    failure = error instanceof Error ? error.message : 'unbekannter Fehler';
+    failure = error instanceof Error ? error.message : 'unknown error';
   }
 
   return (
     <section>
       <PageHeader
-        title="Freigaben"
+        title="Grants"
         description={
           all
-            ? 'Wer darf was auf welcher Ressource. Vergeben und widerrufen läuft über grant und revoke im Plattform-MCP.'
-            : 'Deine eigenen Freigaben. Alle Freigaben sieht nur, wer Lese-Recht auf alle Apps hat.'
+            ? 'Who may do what on which resource. Granting and revoking go through grant and revoke in the platform MCP.'
+            : 'Your own grants. Only someone with read access to all apps sees every grant.'
         }
       />
       <Table
-        caption={all ? 'Alle Freigaben' : 'Deine Freigaben'}
+        caption={all ? 'All grants' : 'Your grants'}
         columns={COLUMNS}
         rows={grants.map(toRow)}
         {...(failure === undefined
           ? {}
-          : { error: { title: 'Freigaben konnten nicht geladen werden', description: failure } })}
+          : { error: { title: 'Grants could not be loaded', description: failure } })}
         empty={{
-          title: all ? 'Keine Freigabe vergeben' : 'Du hast noch keine Freigabe',
-          description: 'Ohne Freigabe ist alles gesperrt. Das ist der gewollte Ausgangszustand.',
+          title: all ? 'No grants yet' : 'You have no grants yet',
+          description:
+            'Without a grant, everything is locked. That is the intended starting point.',
         }}
       />
     </section>

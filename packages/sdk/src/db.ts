@@ -68,11 +68,11 @@ export function createAppPool(options: AppPoolOptions = {}): pg.Pool {
   const schema = options.schema ?? process.env[DATABASE_SCHEMA_ENV];
 
   if (connectionString === undefined || connectionString.trim() === '') {
-    throw new SdkConfigurationError(`${DATABASE_URL_ENV} ist nicht gesetzt.`);
+    throw new SdkConfigurationError(`${DATABASE_URL_ENV} is not set.`);
   }
   if (schema === undefined || schema.trim() === '') {
     throw new SdkConfigurationError(
-      `${DATABASE_SCHEMA_ENV} ist nicht gesetzt. Eine App ohne festes Schema darf nicht verbinden.`,
+      `${DATABASE_SCHEMA_ENV} is not set. An app without a fixed schema may not connect.`,
     );
   }
 
@@ -105,27 +105,27 @@ export function assertAppConnectionString(connectionString: string, expectedRole
     url = new URL(connectionString);
   } catch (cause) {
     throw new SdkConfigurationError(
-      `${DATABASE_URL_ENV} ist keine brauchbare URL. Erwartet wird postgresql://rolle:…@host/db.`,
+      `${DATABASE_URL_ENV} is not a usable URL. Expected postgresql://role:…@host/db.`,
       cause instanceof Error ? { cause } : undefined,
     );
   }
 
   if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
     throw new SdkConfigurationError(
-      `${DATABASE_URL_ENV} hat das Schema '${url.protocol}'. Erwartet wird postgres: oder postgresql:.`,
+      `${DATABASE_URL_ENV} has the scheme '${url.protocol}'. Expected postgres: or postgresql:.`,
     );
   }
 
   const role = decodeURIComponent(url.username);
   if (role === '') {
     throw new SdkConfigurationError(
-      `${DATABASE_URL_ENV} nennt keine Rolle. Eine App verbindet nur mit ihrer eigenen DB-Rolle.`,
+      `${DATABASE_URL_ENV} names no role. An app connects only with its own DB role.`,
     );
   }
 
   if (expectedRole !== undefined && role !== expectedRole) {
     throw new SdkConfigurationError(
-      `${DATABASE_URL_ENV} verbindet als '${role}', erwartet war '${expectedRole}'.`,
+      `${DATABASE_URL_ENV} connects as '${role}', expected '${expectedRole}'.`,
     );
   }
 
@@ -135,9 +135,9 @@ export function assertAppConnectionString(connectionString: string, expectedRole
     FORBIDDEN_ROLE_SUFFIXES.some((suffix) => lower.endsWith(suffix))
   ) {
     throw new SdkConfigurationError(
-      `${DATABASE_URL_ENV} verbindet als '${role}'. Das sieht nach einer Owner- oder ` +
-        'Superuser-Rolle aus. Eine App bekommt genau eine eigene, eingeschränkte Rolle ' +
-        '(AGENTS.md Regel 2).',
+      `${DATABASE_URL_ENV} connects as '${role}'. That looks like an owner or ` +
+        'superuser role. An app gets exactly one restricted role of its own ' +
+        '(AGENTS.md rule 2).',
     );
   }
 
@@ -146,7 +146,7 @@ export function assertAppConnectionString(connectionString: string, expectedRole
   for (const key of ['options', 'search_path']) {
     if (url.searchParams.has(key)) {
       throw new SdkConfigurationError(
-        `${DATABASE_URL_ENV} enthält '${key}'. Den search_path setzt das SDK, nicht die Env.`,
+        `${DATABASE_URL_ENV} contains '${key}'. The SDK sets the search_path, not the env.`,
       );
     }
   }
@@ -161,12 +161,12 @@ export function assertAppConnectionString(connectionString: string, expectedRole
 export function assertSafeSchemaName(schema: string): string {
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(schema)) {
     throw new SdkConfigurationError(
-      `'${schema}' ist kein brauchbarer Schema-Name. Erlaubt sind [a-z_][a-z0-9_]* bis 63 Zeichen.`,
+      `'${schema}' is not a usable schema name. Allowed is [a-z_][a-z0-9_]* up to 63 characters.`,
     );
   }
   if (schema === 'public' || schema.startsWith('pg_') || schema === 'information_schema') {
     throw new SdkConfigurationError(
-      `'${schema}' ist kein App-Schema. Eine App arbeitet nur in ihrem eigenen Schema.`,
+      `'${schema}' is not an app schema. An app works only in its own schema.`,
     );
   }
   return schema;

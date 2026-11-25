@@ -127,13 +127,13 @@ export async function checkGatewayProtection(
   // damit genau das Signal abstumpfen, das bei einem echten Verlust des
   // Schutzes zaehlt.
   if (!Array.isArray(routers.value)) {
-    return { state: 'unreachable', reason: '/api/http/routers liefert keine Liste' };
+    return { state: 'unreachable', reason: '/api/http/routers returned no list' };
   }
   if (!Array.isArray(middlewares.value)) {
-    return { state: 'unreachable', reason: '/api/http/middlewares liefert keine Liste' };
+    return { state: 'unreachable', reason: '/api/http/middlewares returned no list' };
   }
   if (!Array.isArray(entrypoints.value)) {
-    return { state: 'unreachable', reason: '/api/entrypoints liefert keine Liste' };
+    return { state: 'unreachable', reason: '/api/entrypoints returned no list' };
   }
 
   const problems: string[] = [
@@ -156,12 +156,12 @@ function middlewareProblems(middlewares: readonly unknown[]): readonly string[] 
   for (const name of REQUIRED_MIDDLEWARES) {
     const middleware = byName.get(name);
     if (middleware === undefined) {
-      problems.push(`Middleware "${name}" fehlt in der laufenden Konfiguration`);
+      problems.push(`middleware "${name}" is missing from the running configuration`);
       continue;
     }
     if (middleware.status !== 'enabled') {
       problems.push(
-        `Middleware "${name}" hat status "${String(middleware.status)}", erwartet "enabled"`,
+        `middleware "${name}" has status "${String(middleware.status)}", expected "enabled"`,
       );
     }
   }
@@ -181,8 +181,8 @@ function routerProblems(routers: readonly unknown[]): readonly string[] {
 
   if (own.length === 0) {
     problems.push(
-      `kein einziger Router mit dem Praefix "${OWN_PREFIX}" in der laufenden Konfiguration — ` +
-        'unsere dynamische Datei ist nicht geladen',
+      `no router with the prefix "${OWN_PREFIX}" in the running configuration: ` +
+        'our dynamic file is not loaded',
     );
   }
 
@@ -197,12 +197,12 @@ function routerProblems(routers: readonly unknown[]): readonly string[] {
       chain.some((middleware, index) => middleware !== ROUTER_MIDDLEWARES[index])
     ) {
       problems.push(
-        `Router "${name}" traegt die Kette [${chain.join(', ')}], erwartet ` +
-          `[${ROUTER_MIDDLEWARES.join(', ')}] in genau dieser Reihenfolge`,
+        `router "${name}" carries the chain [${chain.join(', ')}], expected ` +
+          `[${ROUTER_MIDDLEWARES.join(', ')}] in exactly this order`,
       );
     }
     if (router.status !== 'enabled') {
-      problems.push(`Router "${name}" hat status "${String(router.status)}", erwartet "enabled"`);
+      problems.push(`router "${name}" has status "${String(router.status)}", expected "enabled"`);
     }
   }
 
@@ -210,7 +210,7 @@ function routerProblems(routers: readonly unknown[]): readonly string[] {
     (router) => plainName(String(router.name)) === REQUIRED_CATCH_ALL_ROUTER,
   );
   if (catchAll === undefined) {
-    problems.push(`Catch-all-Router "${REQUIRED_CATCH_ALL_ROUTER}" fehlt`);
+    problems.push(`catch-all router "${REQUIRED_CATCH_ALL_ROUTER}" is missing`);
   }
 
   return problems;
@@ -226,13 +226,13 @@ function entrypointProblems(
     // Hier wissen wir etwas: Die Antwort ist verwertbar und der Entrypoint,
     // an dem unsere Router haengen, kommt darin nicht vor. Dann laeuft keiner
     // von ihnen.
-    return [`Entrypoint "${entryPoint}" gibt es nicht — unsere Router haengen an keinem Eingang`];
+    return [`entrypoint "${entryPoint}" does not exist: our routers are attached to no entrypoint`];
   }
 
   const forwarded = entry.forwardedHeaders;
   if (forwarded === undefined || forwarded === null) return [];
   if (!isRecord(forwarded)) {
-    return [`forwardedHeaders am Entrypoint "${entryPoint}" hat eine unbekannte Form`];
+    return [`forwardedHeaders on entrypoint "${entryPoint}" has an unknown shape`];
   }
   const keys = Object.keys(forwarded).filter((key) => {
     const value = forwarded[key];
@@ -241,8 +241,8 @@ function entrypointProblems(
   });
   if (keys.length === 0) return [];
   return [
-    `forwardedHeaders am Entrypoint "${entryPoint}" ist nicht leer (${keys.join(', ')}) — ` +
-      'ein Client koennte X-Forwarded-Host setzen und damit die Pfad-Allowlist aus Spec 1.3 erschleichen',
+    `forwardedHeaders on entrypoint "${entryPoint}" is not empty (${keys.join(', ')}): ` +
+      'a client could set X-Forwarded-Host and sneak past the path allowlist from spec 1.3',
   ];
 }
 
@@ -260,16 +260,16 @@ async function getJson(
   try {
     const response = await http(url, { signal: controller.signal, redirect: 'manual' });
     if (!response.ok) {
-      return { ok: false, reason: `${url} antwortet ${String(response.status)}` };
+      return { ok: false, reason: `${url} answered ${String(response.status)}` };
     }
     const text = await response.text();
     try {
       return { ok: true, value: JSON.parse(text) as unknown };
     } catch {
-      return { ok: false, reason: `${url} antwortet kein JSON` };
+      return { ok: false, reason: `${url} did not answer with JSON` };
     }
   } catch (cause) {
-    return { ok: false, reason: `${url} nicht erreichbar: ${errorText(cause)}` };
+    return { ok: false, reason: `${url} not reachable: ${errorText(cause)}` };
   } finally {
     clearTimeout(timer);
   }
@@ -336,10 +336,10 @@ export async function runGatewayStartupCheck(
   if (result.state === 'alarm') {
     alarm = result.problems;
     log.error(
-      `ALARM Gateway-Schutz: ${result.problems.join(' | ')} — ` +
-        'Apps sind moeglicherweise ohne Forward-Auth erreichbar. ' +
-        'openapps.yaml neu schreiben (Deploy einer App genuegt) und ' +
-        'infra/scripts/check-auth.sh laufen lassen.',
+      `ALARM gateway protection: ${result.problems.join(' | ')}: ` +
+        'apps may be reachable without forward auth. ' +
+        'Rewrite openapps.yaml (deploying any app is enough) and ' +
+        'run infra/scripts/check-auth.sh.',
     );
     return result;
   }
@@ -347,14 +347,14 @@ export async function runGatewayStartupCheck(
   alarm = undefined;
   if (result.state === 'unreachable') {
     log.warn(
-      `WARN Gateway-Schutz nicht pruefbar: ${result.reason} — ` +
-        'kein Befund ueber die Router. Nachweis per infra/scripts/check-auth.sh.',
+      `WARN gateway protection cannot be checked: ${result.reason}: ` +
+        'no finding about the routers. Verify with infra/scripts/check-auth.sh.',
     );
     return result;
   }
 
   log.info(
-    'Gateway-Schutz geprueft: Middlewares, Catch-all und die Kette jedes eigenen Routers stehen.',
+    'gateway protection checked: middlewares, catch-all and the chain of every own router are in place.',
   );
   return result;
 }

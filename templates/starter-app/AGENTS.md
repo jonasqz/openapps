@@ -1,71 +1,76 @@
-# Diese App
+# This app
 
-> Du baust eine App für die openapps-Plattform. Die Regeln der Plattform stehen
-> in der Wurzel-[`AGENTS.md`](../../AGENTS.md) und gelten ohne Ausnahme. Diese
-> Datei sagt, wo in dieser Vorlage was hingehört.
+> You are building an app for the openapps platform. The platform rules are in
+> the root [`AGENTS.md`](../../AGENTS.md) and apply without exception. This
+> file says where things go in this template.
 
-## Reihenfolge, in der du arbeitest
+## The order you work in
 
-1. `app.json` — Name, Kategorie, Tabellen, Tools, Rechte, Env. Zuerst, denn
-   daraus leitet die Plattform Schema, Rolle und Freigaben ab.
-2. `openapi.yaml` — jede Funktion als Operation, mit `operationId` und
-   `x-openapps-verb` (`read`, `write` oder `execute`). Daraus entstehen die
-   MCP-Tools. Eine UI-Aktion ohne Operation hier blockiert das Review-Gate.
-3. `migrations/` — eine SQL-Datei pro Änderung, aufsteigend numeriert. Nie eine
-   bestehende Migration ändern. Kein `create role`, kein `grant`, kein
-   `create schema`: das macht die Control Plane.
-4. `src/app/api/` — die Route-Handler, genau die Operationen aus der Spec.
-5. `src/app/` — die Screens, erst jetzt. Nur mit `@openapps/ui`.
+1. `app.json` — name, category, tables, tools, permissions, env. First,
+   because the platform derives schema, role and grants from it.
+2. `openapi.yaml` — every function as an operation, with `operationId` and
+   `x-openapps-verb` (`read`, `write` or `execute`). The MCP tools are
+   generated from it. A UI action without an operation here blocks the review
+   gate.
+3. `migrations/` — one SQL file per change, numbered in ascending order. Never
+   change an existing migration. No `create role`, no `grant`, no
+   `create schema`: the control plane does that.
+4. `src/app/api/` — the route handlers, exactly the operations from the spec.
+5. `src/app/` — the screens, only now. Only with `@openapps/ui`.
 
-## Wo dein Pfad herkommt
+## Where your path comes from
 
-Die App ist unter `https://<domain>/<app-name>` erreichbar, nicht unter einer
-eigenen Subdomain (ADR 0007). `next.config.js` setzt diesen Pfad als `basePath`
-aus `OPENAPPS_APP_BASE_PATH`; die Control Plane setzt die Variable pro
-Deployment. Lass die Zeile, wie sie ist, und schreibe den Pfad nirgends fest —
-das Review-Gate prueft beides.
+The app is reachable at `https://<domain>/<app-name>`, not on its own
+subdomain (ADR 0007). `next.config.js` sets that path as `basePath` from
+`OPENAPPS_APP_BASE_PATH`; the control plane sets the variable per deployment.
+Leave the line as it is and do not hard-code the path anywhere — the review
+gate checks both.
 
-Was daran haengt: Jeder absolute Pfad, den du selbst schreibst, umgeht den
-`basePath`. `<img src="/logo.png">` und `fetch('/api/items')` landen auf der
-Plattform, nicht in deiner App. Nimm `next/link` und `next/image` (die rechnen
-den `basePath` ein) und rufe eigene Endpunkte relativ auf.
+What depends on it: every absolute path you write yourself bypasses the
+`basePath`. `<img src="/logo.png">` and `fetch('/api/items')` end up on the
+platform, not in your app. Use `next/link` and `next/image` (they include the
+`basePath`) and call your own endpoints relatively.
 
-## Wo du den Nutzer bekommst
+## Where you get the user
 
 ```ts
 import { getUser } from '@openapps/sdk';
 
-const user = await getUser(request.headers); // wirft, wenn der Aufruf nicht durch das Gateway kam
+const user = getUser(request.headers); // throws if the request did not come through the gateway
 ```
 
-Baue keinen Login. Lies die Header `X-Auth-*` nie selbst — nur über `getUser`,
-weil nur das SDK prüft, dass der Aufruf wirklich durch das Gateway kam.
+Do not build a login. Never read the `X-Auth-*` headers yourself — only via
+`getUser`, because only the SDK checks that the request really came through
+the gateway.
 
-## Wo du die Datenbank bekommst
+## Where you get the database
 
 ```ts
-import { db } from '@openapps/sdk';
+import { createAppPool } from '@openapps/sdk';
 
-const rows = await db.query('select id, title, created_at from items order by created_at desc');
+const pool = createAppPool();
+const { rows } = await pool.query(
+  'select id, title, created_at from items order by created_at desc',
+);
 ```
 
-Der Client ist auf dein Schema festgelegt. Fremde Daten nur über eine Freigabe,
-die in der Control Plane vergeben wurde — nie über eine zweite Verbindung.
+The client is pinned to your schema. Other apps' data only via a grant issued
+in the control plane — never via a second connection.
 
-## Wo die UI herkommt
+## Where the UI comes from
 
 ```ts
 import { Button, Table, EmptyState, ErrorState } from '@openapps/ui';
 ```
 
-Keine eigenen Farbwerte, keine zweite UI-Bibliothek. Jede Liste hat einen leeren
-und einen Fehlerzustand. Der Linter blockiert den Rest.
+No custom colour values, no second UI library. Every list has an empty and an
+error state. The linter blocks the rest.
 
-## Vor dem ersten Deploy
+## Before the first deploy
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
-Dann `request_deploy` über den Plattform-MCP. Was das Gate blockiert, steht in
-der Wurzel-`AGENTS.md`.
+Then `request_deploy` via the platform MCP. What the gate blocks is listed in
+the root `AGENTS.md`.

@@ -27,7 +27,7 @@ export function semgrepStep(process: ScannerProcess): ReviewStep {
           step: SEMGREP_STEP,
           kind: 'deterministic',
           findings,
-          error: `semgrep beendet mit Code ${output.exitCode}: ${output.stderr ?? ''}`.trim(),
+          error: `semgrep exited with code ${output.exitCode}: ${output.stderr ?? ''}`.trim(),
         };
       }
       return { step: SEMGREP_STEP, kind: 'deterministic', findings };
@@ -43,12 +43,12 @@ export function parseSemgrepReport(stdout: string): readonly Finding[] {
   try {
     payload = JSON.parse(trimmed);
   } catch {
-    throw new Error('semgrep-Bericht ist kein gueltiges JSON');
+    throw new Error('semgrep report is not valid JSON');
   }
 
   const results = (payload as { results?: unknown }).results;
   if (!Array.isArray(results)) {
-    throw new Error('semgrep-Bericht enthaelt kein results-Feld');
+    throw new Error('semgrep report has no results field');
   }
 
   return results.map((raw): Finding => {
@@ -58,7 +58,7 @@ export function parseSemgrepReport(stdout: string): readonly Finding[] {
       step: SEMGREP_STEP,
       severity: severity === 'INFO' ? ('info' as const) : ('blocking' as const),
       code: `semgrep.${result.check_id ?? 'unknown'}`,
-      message: result.extra?.message ?? 'semgrep-Befund',
+      message: result.extra?.message ?? 'semgrep finding',
     };
     return {
       ...base,

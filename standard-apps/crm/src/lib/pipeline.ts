@@ -29,7 +29,7 @@ export interface PipelineSummary {
     count: number;
     openCount: number;
     openSumCents: number;
-    /** Gewichtete Summe der offenen Deals (lead, qualifiziert, angebot). */
+    /** Gewichtete Summe der offenen Deals (lead, qualified, proposal). */
     weightedOpenCents: number;
     wonCents: number;
     lostCents: number;
@@ -39,7 +39,7 @@ export interface PipelineSummary {
 /** Wirft, wenn der Wert nicht als sichere ganze JS-Zahl darstellbar ist. */
 export function toSafeNumber(value: bigint): number {
   if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER)) {
-    throw new RangeError(`Betrag ${value} ist zu groß für eine JSON-Zahl`);
+    throw new RangeError(`amount ${value} is too large for a JSON number`);
   }
   return Number(value);
 }
@@ -48,10 +48,10 @@ export function toSafeNumber(value: bigint): number {
 function toBigInt(value: number | string | bigint, what: string): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value)) throw new RangeError(`${what}: ${value} ist keine ganze Zahl`);
+    if (!Number.isSafeInteger(value)) throw new RangeError(`${what}: ${value} is not a whole number`);
     return BigInt(value);
   }
-  if (!/^-?\d+$/.test(value.trim())) throw new RangeError(`${what}: "${value}" ist keine ganze Zahl`);
+  if (!/^-?\d+$/.test(value.trim())) throw new RangeError(`${what}: "${value}" is not a whole number`);
   return BigInt(value.trim());
 }
 
@@ -69,7 +69,7 @@ export function summarizePipeline(rows: readonly StageAggregate[]): PipelineSumm
     const entry = byStage.get(row.stage as Stage);
     // Eine Stage, die es nicht gibt, verhindert der Check in der DB. Kommt
     // trotzdem eine, ist das ein Fehler, kein Wert zum Wegschweigen.
-    if (entry === undefined) throw new RangeError(`unbekannte Stage: ${row.stage}`);
+    if (entry === undefined) throw new RangeError(`unknown stage: ${row.stage}`);
     entry.count += toBigInt(row.count, 'count');
     entry.sum += toBigInt(row.sumCents, 'sumCents');
   }
@@ -105,8 +105,8 @@ export function summarizePipeline(rows: readonly StageAggregate[]): PipelineSumm
       openCount: toSafeNumber(openCount),
       openSumCents: toSafeNumber(openSum),
       weightedOpenCents: toSafeNumber(weightedOpen),
-      wonCents: toSafeNumber(byStage.get('gewonnen')?.sum ?? 0n),
-      lostCents: toSafeNumber(byStage.get('verloren')?.sum ?? 0n),
+      wonCents: toSafeNumber(byStage.get('won')?.sum ?? 0n),
+      lostCents: toSafeNumber(byStage.get('lost')?.sum ?? 0n),
     },
   };
 }

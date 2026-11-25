@@ -54,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
       return jsonResponse(
         {
           error: 'validation_failed',
-          message: 'subjectKind, subjectId, verb, resourceKind und resourceId sind nötig',
+          message: 'subjectKind, subjectId, verb, resourceKind and resourceId are required',
         },
         422,
       );

@@ -216,7 +216,7 @@ export interface GatewayConfigInput {
  * Konfiguration abgedeckt.
  */
 export const GATEWAY_TIMEOUT_NOTE =
-  'ohne eigenen Entrypoint hat die Forward-Auth kein 2-s-Timeout mehr (ADR 0008)';
+  'without its own entrypoint, forward auth no longer has a 2 s timeout (ADR 0008)';
 
 /* -------------------------------------------------------------------------- */
 /* Der Generator                                                               */
@@ -262,7 +262,7 @@ function safeHost(raw: string, what: string): string {
   const host = raw.trim().toLowerCase();
   if (!SAFE_HOST.test(host)) {
     throw new ValidationError(
-      `${what} "${raw}" taugt nicht als Host-Regel: ein Zeichen darin kann die Regel verlassen`,
+      `${what} "${raw}" is not usable as a host rule: a character in it can escape the rule`,
     );
   }
   return host;
@@ -272,7 +272,7 @@ function safeHost(raw: string, what: string): string {
 function safeUrl(raw: string, what: string): string {
   const url = raw.trim();
   if (!/^https?:\/\/[^\s`'"]+$/.test(url)) {
-    throw new ValidationError(`${what} "${raw}" ist keine brauchbare Adresse`);
+    throw new ValidationError(`${what} "${raw}" is not a usable address`);
   }
   return url;
 }
@@ -288,7 +288,7 @@ function safeAlias(raw: string, appName: string): string {
   const alias = raw.trim().toLowerCase();
   if (!SAFE_ALIAS.test(alias)) {
     throw new ValidationError(
-      `der Netz-Alias "${raw}" der App "${appName}" taugt nicht als Hostname im Gateway-Netz`,
+      `the network alias "${raw}" of app "${appName}" is not usable as a hostname in the gateway network`,
     );
   }
   return alias;
@@ -297,7 +297,7 @@ function safeAlias(raw: string, appName: string): string {
 function safePort(port: number, appName: string): number {
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new ValidationError(
-      `App "${appName}" hat den Port ${String(port)} — das ist keine Portnummer zwischen 1 und 65535`,
+      `App "${appName}" has port ${String(port)}, which is not a port number between 1 and 65535`,
     );
   }
   return port;
@@ -312,11 +312,11 @@ export function canonicalHeaderName(lowerCaseName: string): string {
 }
 
 export function buildGatewayConfig(input: GatewayConfigInput): GatewayDynamicConfig {
-  const domain = safeHost(appsDomainFor(input.appsDomain), 'die App-Domain');
+  const domain = safeHost(appsDomainFor(input.appsDomain), 'the app domain');
   const entryPoint = input.entryPoint ?? 'https';
   const certResolver = input.certResolver === undefined ? 'letsencrypt' : input.certResolver;
-  const forwardAuthAddress = safeUrl(input.forwardAuthAddress, 'die Forward-Auth-Adresse');
-  const denyBackendUrl = safeUrl(input.denyBackendUrl, 'das Deny-Backend');
+  const forwardAuthAddress = safeUrl(input.forwardAuthAddress, 'the forward auth address');
+  const denyBackendUrl = safeUrl(input.denyBackendUrl, 'the deny backend');
 
   const routers: Record<string, GuardedRouter> = {};
   const services: Record<string, GatewayService> = {
@@ -329,7 +329,7 @@ export function buildGatewayConfig(input: GatewayConfigInput): GatewayDynamicCon
     assertAppName(app.appName);
     const name = gatewayRouterNameFor(app.appName);
     if (routers[name] !== undefined) {
-      throw new ValidationError(`App "${app.appName}" kommt zweimal in der Gateway-Konfiguration`);
+      throw new ValidationError(`App "${app.appName}" appears twice in the gateway configuration`);
     }
     const alias = app.networkAlias ?? gatewayAliasFor(app.appName);
     routers[name] = guardedRouter({
@@ -346,7 +346,7 @@ export function buildGatewayConfig(input: GatewayConfigInput): GatewayDynamicCon
   // 2. Die Control Plane, wenn sie uns gesagt wurde. Eigener Host, dieselben
   //    zwei Middlewares — die oeffentlichen Ausnahmen entscheidet ihr Code.
   if (input.controlPlane !== undefined) {
-    const host = safeHost(input.controlPlane.host, 'der Host der Control Plane');
+    const host = safeHost(input.controlPlane.host, 'the control plane host');
     routers[CONTROL_PLANE_ROUTER] = guardedRouter({
       rule: `Host(\`${host}\`)`,
       entryPoint,
@@ -355,7 +355,7 @@ export function buildGatewayConfig(input: GatewayConfigInput): GatewayDynamicCon
       certResolver,
     });
     services[CONTROL_PLANE_SERVICE] = service(
-      safeUrl(input.controlPlane.url, 'die Adresse der Control Plane'),
+      safeUrl(input.controlPlane.url, 'the control plane address'),
     );
   }
 
@@ -427,7 +427,7 @@ export function gatewayConfigProblems(config: GatewayDynamicConfig): readonly st
 
   const names = Object.keys(routers);
   if (names.length === 0) {
-    problems.push('die Konfiguration enthaelt keinen einzigen Router');
+    problems.push('the configuration contains no router at all');
   }
 
   for (const name of names) {
@@ -442,31 +442,33 @@ export function gatewayConfigProblems(config: GatewayDynamicConfig): readonly st
     );
     if (chain.length !== ROUTER_MIDDLEWARES.length) {
       problems.push(
-        `Router "${name}" traegt die Kette [${chain.join(', ')}], erwartet genau zwei ` +
+        `router "${name}" carries the chain [${chain.join(', ')}], expected exactly two ` +
           `(${ROUTER_MIDDLEWARES.join(', ')})`,
       );
     } else if (chain[0] !== STRIP_IDENTITY_MIDDLEWARE || chain[1] !== FORWARD_AUTH_MIDDLEWARE) {
       problems.push(
-        `Router "${name}" traegt die Kette [${chain.join(', ')}] — erwartet ` +
-          `[${ROUTER_MIDDLEWARES.join(', ')}] in genau dieser Reihenfolge`,
+        `router "${name}" carries the chain [${chain.join(', ')}], expected ` +
+          `[${ROUTER_MIDDLEWARES.join(', ')}] in exactly this order`,
       );
     }
 
     if (!/Host\(`[^`]+`\)/.test(router.rule)) {
-      problems.push(`Router "${name}" hat keine Host-Regel: "${router.rule}"`);
+      problems.push(`router "${name}" has no host rule: "${router.rule}"`);
     }
     if (router.entryPoints.length === 0) {
-      problems.push(`Router "${name}" haengt an keinem Entrypoint`);
+      problems.push(`router "${name}" is not attached to any entrypoint`);
     }
 
     const target = services[router.service];
     if (target === undefined) {
-      problems.push(`Router "${name}" zeigt auf den Dienst "${router.service}", den es nicht gibt`);
+      problems.push(
+        `router "${name}" points to the service "${router.service}", which does not exist`,
+      );
     } else if (
       target.loadBalancer.servers.length === 0 ||
       target.loadBalancer.servers.some((server) => !/^https?:\/\/\S+$/.test(server.url))
     ) {
-      problems.push(`Dienst "${router.service}" hat keine brauchbare Adresse`);
+      problems.push(`service "${router.service}" has no usable address`);
     }
   }
 
@@ -474,13 +476,15 @@ export function gatewayConfigProblems(config: GatewayDynamicConfig): readonly st
   // und das Richtige tun.
   const strip = middlewares[STRIP_IDENTITY_MIDDLEWARE];
   if (!isStrip(strip)) {
-    problems.push(`die Middleware "${STRIP_IDENTITY_MIDDLEWARE}" fehlt oder hat die falsche Form`);
+    problems.push(
+      `the middleware "${STRIP_IDENTITY_MIDDLEWARE}" is missing or has the wrong shape`,
+    );
   } else {
     for (const header of IDENTITY_HEADERS) {
       if (strip.headers.customRequestHeaders[canonicalHeaderName(header)] !== '') {
         problems.push(
-          `"${STRIP_IDENTITY_MIDDLEWARE}" loescht den Header ${canonicalHeaderName(header)} nicht — ` +
-            'ein Client koennte seine eigene Identitaet mitschicken (ADR 0004)',
+          `"${STRIP_IDENTITY_MIDDLEWARE}" does not remove the header ${canonicalHeaderName(header)}: ` +
+            'a client could send its own identity (ADR 0004)',
         );
       }
     }
@@ -488,21 +492,21 @@ export function gatewayConfigProblems(config: GatewayDynamicConfig): readonly st
 
   const auth = middlewares[FORWARD_AUTH_MIDDLEWARE];
   if (!isForwardAuth(auth)) {
-    problems.push(`die Middleware "${FORWARD_AUTH_MIDDLEWARE}" fehlt oder hat die falsche Form`);
+    problems.push(`the middleware "${FORWARD_AUTH_MIDDLEWARE}" is missing or has the wrong shape`);
   } else {
     if (!/^https?:\/\/\S+$/.test(auth.forwardAuth.address)) {
       problems.push(
-        `die Forward-Auth zeigt auf "${auth.forwardAuth.address}" — das ist keine Adresse`,
+        `forward auth points to "${auth.forwardAuth.address}", which is not an address`,
       );
     }
     const expected = IDENTITY_HEADERS.map(canonicalHeaderName);
     const missing = expected.filter((name) => !auth.forwardAuth.authResponseHeaders.includes(name));
     if (missing.length > 0) {
-      problems.push(`die Forward-Auth uebernimmt die Header [${missing.join(', ')}] nicht`);
+      problems.push(`forward auth does not pass on the headers [${missing.join(', ')}]`);
     }
     const extra = auth.forwardAuth.authResponseHeaders.filter((name) => !expected.includes(name));
     if (extra.length > 0) {
-      problems.push(`die Forward-Auth uebernimmt fremde Header [${extra.join(', ')}]`);
+      problems.push(`forward auth passes on foreign headers [${extra.join(', ')}]`);
     }
   }
 
@@ -510,10 +514,10 @@ export function gatewayConfigProblems(config: GatewayDynamicConfig): readonly st
   // in einem klaren Nein.
   const catchAll = routers[CATCH_ALL_ROUTER];
   if (catchAll === undefined) {
-    problems.push(`der Catch-all-Router "${CATCH_ALL_ROUTER}" fehlt`);
+    problems.push(`the catch-all router "${CATCH_ALL_ROUTER}" is missing`);
   } else if (catchAll.service !== DENY_SERVICE) {
     problems.push(
-      `der Catch-all zeigt auf "${catchAll.service}" statt auf das Deny-Backend "${DENY_SERVICE}"`,
+      `the catch-all points to "${catchAll.service}" instead of the deny backend "${DENY_SERVICE}"`,
     );
   }
 

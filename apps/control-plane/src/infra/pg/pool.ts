@@ -26,7 +26,7 @@ export function getPool(): Pool {
   if (pool === undefined) {
     const connectionString = process.env.DATABASE_URL;
     if (connectionString === undefined || connectionString === '') {
-      throw new Error('Env-Variable DATABASE_URL fehlt');
+      throw new Error('env variable DATABASE_URL is missing');
     }
     pool = new Pool({ connectionString, max: Number(process.env.DATABASE_POOL_MAX ?? '10') });
   }

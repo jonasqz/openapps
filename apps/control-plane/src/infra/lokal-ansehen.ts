@@ -34,8 +34,8 @@ import {
 } from '../domain';
 
 export const ANSICHT_IDENTITY = {
-  userId: 'lokal-ansicht',
-  email: 'ansicht@local.test',
+  userId: 'local-viewer',
+  email: 'viewer@local.test',
 } as const;
 
 /** Header, die nie vom Browser an die App durchgehen. */
@@ -91,10 +91,10 @@ export function buildForward(params: {
 }): Forward {
   const { app } = params;
   if (app.primaryDomain === null) {
-    throw new Error(`App "${app.name}" ist nicht deployt`);
+    throw new Error(`App "${app.name}" is not deployed`);
   }
   if (!params.path.startsWith(appPathFor(app.name))) {
-    throw new Error(`Pfad "${params.path}" gehoert nicht zu App "${app.name}"`);
+    throw new Error(`path "${params.path}" does not belong to app "${app.name}"`);
   }
 
   const headers: Record<string, string> = {};
@@ -140,17 +140,17 @@ export function indexPage(apps: readonly AnsichtApp[]): string {
   const deployed = apps.filter((a) => a.primaryDomain !== null);
   const body =
     deployed.length === 0
-      ? '<p>Noch keine App deployt. Erst <code>./infra/lokal/apps-ausrollen.sh</code> laufen lassen.</p>'
+      ? '<p>No app deployed yet. Run <code>./infra/lokal/apps-ausrollen.sh</code> first.</p>'
       : `<ul>${deployed
           .map(
             (a) =>
               `<li><a href="${appPathFor(a.name)}">${escapeHtml(a.displayName)}</a> <code>${escapeHtml(a.name)}</code></li>`,
           )
           .join('')}</ul>`;
-  return `<!doctype html><meta charset="utf-8"><title>openapps lokal</title>
+  return `<!doctype html><meta charset="utf-8"><title>openapps local</title>
 <body style="font-family:system-ui;margin:3rem;max-width:40rem">
-<h1>openapps lokal</h1>
-<p>Angemeldet als <code>${ANSICHT_IDENTITY.email}</code>, nur auf diesem Rechner.</p>
+<h1>openapps local</h1>
+<p>Signed in as <code>${ANSICHT_IDENTITY.email}</code>, on this machine only.</p>
 ${body}</body>`;
 }
 
@@ -177,7 +177,7 @@ export function createAnsichtServer(options: {
     const app = name === null ? null : await options.findApp(name);
     if (app === null || app.primaryDomain === null) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('Keine deployte App unter diesem Pfad.');
+      res.end('No deployed app at this path.');
       return;
     }
 
@@ -211,20 +211,20 @@ export function createAnsichtServer(options: {
 
   return createServer((req, res) => {
     handle(req, res).catch((error: unknown) => {
-      console.error('[ansehen]', error);
+      console.error('[view]', error);
       if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('App nicht erreichbar.');
+      res.end('App not reachable.');
     });
   });
 }
 
 async function main(): Promise<void> {
   if (process.env.OPENAPPS_BACKEND !== 'lokal') {
-    throw new Error('lokal-ansehen laeuft nur mit OPENAPPS_BACKEND=lokal');
+    throw new Error('lokal-ansehen only runs with OPENAPPS_BACKEND=lokal');
   }
   const masterSecret = process.env.OPENAPPS_AUTH_MASTER_SECRET;
   if (masterSecret === undefined || masterSecret === '') {
-    throw new Error('OPENAPPS_AUTH_MASTER_SECRET fehlt');
+    throw new Error('OPENAPPS_AUTH_MASTER_SECRET is missing');
   }
   const { getPool } = await import('./pg/pool');
   const { createAppRepository } = await import('./pg/repositories');
@@ -236,7 +236,7 @@ async function main(): Promise<void> {
     findApp: (name) => apps.findByName(name),
     listApps: () => apps.listAll(),
   }).listen(port, '0.0.0.0', () => {
-    console.log(`[ansehen] http://127.0.0.1:${String(port)} (nur lokal)`);
+    console.log(`[view] http://127.0.0.1:${String(port)} (local only)`);
   });
 
   // Die Control Plane (ADR 0014): Sessions ueber Better Auth mit den echten
@@ -258,7 +258,7 @@ async function main(): Promise<void> {
         cp.emailFuerRolle(rolle, authEnv),
       ),
   }).listen(cpPort, '0.0.0.0', () => {
-    console.log(`[ansehen] Control Plane: http://127.0.0.1:${String(cpPort)} (nur lokal)`);
+    console.log(`[view] Control plane: http://127.0.0.1:${String(cpPort)} (local only)`);
   });
 }
 

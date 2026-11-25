@@ -63,7 +63,7 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
-      throw new Error(`Deploy-Backend antwortete ${response.status}: ${text.slice(0, 500)}`);
+      throw new Error(`deploy backend answered ${response.status}: ${text.slice(0, 500)}`);
     }
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
@@ -126,7 +126,7 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
         },
       );
       if (created.uuid === undefined) {
-        throw new Error('Deploy-Backend lieferte keine Referenz fuer die neue App');
+        throw new Error('deploy backend returned no reference for the new app');
       }
       return { backendRef: created.uuid };
     },
@@ -149,7 +149,7 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
       const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
       if (failed.length > 0) {
         throw new Error(
-          `Env setzen fehlgeschlagen (${failed.length}): ${failed
+          `setting env failed (${failed.length}): ${failed
             .map((f) => String(f.reason))
             .join('; ')}`,
         );
@@ -236,7 +236,7 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
         // Keine verwertbare App-Antwort: Wir wissen nichts. Daraus einen Befund
         // zu machen hiesse, eine Formaenderung der API als Sicherheitsvorfall
         // zu melden.
-        return { state: 'unreachable', reason: 'Antwort enthaelt keine App mit Referenz' };
+        return { state: 'unreachable', reason: 'response contains no app with a reference' };
       }
 
       return {

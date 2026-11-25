@@ -30,7 +30,7 @@ export interface Company {
   id: string;
   name: string;
   website: string | null;
-  branche: string | null;
+  industry: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -91,7 +91,7 @@ interface CompanyRow extends Record<string, unknown> {
   id: string;
   name: string;
   website: string | null;
-  branche: string | null;
+  industry: string | null;
   notes: string | null;
   created_at: Date;
   updated_at: Date;
@@ -150,7 +150,7 @@ const toCompany = (row: CompanyRow): Company => ({
   id: row.id,
   name: row.name,
   website: row.website,
-  branche: row.branche,
+  industry: row.industry,
   notes: row.notes,
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
@@ -200,7 +200,7 @@ const toActivity = (row: ActivityRow): Activity => ({
   createdAt: row.created_at.toISOString(),
 });
 
-const COMPANY_COLUMNS = 'c.id, c.name, c.website, c.branche, c.notes, c.created_at, c.updated_at';
+const COMPANY_COLUMNS = 'c.id, c.name, c.website, c.industry, c.notes, c.created_at, c.updated_at';
 
 const CONTACT_SELECT = `
   select p.id, p.name, p.email, p.phone, p.role, p.company_id, c.name as company_name,
@@ -239,12 +239,12 @@ interface PgError {
 
 /** Welcher Fremdschluessel auf welches Argument zeigt. */
 const FOREIGN_KEY_FIELDS: Readonly<Record<string, { field: string; message: string }>> = {
-  contacts_company_id_fkey: { field: 'companyId', message: 'Diese Firma gibt es nicht.' },
-  deals_company_id_fkey: { field: 'companyId', message: 'Diese Firma gibt es nicht.' },
-  deals_contact_id_fkey: { field: 'contactId', message: 'Diesen Kontakt gibt es nicht.' },
-  activities_company_id_fkey: { field: 'companyId', message: 'Diese Firma gibt es nicht.' },
-  activities_contact_id_fkey: { field: 'contactId', message: 'Diesen Kontakt gibt es nicht.' },
-  activities_deal_id_fkey: { field: 'dealId', message: 'Diesen Deal gibt es nicht.' },
+  contacts_company_id_fkey: { field: 'companyId', message: 'This company does not exist.' },
+  deals_company_id_fkey: { field: 'companyId', message: 'This company does not exist.' },
+  deals_contact_id_fkey: { field: 'contactId', message: 'This contact does not exist.' },
+  activities_company_id_fkey: { field: 'companyId', message: 'This company does not exist.' },
+  activities_contact_id_fkey: { field: 'contactId', message: 'This contact does not exist.' },
+  activities_deal_id_fkey: { field: 'dealId', message: 'This deal does not exist.' },
 };
 
 /**
@@ -257,7 +257,7 @@ export function translateDbError(error: unknown): unknown {
   const { code, constraint } = error as PgError;
   if (code === '23505' && constraint === 'contacts_email_key') {
     const message =
-      'Diese E-Mail-Adresse ist schon bei einem anderen Kontakt eingetragen. Suche ihn mit contacts.list (q = E-Mail).';
+      'This email address already belongs to another contact. Find it with contacts.list (q = the email address).';
     return new ToolInputError(message, [{ path: ['email'], message }]);
   }
   if (code === '23503' && typeof constraint === 'string') {
@@ -267,7 +267,7 @@ export function translateDbError(error: unknown): unknown {
     }
   }
   if (code === '23514') {
-    return new ToolInputError('Ein Wert verletzt eine Regel der Datenbank.', [
+    return new ToolInputError('A value breaks a database rule.', [
       { path: [], message: typeof constraint === 'string' ? constraint : 'check' },
     ]);
   }
@@ -284,7 +284,7 @@ async function translated<T>(work: () => Promise<T>): Promise<T> {
 
 function firstOrThrow<T>(rows: readonly T[], what: string): T {
   const row = rows[0];
-  if (row === undefined) throw new ToolNotFoundError(`${what} nicht gefunden.`);
+  if (row === undefined) throw new ToolNotFoundError(`${what} not found.`);
   return row;
 }
 
@@ -298,7 +298,7 @@ export async function listCompanies(args: CompaniesListArgs): Promise<CompanyLis
               where d.company_id = c.id and d.stage in (${OPEN_STAGE_LIST}))::int as open_deal_count
        from companies c
       where $1::text is null
-         or c.name ilike $1 or c.branche ilike $1 or c.website ilike $1
+         or c.name ilike $1 or c.industry ilike $1 or c.website ilike $1
       order by lower(c.name), c.id
       limit $2`,
     [args.q === undefined ? null : likePattern(args.q), args.limit],
@@ -327,7 +327,7 @@ export interface CompanyDetail {
 
 export async function getCompany(id: string): Promise<CompanyDetail> {
   const company = await getCompanyById(id);
-  if (company === null) throw new ToolNotFoundError('Firma nicht gefunden.');
+  if (company === null) throw new ToolNotFoundError('Company not found.');
   const [contacts, deals, activities] = await Promise.all([
     listContacts({ companyId: id, limit: 200 }),
     listDeals({ companyId: id, limit: 200 }),
@@ -339,12 +339,12 @@ export async function getCompany(id: string): Promise<CompanyDetail> {
 export async function createCompany(args: CompanyCreateArgs): Promise<Company> {
   const rows = await translated(() =>
     query<CompanyRow>(
-      `insert into companies as c (name, website, branche, notes) values ($1, $2, $3, $4)
+      `insert into companies as c (name, website, industry, notes) values ($1, $2, $3, $4)
        returning ${COMPANY_COLUMNS}`,
-      [args.name, args.website ?? null, args.branche ?? null, args.notes ?? null],
+      [args.name, args.website ?? null, args.industry ?? null, args.notes ?? null],
     ),
   );
-  return toCompany(firstOrThrow(rows, 'Firma'));
+  return toCompany(firstOrThrow(rows, 'Company'));
 }
 
 // --- Kontakte ---------------------------------------------------------------
@@ -376,7 +376,7 @@ export interface ContactDetail {
 
 export async function getContact(id: string): Promise<ContactDetail> {
   const contact = await getContactById(query, id);
-  if (contact === null) throw new ToolNotFoundError('Kontakt nicht gefunden.');
+  if (contact === null) throw new ToolNotFoundError('Contact not found.');
   const [dealRows, activities] = await Promise.all([
     query<DealRow>(`${DEAL_SELECT} where d.contact_id = $1 order by d.created_at desc limit 200`, [id]),
     listActivities({ contactId: id, limit: 20 }),
@@ -391,9 +391,9 @@ export async function createContact(args: ContactCreateArgs): Promise<Contact> {
        returning id`,
       [args.name, args.email ?? null, args.phone ?? null, args.role ?? null, args.companyId ?? null],
     );
-    const { id } = firstOrThrow(rows, 'Kontakt');
+    const { id } = firstOrThrow(rows, 'Contact');
     const contact = await getContactById(query, id);
-    if (contact === null) throw new Error('Kontakt nach dem Anlegen nicht lesbar');
+    if (contact === null) throw new Error('Contact not readable after create');
     return contact;
   });
 }
@@ -416,16 +416,16 @@ export async function updateContact(args: ContactUpdateArgs): Promise<Contact> {
     // Spaltennamen kommen aus der festen Liste oben, nie aus der Eingabe.
     sets.push(`${column} = $${params.length}`);
   }
-  if (sets.length === 0) throw new ToolInputError('Nichts zu ändern.');
+  if (sets.length === 0) throw new ToolInputError('Nothing to change.');
 
   return translated(async () => {
     const rows = await query<{ id: string }>(
       `update contacts set ${sets.join(', ')} where id = $1 returning id`,
       params,
     );
-    firstOrThrow(rows, 'Kontakt');
+    firstOrThrow(rows, 'Contact');
     const contact = await getContactById(query, args.id);
-    if (contact === null) throw new ToolNotFoundError('Kontakt nicht gefunden.');
+    if (contact === null) throw new ToolNotFoundError('Contact not found.');
     return contact;
   });
 }
@@ -454,11 +454,11 @@ export async function createDeal(args: DealCreateArgs, callerId: string): Promis
   if (args.contactId !== undefined) {
     const contact = await getContactById(query, args.contactId);
     if (contact === null) {
-      const message = 'Diesen Kontakt gibt es nicht.';
+      const message = 'This contact does not exist.';
       throw new ToolInputError(message, [{ path: ['contactId'], message }]);
     }
     if (contact.companyId !== null && contact.companyId !== args.companyId) {
-      const message = `Der Kontakt gehört zu einer anderen Firma (${contact.companyName ?? contact.companyId}).`;
+      const message = `The contact belongs to a different company (${contact.companyName ?? contact.companyId}).`;
       throw new ToolInputError(message, [{ path: ['contactId'], message }]);
     }
   }
@@ -480,7 +480,7 @@ export async function createDeal(args: DealCreateArgs, callerId: string): Promis
     );
     const { id } = firstOrThrow(rows, 'Deal');
     const deal = await getDealById(query, id);
-    if (deal === null) throw new Error('Deal nach dem Anlegen nicht lesbar');
+    if (deal === null) throw new Error('Deal not readable after create');
     return deal;
   });
 }
@@ -515,14 +515,14 @@ export async function updateDealStage(
 
     if (row.stage === args.stage) {
       const deal = await getDealById(q, args.id);
-      if (deal === null) throw new ToolNotFoundError('Deal nicht gefunden.');
+      if (deal === null) throw new ToolNotFoundError('Deal not found.');
       return { deal, changed: false, activity: null };
     }
 
     await q('update deals set stage = $2 where id = $1', [args.id, args.stage]);
     const inserted = await q<{ id: string }>(
       `insert into activities (kind, subject, body, contact_id, company_id, deal_id, created_by)
-       values ('notiz', $1, $2, $3, $4, $5, $6)
+       values ('note', $1, $2, $3, $4, $5, $6)
        returning id`,
       [
         stageChangeSubject(row.stage, args.stage),
@@ -533,12 +533,12 @@ export async function updateDealStage(
         callerId,
       ],
     );
-    const activityId = firstOrThrow(inserted, 'Aktivität').id;
+    const activityId = firstOrThrow(inserted, 'Activity').id;
 
     const deal = await getDealById(q, args.id);
-    if (deal === null) throw new ToolNotFoundError('Deal nicht gefunden.');
+    if (deal === null) throw new ToolNotFoundError('Deal not found.');
     const activities = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [activityId]);
-    return { deal, changed: true, activity: toActivity(firstOrThrow(activities, 'Aktivität')) };
+    return { deal, changed: true, activity: toActivity(firstOrThrow(activities, 'Activity')) };
   });
 }
 
@@ -593,7 +593,7 @@ export async function logActivity(args: ActivityLogArgs, callerId: string): Prom
           await q<{ company_id: string | null }>('select company_id from contacts where id = $1', [
             args.contactId,
           ]),
-          'Kontakt',
+          'Contact',
         );
         companyId = contact.company_id;
       }
@@ -613,9 +613,9 @@ export async function logActivity(args: ActivityLogArgs, callerId: string): Prom
           callerId,
         ],
       );
-      const { id } = firstOrThrow(inserted, 'Aktivität');
+      const { id } = firstOrThrow(inserted, 'Activity');
       const rows = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [id]);
-      return toActivity(firstOrThrow(rows, 'Aktivität'));
+      return toActivity(firstOrThrow(rows, 'Activity'));
     }),
   );
 }

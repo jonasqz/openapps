@@ -11,7 +11,7 @@ export const metadata = { title: 'CRM' };
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="en">
       <body className="bg-bg text-fg">
         <AppNav />
         <main className="mx-auto flex w-full min-w-0 max-w-screen-xl flex-col gap-6 p-4 sm:p-6">

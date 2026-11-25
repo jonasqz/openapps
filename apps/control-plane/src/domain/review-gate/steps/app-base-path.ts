@@ -76,8 +76,8 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
     add(
       'blocking',
       'base_path.no_app_name',
-      'kein Gateway-Ziel im Review-Eingang — ohne App-Name ist der Pfad nicht ableitbar ' +
-        'und der basePath nicht pruefbar (ADR 0007)',
+      'no gateway target in the review input: without an app name the path cannot be derived ' +
+        'and the basePath cannot be checked (ADR 0007)',
     );
     return findings;
   }
@@ -89,7 +89,7 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
     add(
       'blocking',
       'base_path.underivable',
-      `Pfad der App nicht ableitbar: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `the app path cannot be derived: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
     return findings;
   }
@@ -99,8 +99,8 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
     add(
       'warning',
       'base_path.unknown',
-      `der basePath der Arbeitskopie wurde nicht erhoben — ob die App unter "${expected}" ` +
-        'ihre eigenen Dateien findet, ist fuer diesen Deploy ungeprueft (ADR 0007)',
+      `the basePath of the working copy was not collected: whether the app finds its own files ` +
+        `under "${expected}" is unchecked for this deploy (ADR 0007)`,
     );
     return findings;
   }
@@ -114,9 +114,9 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
       add(
         'warning',
         'base_path.fallback_differs',
-        `der basePath kommt richtig aus ${BASE_PATH_ENV}, der Rueckfallwert im Code ist aber ` +
-          `"${fact.value}" und nicht "${expected}" oder leer — das faellt nur lokal auf, ` +
-          'verwirrt dort aber genau so',
+        `the basePath correctly comes from ${BASE_PATH_ENV}, but the fallback in the code is ` +
+          `"${fact.value}" rather than "${expected}" or empty: this only shows up locally, ` +
+          'but it confuses just as much there',
         where,
       );
     }
@@ -127,9 +127,9 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
     add(
       'blocking',
       'base_path.unexpected_env',
-      `der basePath kommt aus "${fact.fromEnv}". Diese Variable setzt die Plattform nicht; ` +
-        `im Deployment waere der basePath leer, obwohl die App unter "${expected}" liegt. ` +
-        `Erwartet wird ${BASE_PATH_ENV}`,
+      `the basePath comes from "${fact.fromEnv}". The platform does not set this variable; ` +
+        `in the deployment the basePath would be empty although the app lives under "${expected}". ` +
+        `Expected: ${BASE_PATH_ENV}`,
       where,
     );
     return findings;
@@ -139,9 +139,9 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
     add(
       'blocking',
       'base_path.missing',
-      `die App setzt keinen basePath. Unter ADR 0007 liegt sie auf "${expected}"; ohne basePath ` +
-        `laedt sie ihre Dateien von "/" und ist im Browser kaputt. Erwartet wird ein basePath ` +
-        `aus ${BASE_PATH_ENV}`,
+      `the app sets no basePath. Under ADR 0007 it lives at "${expected}"; without a basePath ` +
+        `it loads its files from "/" and is broken in the browser. Expected: a basePath ` +
+        `from ${BASE_PATH_ENV}`,
       where,
     );
     return findings;
@@ -151,7 +151,7 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
     add(
       'blocking',
       'base_path.mismatch',
-      `der basePath ist fest "${fact.value}", der Pfad dieser App ist "${expected}"`,
+      `the basePath is fixed to "${fact.value}", but the path of this app is "${expected}"`,
       where,
     );
     return findings;
@@ -160,9 +160,9 @@ export function checkAppBasePath(input: ReviewInput): readonly Finding[] {
   add(
     'warning',
     'base_path.hardcoded',
-    `der basePath "${fact.value}" steht fest im Code und nicht in ${BASE_PATH_ENV}. Er stimmt ` +
-      'heute und bleibt stehen, wenn die App einmal einen anderen Pfad bekommt — die Control ' +
-      'Plane setzt die Variable pro Deployment',
+    `the basePath "${fact.value}" is hard-coded instead of coming from ${BASE_PATH_ENV}. It is ` +
+      'correct today but stays put if the app ever gets a different path; the control ' +
+      'plane sets the variable per deployment',
     where,
   );
 

@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { germanStrings, overrideStrings, resetStrings, strings } from './strings.ts';
+import { defaultStrings, overrideStrings, resetStrings, strings } from './strings.ts';
 
 const srcRoot = dirname(fileURLToPath(import.meta.url));
 
@@ -155,20 +155,20 @@ describe('Texte ersetzen', () => {
     resetStrings();
     overrideStrings({ form: { submit: 'Antrag einreichen' } });
     expect(strings.form.submit).toBe('Antrag einreichen');
-    expect(strings.form.cancel).toBe(germanStrings.form.cancel);
+    expect(strings.form.cancel).toBe(defaultStrings.form.cancel);
     resetStrings();
-    expect(strings.form.submit).toBe(germanStrings.form.submit);
+    expect(strings.form.submit).toBe(defaultStrings.form.submit);
   });
 
   it('verändert die ausgelieferten Texte nicht', () => {
     resetStrings();
     overrideStrings({ shell: { productName: 'Beispiel GmbH' } });
-    expect(germanStrings.shell.productName).toBe('openapps');
+    expect(defaultStrings.shell.productName).toBe('openapps');
     resetStrings();
   });
 
   it('deckt jede Gruppe und jeden Schlüssel ab', () => {
-    for (const [group, values] of Object.entries(germanStrings)) {
+    for (const [group, values] of Object.entries(defaultStrings)) {
       for (const [key, value] of Object.entries(values)) {
         expect(['string', 'function'], `${group}.${key}`).toContain(typeof value);
         if (typeof value === 'string') {

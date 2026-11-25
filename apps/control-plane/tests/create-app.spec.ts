@@ -40,7 +40,7 @@ describe('create_app legt das Repo aus dem Starter-Template an', () => {
   });
 
   it('registriert nichts, wenn das Repo nicht entsteht', async () => {
-    const harness = await setup({ repositoryFailsWith: 'Token hat kein Schreibrecht' });
+    const harness = await setup({ repositoryFailsWith: 'token has no write access' });
 
     await expect(
       createApp(harness.ctx, {
@@ -48,7 +48,7 @@ describe('create_app legt das Repo aus dem Starter-Template an', () => {
         name: 'projektliste',
         manifest: manifest('projektliste'),
       }),
-    ).rejects.toThrow('Token hat kein Schreibrecht');
+    ).rejects.toThrow('token has no write access');
 
     expect(await harness.ctx.apps.findByName('projektliste')).toBeNull();
     // Und kein Schema, keine Rolle: der Fehlschlag hinterlaesst nichts.
@@ -64,7 +64,7 @@ describe('create_app legt das Repo aus dem Starter-Template an', () => {
       ...harness.ctx,
       provisioner: {
         ...harness.ctx.provisioner,
-        provision: () => Promise.reject(new Error('Postgres nicht erreichbar')),
+        provision: () => Promise.reject(new Error('Postgres not reachable')),
       },
     };
 
@@ -75,7 +75,7 @@ describe('create_app legt das Repo aus dem Starter-Template an', () => {
         manifest: manifest('projektliste'),
         source: gitSource('projektliste'),
       }),
-    ).rejects.toThrow('Postgres nicht erreichbar');
+    ).rejects.toThrow('Postgres not reachable');
     expect(await harness.ctx.apps.findByName('projektliste')).toBeNull();
 
     const app = await createApp(harness.ctx, {

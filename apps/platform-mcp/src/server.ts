@@ -64,8 +64,8 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
       mcpName,
       {
         description: `${appTool.appName}: ${
-          appTool.description ?? `Tool "${appTool.toolName}" der App "${appTool.appName}"`
-        }\n\nArgumente als Objekt im Feld "args" uebergeben.`,
+          appTool.description ?? `Tool "${appTool.toolName}" of the app "${appTool.appName}"`
+        }\n\nPass the arguments as an object in the "args" field.`,
         // Die Argumente beschreibt die App in ihrer OpenAPI-Spec und in der
         // Tool-Beschreibung; die Plattform reicht sie unveraendert durch. Ein
         // leeres Schema hier wuerde sie stillschweigend verwerfen (zod
@@ -74,7 +74,7 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
           args: z
             .record(z.unknown())
             .optional()
-            .describe('Argumente des Tools, wie in der Beschreibung genannt'),
+            .describe('Arguments of the tool, as named in the description'),
         },
         annotations: { title: `${appTool.appName}: ${appTool.toolName}` },
       },
@@ -106,7 +106,7 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
     );
   }
 
-  // Dieselbe Anleitung wie die Seite /loslegen der Verwaltung, aus einer Quelle.
+  // Dieselbe Anleitung wie die Seite /get-started der Verwaltung, aus einer Quelle.
   server.prompt(LOSLEGEN, LOSLEGEN_DESCRIPTION, () => ({
     messages: [
       { role: 'user' as const, content: { type: 'text' as const, text: loslegenAlsText() } },

@@ -121,17 +121,17 @@ describe('createToolRoute — der normale Weg', () => {
     const route = createToolRoute(
       {
         bad: async () => {
-          throw new ToolInputError('name fehlt');
+          throw new ToolInputError('name missing');
         },
         gone: async () => {
-          throw new ToolNotFoundError('Kontakt nicht gefunden');
+          throw new ToolNotFoundError('contact not found');
         },
       },
       OPTIONS,
     );
     const bad = await call(route, 'bad');
     expect(bad.status).toBe(400);
-    expect(await bad.json()).toMatchObject({ message: 'name fehlt' });
+    expect(await bad.json()).toMatchObject({ message: 'name missing' });
     const gone = await call(route, 'gone');
     expect(gone.status).toBe(404);
   });

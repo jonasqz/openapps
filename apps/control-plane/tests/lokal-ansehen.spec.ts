@@ -98,10 +98,10 @@ describe('lokal-ansehen', () => {
   it('leitet nur in den Pfad der eigenen App und nur deployte Apps', () => {
     expect(() =>
       buildForward({ app: app('crm'), path: '/wiki/x', incoming: {}, masterSecret: MASTER }),
-    ).toThrow(/gehoert nicht/);
+    ).toThrow(/does not belong/);
     expect(() =>
       buildForward({ app: app('crm', false), path: '/crm', incoming: {}, masterSecret: MASTER }),
-    ).toThrow(/nicht deployt/);
+    ).toThrow(/is not deployed/);
   });
 
   it('liest den App-Namen nur aus dem ersten Pfadsegment', () => {
@@ -112,7 +112,7 @@ describe('lokal-ansehen', () => {
   });
 
   it('zeigt einen leeren Zustand und keine undeployten Apps', () => {
-    expect(indexPage([])).toMatch(/Noch keine App deployt/);
+    expect(indexPage([])).toMatch(/No app deployed yet/);
     const html = indexPage([app('wiki'), app('crm', false)]);
     expect(html).toMatch(/href="\/wiki"/);
     expect(html).not.toMatch(/href="\/crm"/);
@@ -125,6 +125,6 @@ describe('lokal-ansehen', () => {
         env: { ...process.env, OPENAPPS_BACKEND: 'coolify' },
         stdio: 'pipe',
       }),
-    ).toThrow(/nur mit OPENAPPS_BACKEND=lokal/);
+    ).toThrow(/only runs with OPENAPPS_BACKEND=lokal/);
   });
 });

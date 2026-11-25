@@ -57,8 +57,8 @@ function groupResource(name: string): ResourceRef {
 function assertGroupName(name: string): string {
   if (!GROUP_NAME.test(name)) {
     throw new ValidationError(
-      `"${name}" taugt nicht als Gruppenname: klein geschrieben, 3 bis 40 Zeichen, ` +
-        'Buchstaben, Ziffern und Bindestriche, nicht am Rand',
+      `"${name}" is not a valid group name: lower case, 3 to 40 characters, ` +
+        'letters, digits and hyphens, not at the start or end',
     );
   }
   return name;
@@ -68,14 +68,14 @@ function assertGroupName(name: string): string {
 function normalizeMemberEmail(email: string): string {
   const normalized = email.trim().toLowerCase();
   if (!MEMBER_EMAIL.test(normalized)) {
-    throw new ValidationError(`"${email}" ist keine brauchbare E-Mail-Adresse fuer eine Gruppe`);
+    throw new ValidationError(`"${email}" is not a usable email address for a group`);
   }
   return normalized;
 }
 
 async function requireGroup(ctx: DomainContext, name: string): Promise<Group> {
   const group = await ctx.groups.findByName(assertGroupName(name));
-  if (group === null) throw new NotFoundError(`Gruppe "${name}" gibt es nicht`);
+  if (group === null) throw new NotFoundError(`group "${name}" does not exist`);
   return group;
 }
 
@@ -159,7 +159,7 @@ export async function createGroup(
       // Die Wildcard, nicht der eigene Name: siehe Dateikopf.
       await requirePermission(ctx, input.actor, 'write', groupResource(ANY));
       if ((await ctx.groups.findByName(name)) !== null) {
-        throw new ConflictError(`Gruppe "${name}" gibt es schon`);
+        throw new ConflictError(`group "${name}" already exists`);
       }
       const group = await ctx.groups.create({ name, description: input.description ?? '' });
       return { value: group };

@@ -35,14 +35,14 @@ export function checkToolParity(input: ReviewInput): readonly Finding[] {
         step: TOOL_PARITY_STEP,
         severity: 'blocking',
         code: 'parity.missing_tool',
-        message: `UI-Aktion "${action}" hat kein MCP-Tool im Manifest`,
+        message: `UI action "${action}" has no MCP tool in the manifest`,
       });
     } else if (!codeTools.has(action)) {
       findings.push({
         step: TOOL_PARITY_STEP,
         severity: 'blocking',
         code: 'parity.tool_not_implemented',
-        message: `Tool "${action}" steht im Manifest, ist im Code aber nicht angeboten`,
+        message: `tool "${action}" is in the manifest but not offered in the code`,
       });
     }
   }

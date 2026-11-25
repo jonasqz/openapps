@@ -70,8 +70,8 @@ describe('lokales Deploy-Backend', () => {
 
   it('weist fremde Referenzen ab (kein Pfad aus dem Aufrufer)', async () => {
     const backend = createLokalBackend(config);
-    await expect(backend.setEnv('lokal:../../etc', {})).rejects.toThrow(/unbekannte/);
-    await expect(backend.setEnv('coolify:abc', {})).rejects.toThrow(/unbekannte/);
+    await expect(backend.setEnv('lokal:../../etc', {})).rejects.toThrow(/unknown local reference/);
+    await expect(backend.setEnv('coolify:abc', {})).rejects.toThrow(/unknown local reference/);
   });
 
   it('gilt erst als gestartet, wenn die App Unsigniertes mit 401 ablehnt', async () => {
@@ -150,7 +150,7 @@ describe('lokales Repo-Backend', () => {
       const created = await repos.createFromTemplate({
         appName: 'urlaub',
         description: 'Urlaubsantraege',
-        requestedBy: 'agent:betrieb',
+        requestedBy: 'agent:operator',
       });
       expect(created.gitUrl).toBe('https://lokal.invalid/urlaub');
 
@@ -190,7 +190,7 @@ describe('lokales Repo-Backend', () => {
           description: '',
           requestedBy: 'x',
         }),
-      ).rejects.toThrow(/ungueltiger App-Name/);
+      ).rejects.toThrow(/invalid app name/);
     });
   });
 });

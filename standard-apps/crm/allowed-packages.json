@@ -1,4 +1,4 @@
 {
-  "_kommentar": "Nicht-UI-Pakete, die die Plattform freigegeben hat. UI-Bibliotheken gehoeren hier NICHT hinein: dafuer ist @openapps/ui da. Diese Liste pflegt die Control Plane; eine App traegt nichts selbst ein.",
+  "_comment": "Non-UI packages approved by the platform. UI libraries do NOT belong here: that is what @openapps/ui is for. The control plane maintains this list; an app never adds entries itself.",
   "allow": ["zod"]
 }

@@ -41,7 +41,7 @@ export function createAlarmSink(log: Pick<Console, 'error' | 'info'> = console):
     },
     clear(kind: string, subject: string): void {
       if (raised.delete(keyOf(kind, subject))) {
-        log.info(`Alarm ${kind} ${subject} ist behoben.`);
+        log.info(`Alarm ${kind} ${subject} is resolved.`);
       }
     },
   };

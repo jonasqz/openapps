@@ -73,7 +73,7 @@ describe('Select', () => {
     render(<Select label="Status" options={[]} />);
     const select = screen.getByLabelText('Status');
     expect(select).toBeDisabled();
-    expect(screen.getByText('Keine Auswahl verfügbar')).toBeInTheDocument();
+    expect(screen.getByText('No options available')).toBeInTheDocument();
   });
 
   it('trägt sehr viele Optionen', () => {
@@ -209,10 +209,10 @@ describe('Table ohne Funktions-Props', () => {
     expect(fieldContent(null)).toBe('—');
     expect(fieldContent(undefined)).toBe('—');
     expect(fieldContent('')).toBe('—');
-    expect(fieldContent(new Date('2026-11-09T22:30:00Z'))).toBe('09.11.2026');
+    expect(fieldContent(new Date('2026-11-09T22:30:00Z'))).toBe('09/11/2026');
     expect(fieldContent(new Date('kaputt'))).toBe('—');
-    expect(fieldContent(true)).toBe('Ja');
-    expect(fieldContent(false)).toBe('Nein');
+    expect(fieldContent(true)).toBe('Yes');
+    expect(fieldContent(false)).toBe('No');
     expect(fieldContent(0)).toBe(0);
     expect(fieldContent(7n)).toBe('7');
     expect(fieldContent('Anna')).toBe('Anna');
@@ -235,7 +235,7 @@ describe('Table ohne Funktions-Props', () => {
       />,
     );
     expect(screen.getByText('—')).toBeInTheDocument();
-    expect(screen.getByText('02.01.2026')).toBeInTheDocument();
+    expect(screen.getByText('02/01/2026')).toBeInTheDocument();
   });
 });
 
@@ -244,13 +244,13 @@ describe('Pagination', () => {
     expect(pageCount(0, 20)).toBe(1);
     expect(pageCount(41, 20)).toBe(3);
     render(<Pagination page={1} pageSize={20} total={41} onPageChange={() => {}} />);
-    expect(screen.getByRole('button', { name: 'Zurück' })).toBeDisabled();
-    expect(screen.getByText('1–20 von 41 · Seite 1 von 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    expect(screen.getByText('1–20 of 41 · Page 1 of 3')).toBeInTheDocument();
   });
 
   it('sagt bei leerer Liste, dass es nichts gibt', () => {
     render(<Pagination page={1} pageSize={20} total={0} onPageChange={() => {}} />);
-    expect(screen.getByText('Keine Einträge')).toBeInTheDocument();
+    expect(screen.getByText('No entries')).toBeInTheDocument();
   });
 });
 
@@ -273,7 +273,7 @@ describe('Tabs', () => {
 
   it('kommt mit null Reitern zurecht', () => {
     render(<Tabs label="Leer" items={[]} />);
-    expect(screen.getByText('Keine Reiter vorhanden')).toBeInTheDocument();
+    expect(screen.getByText('No tabs available')).toBeInTheDocument();
   });
 });
 
@@ -324,7 +324,7 @@ describe('Toast', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Melden' }));
     expect(screen.getByRole('status')).toHaveTextContent('Gespeichert');
-    await userEvent.click(screen.getByRole('button', { name: /Gespeichert.*schließen/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Close message.*Gespeichert/ }));
     expect(screen.queryByText('Gespeichert')).not.toBeInTheDocument();
   });
 
@@ -402,6 +402,6 @@ describe('Texte aus src/strings.ts', () => {
     overrideStrings({ pagination: { empty: 'Leer' } });
     resetStrings();
     render(<Pagination page={1} pageSize={20} total={0} onPageChange={() => {}} />);
-    expect(screen.getByText('Keine Einträge')).toBeInTheDocument();
+    expect(screen.getByText('No entries')).toBeInTheDocument();
   });
 });

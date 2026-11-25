@@ -33,7 +33,7 @@ export function checkClass(raw) {
   // Beliebiger Wert: bg-[#fff], text-[rgb(0,0,0)], bg-[--meine-var]
   const arbitrary = /^([a-z-]+)-\[(.+)]$/.exec(className);
   if (arbitrary !== null && UTILITY_SET.has(arbitrary[1])) {
-    return `Eigener Farbwert in "${raw}". Erlaubt sind nur die Tokens aus @openapps/ui.`;
+    return `Custom colour value in "${raw}". Only the tokens from @openapps/ui are allowed.`;
   }
 
   for (const utility of COLOR_UTILITIES) {
@@ -46,7 +46,7 @@ export function checkClass(raw) {
     if (COLOR_UTILITIES.some((other) => other !== utility && other.startsWith(`${utility}-`) && className.startsWith(`${other}-`))) {
       continue;
     }
-    return `Farbklasse "${raw}" steht nicht in den Tokens. Erlaubt: ${utility}-<Token> mit einem Token aus @openapps/ui.`;
+    return `Colour class "${raw}" is not in the tokens. Allowed: ${utility}-<token> with a token from @openapps/ui.`;
   }
   return null;
 }
@@ -55,10 +55,10 @@ export function checkClass(raw) {
 export function checkRawValue(text) {
   const trimmed = text.trim();
   if (HEX_WHOLE.test(trimmed) || HEX_IN_CSS.test(text)) {
-    return `Eigener Hex-Farbwert in "${trimmed.slice(0, 60)}". Nur Farb-Tokens aus @openapps/ui.`;
+    return `Custom hex colour in "${trimmed.slice(0, 60)}". Only colour tokens from @openapps/ui.`;
   }
   if (FUNCTIONAL.test(text)) {
-    return `Eigene Farbfunktion in "${trimmed.slice(0, 60)}". Nur Farb-Tokens aus @openapps/ui.`;
+    return `Custom colour function in "${trimmed.slice(0, 60)}". Only colour tokens from @openapps/ui.`;
   }
   return null;
 }
@@ -111,7 +111,7 @@ export const noRawColor = {
     type: 'problem',
     docs: {
       description:
-        'Nur Farb-Tokens aus @openapps/ui verwenden — kein Hex, kein rgb()/hsl(), keine fremde Tailwind-Farbklasse.',
+        'Use only colour tokens from @openapps/ui — no hex, no rgb()/hsl(), no foreign Tailwind colour class.',
     },
     schema: [],
     messages: { forbidden: '{{reason}}' },

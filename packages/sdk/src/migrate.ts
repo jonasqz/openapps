@@ -76,7 +76,7 @@ async function runSqlFiles(
   for (const name of files) {
     if (!FILE_PATTERN.test(name)) {
       throw new SdkConfigurationError(
-        `Migration "${name}" hat keinen gueltigen Namen. Erwartet: 0001_beschreibung.sql`,
+        `Migration "${name}" has no valid name. Expected: 0001_description.sql`,
       );
     }
   }
@@ -110,7 +110,7 @@ async function runSqlFiles(
         if (previous !== undefined) {
           if (previous !== checksum) {
             throw new SdkConfigurationError(
-              `Migration "${name}" wurde nach dem Anwenden geaendert. Aendere nie eine bestehende Migration — lege eine neue an.`,
+              `Migration "${name}" was changed after it was applied. Never change an existing migration; add a new one.`,
             );
           }
           skipped.push(name);
@@ -127,7 +127,7 @@ async function runSqlFiles(
           await client.query('commit');
         } catch (error) {
           await client.query('rollback');
-          throw new SdkConfigurationError(`Migration "${name}" ist gescheitert`, {
+          throw new SdkConfigurationError(`Migration "${name}" failed`, {
             cause: error,
           });
         }

@@ -2,7 +2,7 @@
   "name": "@openapps/app-manifest",
   "version": "0.0.0",
   "private": true,
-  "description": "Maßgebliches Schema für app.json, das Rechtemodell im Manifest und die Katalog-Quellen-Abstraktion.",
+  "description": "Authoritative schema for app.json, the permission model in the manifest and the catalog source abstraction.",
   "type": "module",
   "exports": {
     ".": {

@@ -97,7 +97,7 @@ async function handle(request: Request): Promise<Response> {
     // nicht, worueber wir entscheiden — also nein.
     const rawHost = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
     if (rawHost === null) {
-      return deny('keine Ziel-Domain im Aufruf');
+      return deny('no target domain in the request');
     }
     const host = hostOnly(rawHost);
     const path = request.headers.get('x-forwarded-uri') ?? '/';
@@ -118,7 +118,7 @@ async function handle(request: Request): Promise<Response> {
     // unbekannt — auch `/` auf der gemeinsamen Domain.
     const app = await findAppForPath(pathOnly(path), host);
     if (app === null) {
-      return deny(`keine App fuer "${host}${pathOnly(path)}"`);
+      return deny(`no app for "${host}${pathOnly(path)}"`);
     }
 
     // Schritt 2: Session.
@@ -136,11 +136,11 @@ async function handle(request: Request): Promise<Response> {
       action: 'forward_auth',
       resource: { kind: 'app', id: app.id },
       outcome: allowed ? 'allowed' : 'denied',
-      reason: allowed ? null : 'keine Freigabe auf die App',
+      reason: allowed ? null : 'no grant on the app',
       detail: { host, path },
     });
 
-    if (!allowed) return deny('keine Freigabe auf die App');
+    if (!allowed) return deny('no grant on the app');
 
     // Schritt 4: die fuenf Header, signiert mit dem Secret **dieser** App.
     const headers = identityHeadersForApp({
@@ -155,7 +155,7 @@ async function handle(request: Request): Promise<Response> {
     });
     return new Response(null, { status: 200, headers });
   } catch {
-    return deny('Forward-Auth nicht entscheidbar');
+    return deny('forward auth cannot decide');
   }
 }
 

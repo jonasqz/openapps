@@ -42,13 +42,13 @@ export function errorResponse(error: unknown): Response {
     return jsonResponse({ error: error.code, message: error.message }, 400);
   }
   // Nach aussen nichts ueber das Innere verraten.
-  return jsonResponse({ error: 'internal_error', message: 'unerwarteter Fehler' }, 500);
+  return jsonResponse({ error: 'internal_error', message: 'unexpected error' }, 500);
 }
 
 export async function readJson<T>(request: Request): Promise<T> {
   try {
     return (await request.json()) as T;
   } catch {
-    throw new ValidationError('Body ist kein gueltiges JSON');
+    throw new ValidationError('body is not valid JSON');
   }
 }

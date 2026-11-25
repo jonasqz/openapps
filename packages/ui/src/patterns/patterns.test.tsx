@@ -68,7 +68,7 @@ describe('ListPattern', () => {
     expect(screen.queryByText('Anna Beispiel')).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Suche'), 'xyz');
     expect(screen.getByText('Kein Treffer')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect(screen.getByText('Anna Beispiel')).toBeInTheDocument();
   });
 
@@ -111,7 +111,7 @@ describe('ListPattern', () => {
       />,
     );
     expect(screen.getByRole('alert')).toHaveTextContent('Nicht geladen');
-    await userEvent.click(screen.getByRole('button', { name: 'Erneut laden' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reload' }));
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
@@ -130,8 +130,8 @@ describe('ListPattern', () => {
         empty={{ title: 'leer' }}
       />,
     );
-    expect(screen.getByText('1–2 von 120 · Seite 1 von 60')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Weiter' }));
+    expect(screen.getByText('1–2 of 120 · Page 1 of 60')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
 });
@@ -153,15 +153,15 @@ describe('FormPattern', () => {
   it('zeigt Validierungsfehler sichtbar am Feld und in der Zusammenfassung', async () => {
     const onSubmit = vi.fn();
     render(<FormPattern title="Antrag" fields={fields} onSubmit={onSubmit} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSubmit).not.toHaveBeenCalled();
 
     const titel = screen.getByLabelText(/Titel/);
     expect(titel).toHaveAttribute('aria-invalid', 'true');
     const describedBy = titel.getAttribute('aria-describedby') ?? '';
-    expect(document.getElementById(describedBy)).toHaveTextContent('Bitte ausfüllen.');
+    expect(document.getElementById(describedBy)).toHaveTextContent('Please fill in this field.');
     expect(screen.getAllByRole('alert').length).toBeGreaterThan(1);
-    expect(screen.getByText('3 Felder prüfen')).toBeInTheDocument();
+    expect(screen.getByText('Check 3 fields')).toBeInTheDocument();
     // Sprungmarke aus der Zusammenfassung zum Feld
     expect(screen.getByRole('link', { name: 'Titel' })).toHaveAttribute('href', `#${titel.id}`);
   });
@@ -170,7 +170,7 @@ describe('FormPattern', () => {
     render(<FormPattern title="Antrag" fields={fields} onSubmit={() => {}} />);
     await userEvent.type(screen.getByLabelText(/E-Mail/), 'keine-mail');
     await userEvent.tab();
-    expect(screen.getByText('Bitte eine gültige E-Mail-Adresse angeben.')).toBeInTheDocument();
+    expect(screen.getByText('Please enter a valid email address.')).toBeInTheDocument();
   });
 
   it('übernimmt Feldfehler vom Server', async () => {
@@ -181,7 +181,7 @@ describe('FormPattern', () => {
         onSubmit={() => ({ titel: 'Titel ist schon vergeben.' })}
       />,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText('Titel ist schon vergeben.')).toBeInTheDocument();
   });
 
@@ -195,7 +195,7 @@ describe('FormPattern', () => {
       />,
     );
     await userEvent.type(screen.getByLabelText(/Titel/), 'Sommerurlaub');
-    await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSubmit).toHaveBeenCalledWith({ titel: 'Sommerurlaub' });
   });
 });
@@ -219,7 +219,7 @@ describe('DetailPattern', () => {
 
   it('zeigt den Ladezustand statt leerer Abschnitte', () => {
     render(<DetailPattern title="Lädt" sections={sections} loading />);
-    expect(screen.getByText('Einzelheiten werden geladen …')).toBeInTheDocument();
+    expect(screen.getByText('Loading details…')).toBeInTheDocument();
     expect(screen.queryByText('Zeitraum')).not.toBeInTheDocument();
   });
 

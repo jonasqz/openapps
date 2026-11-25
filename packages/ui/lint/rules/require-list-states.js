@@ -77,12 +77,12 @@ export const requireListStates = {
     type: 'problem',
     docs: {
       description:
-        'Jede Liste braucht einen leeren und einen Fehlerzustand aus @openapps/ui (EmptyState und ErrorState, oder ListPattern).',
+        'Every list needs an empty and an error state from @openapps/ui (EmptyState and ErrorState, or ListPattern).',
     },
     schema: [],
     messages: {
       missing:
-        'Diese Datei zeigt eine Liste, importiert aber {{missing}} nicht aus @openapps/ui. Jede Liste braucht einen leeren und einen Fehlerzustand (oder nimm ListPattern).',
+        'This file shows a list but does not import {{missing}} from @openapps/ui. Every list needs an empty and an error state (or use ListPattern).',
     },
   },
   create(context) {
@@ -142,7 +142,7 @@ export const requireListStates = {
         context.report({
           node: firstList,
           messageId: 'missing',
-          data: { missing: missing.join(' und ') },
+          data: { missing: missing.join(' and ') },
         });
       },
     };

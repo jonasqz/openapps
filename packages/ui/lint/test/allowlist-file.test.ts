@@ -51,7 +51,7 @@ describe('no-foreign-ui liest allowed-packages.json', () => {
   });
 
   it('versteht auch die Objektform mit "allow"', () => {
-    const cwd = projectWith('{ "_kommentar": "von der Control Plane", "allow": ["zod"] }');
+    const cwd = projectWith('{ "_comment": "from the control plane", "allow": ["zod"] }');
     expect(lint(cwd, 'import { z } from "zod";')).toHaveLength(0);
   });
 

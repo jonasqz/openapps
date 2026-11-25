@@ -15,7 +15,7 @@ export async function loadPage(rawId: string): Promise<Loaded<Page>> {
     return { kind: 'ok', value: await getPage({ id: id.data }) };
   } catch (error) {
     if (error instanceof ToolNotFoundError) return { kind: 'missing' };
-    console.error('[wiki] Seite laden:', error);
+    console.error('[wiki] load page:', error);
     return { kind: 'failed' };
   }
 }

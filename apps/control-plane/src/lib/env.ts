@@ -79,7 +79,7 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): ControlPlaneEnv {
   const authMasterSecret = required(env, 'OPENAPPS_AUTH_MASTER_SECRET');
   if (authMasterSecret.length < MIN_MASTER_SECRET_LENGTH) {
     throw new Error(
-      `OPENAPPS_AUTH_MASTER_SECRET ist kuerzer als ${String(MIN_MASTER_SECRET_LENGTH)} Zeichen`,
+      `OPENAPPS_AUTH_MASTER_SECRET is shorter than ${String(MIN_MASTER_SECRET_LENGTH)} characters`,
     );
   }
 
@@ -144,7 +144,7 @@ export function readAuthEnv(env: NodeJS.ProcessEnv = process.env): AuthEnv {
   const secret = required(env, 'BETTER_AUTH_SECRET');
   if (secret.length < MIN_MASTER_SECRET_LENGTH) {
     throw new Error(
-      `BETTER_AUTH_SECRET ist kuerzer als ${String(MIN_MASTER_SECRET_LENGTH)} Zeichen`,
+      `BETTER_AUTH_SECRET is shorter than ${String(MIN_MASTER_SECRET_LENGTH)} characters`,
     );
   }
 
@@ -161,7 +161,7 @@ export function readAuthEnv(env: NodeJS.ProcessEnv = process.env): AuthEnv {
 function required(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key];
   if (value === undefined || value === '') {
-    throw new Error(`Env-Variable ${key} fehlt`);
+    throw new Error(`env variable ${key} is missing`);
   }
   return value;
 }

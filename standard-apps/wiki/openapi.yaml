@@ -12,27 +12,28 @@
 openapi: 3.1.0
 info:
   title: Wiki
-  version: 0.1.0
+  version: 0.1.2
   description: >-
-    Wissensseiten mit Seitenbaum, Markdown, Volltextsuche (deutsch) und
-    Verlauf jeder Änderung. Menschen und Agents nutzen dieselben Operationen.
+    Knowledge pages with a page tree, Markdown, full-text search (Postgres
+    English dictionary) and a history of every change. Humans and agents use
+    the same operations.
 servers:
   # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
   # `basePath` setzt die Control Plane pro Deployment in OPENAPPS_APP_BASE_PATH.
   - url: '{basePath}/api'
-    description: Diese App hinter dem Gateway.
+    description: This app behind the gateway.
     variables:
       basePath:
         default: /wiki
-        description: Pfad der App, byte-gleich mit OPENAPPS_APP_BASE_PATH.
+        description: Path of the app, byte-identical to OPENAPPS_APP_BASE_PATH.
 paths:
   /tools/pages.list:
     post:
       operationId: listPages
-      summary: Listet Seiten ohne Inhalt
+      summary: Lists pages without content
       description: >-
-        Nicht archivierte Seiten, nach Titel sortiert, höchstens 500. Für
-        Suche im Inhalt `searchPages`, für den Text `getPage`.
+        Non-archived pages, sorted by title, at most 500. To search the
+        content use `searchPages`, for the text use `getPage`.
       x-openapps-verb: read
       requestBody:
         required: false
@@ -42,12 +43,12 @@ paths:
               type: object
               additionalProperties: false
               properties:
-                q: { type: string, maxLength: 200, description: Text, der im Titel vorkommen muss }
-                parentId: { type: string, format: uuid, description: Nur direkte Unterseiten dieser Seite }
+                q: { type: string, maxLength: 200, description: Text that must appear in the title }
+                parentId: { type: string, format: uuid, description: Only direct subpages of this page }
                 tag: { $ref: '#/components/schemas/Tag' }
       responses:
         '200':
-          description: Seitenliste
+          description: Page list
           content:
             application/json:
               schema:
@@ -59,14 +60,14 @@ paths:
                     items: { $ref: '#/components/schemas/PageSummary' }
                   truncated:
                     type: boolean
-                    description: Mehr als 500 Seiten passen; Filter enger stellen.
+                    description: More than 500 pages match; narrow the filter.
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /tools/pages.get:
     post:
       operationId: getPage
-      summary: Liest eine Seite mit Inhalt und Unterseiten
+      summary: Reads a page with content and subpages
       x-openapps-verb: read
       requestBody:
         required: true
@@ -80,7 +81,7 @@ paths:
                 id: { type: string, format: uuid }
       responses:
         '200':
-          description: Die Seite
+          description: The page
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Page' }
@@ -91,11 +92,12 @@ paths:
   /tools/pages.search:
     post:
       operationId: searchPages
-      summary: Volltextsuche in Titel und Inhalt
+      summary: Full-text search in title and content
       description: >-
-        Deutsche Stammformen (`websearch_to_tsquery('german', …)`). Syntax wie
-        eine Websuche: "genaue Phrase", -ausschließen, or. Bester Treffer
-        zuerst, mit Rang und Ausschnitt.
+        English stemming (`websearch_to_tsquery('english', …)`); words in
+        other languages match only exactly, English stop words are ignored.
+        Syntax like a web search: "exact phrase", -exclude, or. Best hit first, with rank
+        and snippet.
       x-openapps-verb: read
       requestBody:
         required: true
@@ -110,7 +112,7 @@ paths:
                 limit: { type: integer, minimum: 1, maximum: 50, default: 10 }
       responses:
         '200':
-          description: Treffer
+          description: Hits
           content:
             application/json:
               schema:
@@ -126,7 +128,7 @@ paths:
   /tools/pages.create:
     post:
       operationId: createPage
-      summary: Legt eine Seite an
+      summary: Creates a page
       x-openapps-verb: write
       requestBody:
         required: true
@@ -142,11 +144,11 @@ paths:
                 parentId:
                   type: string
                   format: uuid
-                  description: Nicht archivierte Elternseite. Ohne parentId liegt die Seite oben.
+                  description: Non-archived parent page. Without parentId the page sits at the top level.
                 tags: { $ref: '#/components/schemas/Tags' }
       responses:
         '200':
-          description: Die neue Seite
+          description: The new page
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Page' }
@@ -157,12 +159,11 @@ paths:
   /tools/pages.update:
     post:
       operationId: updatePage
-      summary: Ändert eine Seite oder hängt Inhalt an
+      summary: Changes a page or appends content
       description: >-
-        Mindestens eins von title, contentMd, appendMd, tags. contentMd
-        ersetzt den Inhalt, appendMd hängt nach einer Leerzeile an; beide
-        zusammen sind ein Fehler. Schreibt eine Revision, wenn sich etwas
-        ändert.
+        At least one of title, contentMd, appendMd, tags. contentMd replaces
+        the content, appendMd appends after a blank line; both together are an
+        error. Writes a revision if anything changes.
       x-openapps-verb: write
       requestBody:
         required: true
@@ -180,7 +181,7 @@ paths:
                 tags: { $ref: '#/components/schemas/Tags' }
       responses:
         '200':
-          description: Die Seite nach der Änderung
+          description: The page after the change
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Page' }
@@ -191,10 +192,9 @@ paths:
   /tools/pages.archive:
     post:
       operationId: archivePage
-      summary: Archiviert eine Seite
+      summary: Archives a page
       description: >-
-        Abgelehnt (400), solange die Seite nicht archivierte Unterseiten hat.
-        Idempotent.
+        Rejected (400) while the page has non-archived subpages. Idempotent.
       x-openapps-verb: write
       requestBody:
         required: true
@@ -208,7 +208,7 @@ paths:
                 id: { type: string, format: uuid }
       responses:
         '200':
-          description: Archiviert
+          description: Archived
           content:
             application/json:
               schema:
@@ -224,7 +224,7 @@ paths:
   /tools/pages.history:
     post:
       operationId: getPageHistory
-      summary: Verlauf einer Seite
+      summary: History of a page
       x-openapps-verb: read
       requestBody:
         required: true
@@ -239,7 +239,7 @@ paths:
                 limit: { type: integer, minimum: 1, maximum: 200, default: 50 }
       responses:
         '200':
-          description: Revisionen, neueste zuerst
+          description: Revisions, newest first
           content:
             application/json:
               schema:
@@ -258,7 +258,7 @@ paths:
 components:
   responses:
     Invalid:
-      description: Argumente passen nicht zum Tool
+      description: The arguments do not fit the tool
       content:
         application/json:
           schema:
@@ -269,9 +269,9 @@ components:
               message: { type: string }
               issues: { type: array, items: {} }
     Unauthorized:
-      description: Kein gültiger Gateway-Aufruf
+      description: Not a valid gateway call
     NotFound:
-      description: Seite gibt es nicht
+      description: The page does not exist
       content:
         application/json:
           schema:
@@ -288,7 +288,7 @@ components:
       minLength: 1
       maxLength: 40
       pattern: '^[\p{L}\p{N}][\p{L}\p{N}_-]*$'
-      description: Wird klein geschrieben gespeichert.
+      description: Stored in lowercase.
     Tags:
       type: array
       maxItems: 20
@@ -308,7 +308,7 @@ components:
         title: { type: string }
         tags: { type: array, items: { type: string } }
         updatedAt: { type: string, format: date-time }
-        updatedBy: { type: string, description: Personen-Id oder agent:<name> }
+        updatedBy: { type: string, description: Person id or agent:<name> }
     Page:
       allOf:
         - $ref: '#/components/schemas/PageSummary'
@@ -336,7 +336,7 @@ components:
         tags: { type: array, items: { type: string } }
         updatedAt: { type: string, format: date-time }
         rank: { type: number }
-        snippet: { type: string, description: 'Einzeiliger Ausschnitt, Treffer in « und » eingefasst' }
+        snippet: { type: string, description: 'One-line excerpt, hits wrapped in « and »' }
     Revision:
       type: object
       required: [id, change, title, contentMd, tags, editedBy, editedAt]

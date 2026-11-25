@@ -66,7 +66,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
   const appRepo: AppRepository = {
     async create(input: NewApp): Promise<App> {
       if ([...apps.values()].some((a) => a.name === input.name)) {
-        throw new ConflictError(`App "${input.name}" gibt es schon`);
+        throw new ConflictError(`App "${input.name}" already exists`);
       }
       const app: App = {
         id: nextId('app'),
@@ -141,7 +141,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
     },
     async patch(id, patch: DeploymentPatch) {
       const current = deployments.get(id);
-      if (current === undefined) throw new NotFoundError(`Deployment "${id}" gibt es nicht`);
+      if (current === undefined) throw new NotFoundError(`deployment "${id}" does not exist`);
       const updated: Deployment = {
         ...current,
         ...(patch.status === undefined ? {} : { status: patch.status }),
@@ -194,7 +194,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
     },
     async revoke(id, revokedBy, revokedAt) {
       const entry = grants.get(id);
-      if (entry === undefined) throw new NotFoundError(`Freigabe "${id}" gibt es nicht`);
+      if (entry === undefined) throw new NotFoundError(`grant "${id}" does not exist`);
       const updated: Grant = { ...entry, revokedAt, revokedBy };
       grants.set(id, updated);
       return updated;
@@ -259,7 +259,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
     },
     async disable(name, at) {
       const identity = [...agents.values()].find((a) => a.name === name);
-      if (identity === undefined) throw new Error(`Agent "${name}" gibt es nicht`);
+      if (identity === undefined) throw new Error(`agent "${name}" does not exist`);
       const disabled = { ...identity, disabledAt: identity.disabledAt ?? at };
       agents.set(identity.id, disabled);
       return disabled;
@@ -282,7 +282,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
    */
   const groupRepo: GroupRepository = {
     async create(input: { name: string; description: string }): Promise<Group> {
-      if (groups.has(input.name)) throw new ConflictError(`Gruppe "${input.name}" gibt es schon`);
+      if (groups.has(input.name)) throw new ConflictError(`group "${input.name}" already exists`);
       const group: Group = {
         name: input.name,
         description: input.description,
@@ -314,7 +314,7 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
     async ensureMembership(group, email, addedBy) {
       // Fremdschluessel wie in SQL: eine Mitgliedschaft in einer Gruppe, die
       // es nicht gibt, ist ein Fehler und kein stilles Anlegen.
-      if (!groups.has(group)) throw new NotFoundError(`Gruppe "${group}" gibt es nicht`);
+      if (!groups.has(group)) throw new NotFoundError(`group "${group}" does not exist`);
       const byEmail = members.get(group) ?? new Map<string, GroupMember>();
       const normalized = email.trim().toLowerCase();
       if (!byEmail.has(normalized)) {
@@ -340,6 +340,6 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
 
 function mustApp(apps: Map<string, App>, id: string): App {
   const app = apps.get(id);
-  if (app === undefined) throw new NotFoundError(`App "${id}" gibt es nicht`);
+  if (app === undefined) throw new NotFoundError(`App "${id}" does not exist`);
   return app;
 }

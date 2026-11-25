@@ -236,7 +236,7 @@ describe('getUser — Domain', () => {
   it('weist einen Aufruf ab, der sich an eine andere Domain richtet', () => {
     const headers = { ...signedHeaders(), host: 'crm.apps.blyck.de' };
     expect(() => getUser(headers, BASE_OPTIONS)).toThrowError(
-      /richtet sich an 'crm.apps.blyck.de'/,
+      /is addressed to 'crm.apps.blyck.de'/,
     );
   });
 

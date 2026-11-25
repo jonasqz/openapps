@@ -202,7 +202,7 @@ describe('Audit-Log', () => {
 
     const entries = store.auditEntries.filter((e) => e.action === 'create_app');
     expect(entries.map((e) => e.outcome)).toEqual(['allowed', 'denied']);
-    expect(entries[1]?.reason).toContain('darf nicht write');
+    expect(entries[1]?.reason).toContain('may not write');
   });
 
   it('protokolliert auch einen Agenten, der fremde Freigaben lesen will', async () => {

@@ -38,7 +38,7 @@ export async function POST(request: Request, { params }: RouteParams): Promise<R
     const body = await readJson<DeployBody>(request);
     if (body.version === undefined || body.gitSha === undefined) {
       return jsonResponse(
-        { error: 'validation_failed', message: 'version und gitSha sind nötig' },
+        { error: 'validation_failed', message: 'version and gitSha are required' },
         422,
       );
     }

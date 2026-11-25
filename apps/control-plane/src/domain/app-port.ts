@@ -42,7 +42,7 @@ export function appContainerPort(app: Pick<App, 'name' | 'manifest'>): number {
     // sonst erst beim ersten Aufruf der Domain auffallen, und dann als
     // "Gateway kaputt" und nicht als "Manifest falsch".
     throw new ConflictError(
-      `App "${app.name}" deklariert PORT="${declared.default}" — das ist keine Portnummer zwischen 1 und 65535.`,
+      `App "${app.name}" declares PORT="${declared.default}", which is not a port number between 1 and 65535.`,
     );
   }
   return parsed;

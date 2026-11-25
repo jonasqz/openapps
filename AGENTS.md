@@ -1,60 +1,61 @@
-# Regeln der Plattform für Agents
+# Platform rules for agents
 
-Diese Datei gilt für jeden Agent, der eine **App für diese Plattform** baut.
-Wer sich daran hält, kommt beim ersten Deploy durch das Review-Gate.
+This file applies to every agent that builds an **app for this platform**.
+Follow it and you get through the review gate on the first deploy.
 
-Die gleiche Anleitung gibt es als Claude-Skill „App für die Plattform bauen“ und
-als MCP-Prompt `how_to_build_app` über den Plattform-MCP.
+The same guide is available as the Claude skill `build-platform-app` and as
+the MCP prompt `how_to_build_app` through the platform MCP.
 
-## Die sieben Regeln
+## The seven rules
 
-1. **Keinen eigenen Login bauen.** Der Nutzer kommt aus fünf Request-Headern,
-   die das Gateway setzt: `X-Auth-User-Id`, `X-Auth-User-Email`,
-   `X-Auth-Groups`, `X-Auth-Issued-At` und `X-Auth-Signature`. Der letzte ist
-   ein HMAC über die anderen plus Host und App-Id. Lies **keinen** davon
-   selbst — nur `getUser` aus `@openapps/sdk` prüft die Signatur, das
-   Zeitfenster und die Domain. Ohne diese Prüfung kann jeder Client die Header
-   selbst setzen (ADR 0004).
-2. **Nur das eigene Schema nutzen.** Die App bekommt genau eine DB-Rolle und
-   genau ein Schema. Keine Superuser-Verbindung, kein `search_path`-Trick, kein
-   Zugriff auf Tabellen anderer Apps. Fremde Daten nur über eine Freigabe, die
-   in der Control Plane vergeben wurde.
-3. **Jede Funktion zuerst als API.** Beschreibe sie in `openapi.yaml`. Daraus
-   erzeugt die Plattform die MCP-Tools der App. Eine UI-Aktion ohne passenden
-   API-Endpunkt blockiert das Review-Gate.
-4. **Manifest pflegen.** `app.json` beschreibt Name, Kategorie, Version,
-   benötigte Tabellen, angebotene Tools, gewünschte Rechte und die Quelle.
-   Änderst du Tabellen oder Tools, änderst du das Manifest mit.
-5. **Keine Secrets im Code.** Nur über Env-Variablen, deklariert im Manifest.
-6. **Nur das Design System.** Komponenten und Tokens aus `@openapps/ui`. Keine
-   eigenen Farbwerte, keine zweite UI-Bibliothek. Jede Liste hat einen leeren
-   und einen Fehlerzustand, jedes Formular eine Validierung mit sichtbarer
-   Fehlermeldung.
-7. **Nichts am Gateway vorbei.** Kein ausgehender Netzwerkzugang außer über die
-   im Manifest deklarierten Ziele.
+1. **Do not build your own login.** The user comes from five request headers
+   that the gateway sets: `X-Auth-User-Id`, `X-Auth-User-Email`,
+   `X-Auth-Groups`, `X-Auth-Issued-At` and `X-Auth-Signature`. The last one is
+   an HMAC over the others plus host and app id. Do **not** read any of them
+   yourself. Only `getUser` from `@openapps/sdk` checks the signature, the
+   time window and the domain. Without this check, any client can set the
+   headers itself (ADR 0004).
+2. **Use only your own schema.** The app gets exactly one DB role and exactly
+   one schema. No superuser connection, no `search_path` trick, no access to
+   other apps' tables. Other data only through a grant issued in the control
+   plane.
+3. **Every function as an API first.** Describe it in `openapi.yaml`. The
+   platform generates the app's MCP tools from it. A UI action without a
+   matching API endpoint blocks the review gate.
+4. **Maintain the manifest.** `app.json` describes name, category, version,
+   required tables, offered tools, requested permissions and the source. If
+   you change tables or tools, change the manifest with them.
+5. **No secrets in code.** Only through env variables, declared in the
+   manifest.
+6. **Only the design system.** Components and tokens from `@openapps/ui`. No
+   custom color values, no second UI library. Every list has an empty state
+   and an error state, every form has validation with a visible error
+   message.
+7. **Nothing bypasses the gateway.** No outbound network access except to the
+   targets declared in the manifest.
 
-## Der Weg von leer bis live
+## The path from empty to live
 
-1. `list_apps` — gibt es die App schon?
-2. `create_app` — legt ein Repo aus dem Starter-Template an.
-3. Lokal bauen und testen, dann pushen.
-4. `request_deploy` — startet `gitleaks`, `semgrep`, den UI-Linter und das
-   Claude-Review.
-5. Bei Freigabe legt die Control Plane Schema, DB-Rolle, Env und
-   Auth-Middleware an und deployt über Coolify.
-6. `grant` — Freigaben an Gruppen, andere Apps und Agents. Erst danach sind die
-   MCP-Tools der App aktiv.
-7. Jede neue Version läuft durch dieselbe Pipeline. `rollback` setzt in unter
-   2 Minuten auf die Vorversion zurück.
+1. `list_apps`: does the app already exist?
+2. `create_app`: creates a repo from the starter template.
+3. Build and test locally, then push.
+4. `request_deploy`: runs `gitleaks`, `semgrep`, the UI linter and the
+   Claude review.
+5. On approval, the control plane sets up schema, DB role, env and auth
+   middleware and deploys through Coolify.
+6. `grant`: grants to groups, other apps and agents. Only then are the app's
+   MCP tools active.
+7. Every new version goes through the same pipeline. `rollback` resets to the
+   previous version in under 2 minutes.
 
-## Was das Review-Gate blockiert
+## What the review gate blocks
 
-- ein Secret im Code (`gitleaks`)
-- ein Befund aus `semgrep` in der Sicherheits-Regelmenge
-- eine UI-Aktion ohne passendes MCP-Tool
-- ein eigener Farbwert oder eine fremde UI-Bibliothek
-- eine DB-Verbindung außerhalb des eigenen Schemas
-- ein Manifest, das nicht zum Code passt
+- a secret in the code (`gitleaks`)
+- a finding from `semgrep` in the security rule set
+- a UI action without a matching MCP tool
+- a custom color value or a foreign UI library
+- a DB connection outside the app's own schema
+- a manifest that does not match the code
 
-Ein Claude-Review ist kein Sicherheitsbeweis. Es läuft immer zusammen mit den
-deterministischen Scannern, nie an ihrer Stelle.
+A Claude review is not proof of security. It always runs together with the
+deterministic scanners, never in their place.

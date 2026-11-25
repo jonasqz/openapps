@@ -48,7 +48,7 @@ export async function requirePermission(
 ): Promise<void> {
   if (!(await can(ctx, actor, verb, resource))) {
     throw new PermissionDeniedError(
-      `${actor.kind}:${actor.id} darf nicht ${verb} auf ${resource.kind}:${resource.id}`,
+      `${actor.kind}:${actor.id} may not ${verb} on ${resource.kind}:${resource.id}`,
     );
   }
 }

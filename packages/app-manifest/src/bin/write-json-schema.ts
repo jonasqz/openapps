@@ -10,4 +10,4 @@ const target = resolve(packageRoot, 'schema', 'app.schema.json');
 mkdirSync(dirname(target), { recursive: true });
 writeFileSync(target, `${JSON.stringify(appManifestJsonSchema(), null, 2)}\n`, 'utf8');
 
-process.stdout.write(`app.schema.json geschrieben: ${target}\n`);
+process.stdout.write(`app.schema.json written: ${target}\n`);

@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 const app = process.env.LOKAL_APP ?? '';
 if (!/^[a-z][a-z0-9-]{1,40}$/.test(app)) {
-  console.error(`app-start: LOKAL_APP fehlt oder ist ungueltig ("${app}")`);
+  console.error(`app-start: LOKAL_APP is missing or invalid ("${app}")`);
   process.exit(1);
 }
 const runDir = join(process.env.LOKAL_RUNTIME_DIR ?? '/lokal/run', app);
@@ -24,7 +24,7 @@ async function readJson(name) {
   }
 }
 
-console.log(`app-start: ${app} wartet auf den Deploy durch die Control Plane`);
+console.log(`app-start: ${app} is waiting for the control plane to deploy it`);
 let env = null;
 for (;;) {
   env = await readJson('env.json');
@@ -37,13 +37,13 @@ for (;;) {
 // die App unter ihrem Router kaputt — lieber gar nicht starten.
 if (env.OPENAPPS_APP_BASE_PATH !== `/${app}`) {
   console.error(
-    `app-start: OPENAPPS_APP_BASE_PATH ist "${env.OPENAPPS_APP_BASE_PATH}", gebaut wurde fuer "/${app}"`,
+    `app-start: OPENAPPS_APP_BASE_PATH is "${env.OPENAPPS_APP_BASE_PATH}", but the build is for "/${app}"`,
   );
   process.exit(1);
 }
 
 const cwd = join('/repo/standard-apps', app);
-console.log(`app-start: ${app} startet`);
+console.log(`app-start: ${app} is starting`);
 const child = spawn(join(cwd, 'node_modules/.bin/next'), ['start', '-p', '3000', '-H', '0.0.0.0'], {
   cwd,
   stdio: 'inherit',

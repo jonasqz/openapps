@@ -2,107 +2,107 @@
   "manifestVersion": 1,
   "name": "crm",
   "displayName": "CRM",
-  "description": "Schlankes CRM für Menschen und Agents: Firmen, Kontakte, Deals mit Pipeline und Aktivitäten.",
+  "description": "Lean CRM for humans and agents: companies, contacts, deals with a pipeline, and activities.",
   "category": "sales",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "crm-v0.1.0"
+    "tag": "crm-v0.1.2"
   },
   "requiredTables": [
     {
       "name": "companies",
-      "description": "Firmen mit Name, Website, Branche und Notizen."
+      "description": "Companies with name, website, industry and notes."
     },
     {
       "name": "contacts",
-      "description": "Ansprechpartner mit Name, E-Mail (eindeutig, ohne Groß-/Kleinschreibung), Telefon, Rolle und optionaler Firma."
+      "description": "Contacts with name, email (unique, case-insensitive), phone, role and an optional company."
     },
     {
       "name": "deals",
-      "description": "Verkaufschancen mit Firma, optionalem Kontakt, Betrag in Cent, Stage, erwartetem Abschluss und Verantwortlichem."
+      "description": "Sales opportunities with company, optional contact, amount in cents, stage, expected close date and owner."
     },
     {
       "name": "activities",
-      "description": "Verlauf: Notizen, Anrufe, Mails und Termine zu Kontakten, Firmen oder Deals. Stage-Wechsel landen hier automatisch."
+      "description": "History: notes, calls, emails and meetings for contacts, companies or deals. Stage changes are logged here automatically."
     }
   ],
   "offeredTools": [
     {
       "name": "companies.list",
-      "description": "Listet Firmen, alphabetisch. Argumente: q (optional, Freitext, sucht in Name, Branche und Website, ohne Groß-/Kleinschreibung), limit (optional, 1 bis 200, Vorgabe 50). Liefert { companies: [{ id, name, website, branche, notes, contactCount, openDealCount }] }. Nutze die id für companies.get oder als companyId in anderen Tools.",
+      "description": "Lists companies alphabetically. Arguments: q (optional, free text, searches name, industry and website, case-insensitive), limit (optional, 1 to 200, default 50). Returns { companies: [{ id, name, website, industry, notes, contactCount, openDealCount }] }. Use the id for companies.get or as companyId in other tools.",
       "operationId": "listCompanies",
       "verb": "read"
     },
     {
       "name": "companies.get",
-      "description": "Holt eine Firma mit allem, was dazugehört. Argument: id (UUID der Firma). Liefert { company, contacts, deals, activities } — activities sind die letzten 20, auch die zu Kontakten und Deals der Firma, neueste zuerst. Unbekannte id ergibt 404.",
+      "description": "Gets a company with everything that belongs to it. Argument: id (company UUID). Returns { company, contacts, deals, activities }; activities are the latest 20, including those on the company's contacts and deals, newest first. An unknown id returns 404.",
       "operationId": "getCompany",
       "verb": "read"
     },
     {
       "name": "companies.create",
-      "description": "Legt eine Firma an. Argumente: name (Pflicht, 1 bis 200 Zeichen), website (optional, z. B. https://example.com; ohne Schema wird https:// ergänzt), branche (optional), notes (optional, Freitext). Liefert { company } mit der neuen id. Prüfe vorher mit companies.list, ob es die Firma schon gibt.",
+      "description": "Creates a company. Arguments: name (required, 1 to 200 characters), website (optional, e.g. https://example.com; https:// is added if no scheme is given), industry (optional), notes (optional, free text). Returns { company } with the new id. Check with companies.list first whether the company already exists.",
       "operationId": "createCompany",
       "verb": "write"
     },
     {
       "name": "contacts.list",
-      "description": "Listet Kontakte, alphabetisch. Argumente: q (optional, sucht in Name, E-Mail, Telefon und Rolle), companyId (optional, nur Kontakte dieser Firma), limit (optional, 1 bis 200, Vorgabe 50). Liefert { contacts: [{ id, name, email, phone, role, companyId, companyName }] }.",
+      "description": "Lists contacts alphabetically. Arguments: q (optional, searches name, email, phone and role), companyId (optional, only contacts of this company), limit (optional, 1 to 200, default 50). Returns { contacts: [{ id, name, email, phone, role, companyId, companyName }] }.",
       "operationId": "listContacts",
       "verb": "read"
     },
     {
       "name": "contacts.get",
-      "description": "Holt einen Kontakt mit seinen Deals und den letzten 20 Aktivitäten. Argument: id (UUID des Kontakts). Liefert { contact, deals, activities }. Unbekannte id ergibt 404.",
+      "description": "Gets a contact with its deals and the latest 20 activities. Argument: id (contact UUID). Returns { contact, deals, activities }. An unknown id returns 404.",
       "operationId": "getContact",
       "verb": "read"
     },
     {
       "name": "contacts.create",
-      "description": "Legt einen Kontakt an. Argumente: name (Pflicht), email (optional, eindeutig ohne Groß-/Kleinschreibung; ist sie vergeben, kommt ein Fehler — dann den vorhandenen Kontakt per contacts.list mit q suchen), phone, role (optional), companyId (optional, UUID einer bestehenden Firma). Liefert { contact }.",
+      "description": "Creates a contact. Arguments: name (required), email (optional, unique, case-insensitive; if it is taken you get an error, then look up the existing contact with contacts.list and q), phone, role (optional), companyId (optional, UUID of an existing company). Returns { contact }.",
       "operationId": "createContact",
       "verb": "write"
     },
     {
       "name": "contacts.update",
-      "description": "Ändert einen Kontakt. Argumente: id (Pflicht) und mindestens eines von name, email, phone, role, companyId. Nur genannte Felder ändern sich. null (oder leerer Text) löscht email, phone, role oder companyId; name lässt sich nicht löschen. Liefert { contact }.",
+      "description": "Updates a contact. Arguments: id (required) and at least one of name, email, phone, role, companyId. Only the fields you pass change. null (or empty text) clears email, phone, role or companyId; name cannot be cleared. Returns { contact }.",
       "operationId": "updateContact",
       "verb": "write"
     },
     {
       "name": "deals.list",
-      "description": "Listet Deals, zuerst nach erwartetem Abschluss, dann neueste. Argumente: stage (optional: lead, qualifiziert, angebot, gewonnen, verloren), companyId (optional), limit (optional, 1 bis 200, Vorgabe 50). Liefert { deals: [{ id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner }] }. valueCents ist der Betrag in Euro-Cent.",
+      "description": "Lists deals, by expected close date first, then newest. Arguments: stage (optional: lead, qualified, proposal, won, lost), companyId (optional), limit (optional, 1 to 200, default 50). Returns { deals: [{ id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner }] }. valueCents is the amount in euro cents.",
       "operationId": "listDeals",
       "verb": "read"
     },
     {
       "name": "deals.create",
-      "description": "Legt einen Deal an. Argumente: title (Pflicht), companyId (Pflicht), valueCents (Pflicht, ganze Euro-Cent, 12.500 € = 1250000), contactId (optional, muss zur Firma gehören), stage (optional, Vorgabe lead), expectedClose (optional, JJJJ-MM-TT), owner (optional, Vorgabe: der Aufrufer). Liefert { deal }.",
+      "description": "Creates a deal. Arguments: title (required), companyId (required), valueCents (required, whole euro cents, €12,500 = 1250000), contactId (optional, must belong to the company), stage (optional, default lead), expectedClose (optional, YYYY-MM-DD), owner (optional, default: the caller). Returns { deal }.",
       "operationId": "createDeal",
       "verb": "write"
     },
     {
       "name": "deals.update_stage",
-      "description": "Setzt die Stage eines Deals: lead, qualifiziert, angebot, gewonnen oder verloren. Argumente: id (Pflicht), stage (Pflicht), note (optional, Begründung). Ein Wechsel schreibt automatisch eine Aktivität (Notiz) mit alter und neuer Stage und der note. Ist die Stage schon gesetzt, ändert sich nichts. Liefert { deal, changed, activity }.",
+      "description": "Sets the stage of a deal: lead, qualified, proposal, won, lost. Arguments: id (required), stage (required), note (optional, the reason). A change automatically writes an activity (kind note) with the old and new stage and the note. If the deal already has that stage, nothing changes. Returns { deal, changed, activity }.",
       "operationId": "updateDealStage",
       "verb": "write"
     },
     {
       "name": "activities.log",
-      "description": "Erfasst eine Aktivität. Argumente: kind (Pflicht: notiz, anruf, mail, termin), subject (Pflicht, kurze Zeile), body (optional, Freitext), contactId, companyId, dealId (mindestens eines davon), happenedAt (optional, ISO-Zeitpunkt, Vorgabe jetzt). Fehlt companyId, wird sie aus Deal oder Kontakt übernommen. Liefert { activity }.",
+      "description": "Logs an activity. Arguments: kind (required: note, call, email, meeting), subject (required, short line), body (optional, free text), contactId, companyId, dealId (at least one of them), happenedAt (optional, ISO timestamp, default now). If companyId is missing, it is taken from the deal or contact. Returns { activity }.",
       "operationId": "logActivity",
       "verb": "write"
     },
     {
       "name": "activities.list",
-      "description": "Listet Aktivitäten, neueste zuerst. Argumente: contactId, companyId, dealId (optional, kombinierbar; companyId findet auch Aktivitäten zu Kontakten und Deals der Firma), limit (optional, 1 bis 200, Vorgabe 50). Ohne Filter: die neuesten aller Datensätze. Liefert { activities }.",
+      "description": "Lists activities, newest first. Arguments: contactId, companyId, dealId (optional, combinable; companyId also finds activities on the company's contacts and deals), limit (optional, 1 to 200, default 50). Without a filter: the newest across all records. Returns { activities }.",
       "operationId": "listActivities",
       "verb": "read"
     },
     {
       "name": "pipeline.summary",
-      "description": "Fasst die Pipeline zusammen, ohne Argumente. Liefert { stages: [{ stage, count, sumCents, probability, weightedCents }], totals: { count, openCount, openSumCents, weightedOpenCents, wonCents, lostCents } }. Gewichtung: lead 10 %, qualifiziert 25 %, angebot 60 %, gewonnen 100 %, verloren 0 %. weightedOpenCents ist die gewichtete Summe der offenen Deals.",
+      "description": "Summarises the pipeline, no arguments. Returns { stages: [{ stage, count, sumCents, probability, weightedCents }], totals: { count, openCount, openSumCents, weightedOpenCents, wonCents, lostCents } }. Weighting: lead 10 %, qualified 25 %, proposal 60 %, won 100 %, lost 0 %. weightedOpenCents is the weighted total of open deals.",
       "operationId": "getPipelineSummary",
       "verb": "read"
     }
@@ -115,39 +115,39 @@
         "kind": "app",
         "app": "crm"
       },
-      "reason": "Wer das CRM öffnen darf. Welche Gruppe, entscheidet die Freigabe in der Control Plane — ein gewünschtes Recht ist ein Antrag, keine Vergabe."
+      "reason": "Who may open the CRM. Which group is decided by the grant in the control plane; a requested right is a request, not an assignment."
     }
   ],
   "env": [
     {
       "name": "DATABASE_URL",
       "secret": true,
-      "description": "Verbindung auf das eigene Schema, mit der App-Rolle. Setzt die Control Plane. Ohne sie startet die App ohne Migrationen und jede Abfrage scheitert."
+      "description": "Connection to the app's own schema, using the app role. Set by the control plane. Without it the app starts without migrations and every query fails."
     },
     {
       "name": "DATABASE_SCHEMA",
       "secret": false,
-      "description": "Eigenes Schema der App. Das SDK setzt daraus den search_path; eine DSN mit options= wird abgewiesen."
+      "description": "The app's own schema. The SDK derives the search_path from it; a DSN with options= is rejected."
     },
     {
       "name": "OPENAPPS_AUTH_SECRET",
       "secret": true,
-      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prüft. Setzt die Control Plane pro Deployment."
+      "description": "App-specific secret the SDK uses to verify the gateway signature. Set by the control plane per deployment."
     },
     {
       "name": "OPENAPPS_APP_ID",
       "secret": false,
-      "description": "Id dieser App im Signatur-Material. Muss byte-gleich dem sein, was das Gateway schreibt."
+      "description": "Id of this app in the signed material. Must be byte-identical to what the gateway writes."
     },
     {
       "name": "OPENAPPS_APP_HOST",
       "secret": false,
-      "description": "Gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben."
+      "description": "Shared domain in the signed material, trimmed and lowercased."
     },
     {
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
-      "description": "Pfad, unter dem die App liegt (/crm). Muss beim Build gesetzt sein, sonst zeigen Verweise und Bilder ins Leere."
+      "description": "Path the app lives under (/crm). Must be set at build time, otherwise links and images point nowhere."
     }
   ],
   "egress": []

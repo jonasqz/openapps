@@ -33,7 +33,7 @@ export function resourceRefOf(ref: RequestedGrant['resource']): ResourceRef {
     return { kind: 'app', id: ref.app };
   }
   if (ref.name === undefined) {
-    throw new ValidationError(`Ressource "${ref.kind}" im Manifest hat keinen Namen`);
+    throw new ValidationError(`resource "${ref.kind}" in the manifest has no name`);
   }
   return { kind: ref.kind, id: `${ref.app}.${ref.name}` };
 }

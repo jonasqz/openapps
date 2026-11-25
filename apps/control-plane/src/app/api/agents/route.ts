@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
     const actor = await currentActor(request);
     const body = await readJson<CreateAgentBody>(request);
     if (typeof body.name !== 'string') {
-      return jsonResponse({ error: 'validation_failed', message: 'name ist nötig' }, 422);
+      return jsonResponse({ error: 'validation_failed', message: 'name is required' }, 422);
     }
     const created = await createAgentIdentity(domainContext(), {
       actor,

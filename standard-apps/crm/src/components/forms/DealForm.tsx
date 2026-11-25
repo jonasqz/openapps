@@ -26,62 +26,62 @@ export function DealForm({
   const router = useRouter();
   const { onSubmit, formError } = useActionSubmit(
     createDealAction,
-    (_id, values) => `/firmen/${text(values, 'companyId')}`,
+    (_id, values) => `/companies/${text(values, 'companyId')}`,
   );
 
   return (
     <FormPattern
-      title="Neuer Deal"
-      description="Der Kontakt muss zur gewählten Firma gehören."
+      title="New deal"
+      description="The contact must belong to the selected company."
       columns={2}
       initialValues={{ companyId, stage: 'lead' }}
       fields={[
-        { name: 'title', label: 'Titel', kind: 'text', required: true },
+        { name: 'title', label: 'Title', kind: 'text', required: true },
         {
           name: 'companyId',
-          label: 'Firma',
+          label: 'Company',
           kind: 'select',
           options: companies,
-          placeholder: 'Firma wählen',
+          placeholder: 'Choose a company',
           required: true,
         },
         {
           name: 'contactId',
-          label: 'Kontakt',
+          label: 'Contact',
           kind: 'select',
           options: contacts,
-          placeholder: 'Kein Kontakt',
+          placeholder: 'No contact',
         },
         {
           name: 'value',
-          label: 'Wert in €',
+          label: 'Value in €',
           kind: 'text',
-          placeholder: '12.500,00',
+          placeholder: '12,500.00',
           required: true,
           validate: (value) =>
             typeof value === 'string' && value.trim() !== '' && parseEuroToCents(value) === null
-              ? 'Betrag wie 12.500 oder 12.500,50 eingeben.'
+              ? 'Enter an amount like 12,500 or 12,500.50.'
               : undefined,
         },
         { name: 'stage', label: 'Stage', kind: 'select', options: STAGE_OPTIONS, required: true },
         {
           name: 'expectedClose',
-          label: 'Erwarteter Abschluss',
+          label: 'Expected close',
           kind: 'text',
-          placeholder: 'JJJJ-MM-TT',
+          placeholder: 'YYYY-MM-DD',
           validate: (value) =>
             typeof value === 'string' && value.trim() !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())
-              ? 'Datum im Format JJJJ-MM-TT eingeben.'
+              ? 'Enter a date in the format YYYY-MM-DD.'
               : undefined,
         },
         {
           name: 'owner',
-          label: 'Verantwortlich',
+          label: 'Owner',
           kind: 'text',
-          hint: 'Leer lassen: Du bist verantwortlich.',
+          hint: 'Leave empty to make yourself the owner.',
         },
       ]}
-      submitLabel="Deal anlegen"
+      submitLabel="Create deal"
       onCancel={() => router.back()}
       onSubmit={onSubmit}
       {...(formError === undefined ? {} : { formError })}

@@ -22,17 +22,17 @@ export const LIMITS = {
   listMax: 500,
 } as const;
 
-export const PageId = z.string().uuid('erwartet eine Seiten-Id (UUID)');
+export const PageId = z.string().uuid('expected a page id (UUID)');
 
 export const Title = z
   .string()
   .trim()
-  .min(1, 'Titel darf nicht leer sein')
-  .max(LIMITS.titleMax, `Titel darf höchstens ${LIMITS.titleMax} Zeichen haben`);
+  .min(1, 'Title must not be empty')
+  .max(LIMITS.titleMax, `Title must have at most ${LIMITS.titleMax} characters`);
 
 export const ContentMd = z
   .string()
-  .max(LIMITS.contentMax, `Inhalt darf höchstens ${LIMITS.contentMax} Zeichen haben`);
+  .max(LIMITS.contentMax, `Content must have at most ${LIMITS.contentMax} characters`);
 
 /**
  * Ein Tag: klein geschrieben, ohne Leerzeichen am Rand. Buchstaben (auch
@@ -42,14 +42,14 @@ export const Tag = z
   .string()
   .trim()
   .toLowerCase()
-  .min(1, 'Tag darf nicht leer sein')
-  .max(LIMITS.tagMax, `Tag darf höchstens ${LIMITS.tagMax} Zeichen haben`)
-  .regex(/^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u, 'Tag: nur Buchstaben, Ziffern, - und _');
+  .min(1, 'Tag must not be empty')
+  .max(LIMITS.tagMax, `Tag must have at most ${LIMITS.tagMax} characters`)
+  .regex(/^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u, 'Tag: only letters, digits, - and _');
 
 /** Tags ohne Dubletten, in der Reihenfolge der ersten Nennung. */
 export const Tags = z
   .array(Tag)
-  .max(LIMITS.tagsMax, `höchstens ${LIMITS.tagsMax} Tags`)
+  .max(LIMITS.tagsMax, `at most ${LIMITS.tagsMax} tags`)
   .transform((tags) => [...new Set(tags)]);
 
 export const PagesListArgs = z
@@ -69,8 +69,8 @@ export const PagesSearchArgs = z
     query: z
       .string()
       .trim()
-      .min(1, 'Suchbegriff darf nicht leer sein')
-      .max(LIMITS.queryMax, `Suchbegriff darf höchstens ${LIMITS.queryMax} Zeichen haben`),
+      .min(1, 'Search text must not be empty')
+      .max(LIMITS.queryMax, `Search text must have at most ${LIMITS.queryMax} characters`),
     limit: z
       .number()
       .int()
@@ -99,8 +99,8 @@ export const PagesUpdateArgs = z
     tags: Tags.optional(),
     appendMd: z
       .string()
-      .min(1, 'appendMd darf nicht leer sein')
-      .max(LIMITS.contentMax, `appendMd darf höchstens ${LIMITS.contentMax} Zeichen haben`)
+      .min(1, 'appendMd must not be empty')
+      .max(LIMITS.contentMax, `appendMd must have at most ${LIMITS.contentMax} characters`)
       .optional(),
   })
   .strict()
@@ -109,7 +109,7 @@ export const PagesUpdateArgs = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['appendMd'],
-        message: 'contentMd ersetzt, appendMd hängt an — nur eins von beiden angeben',
+        message: 'contentMd replaces, appendMd appends — pass only one of them',
       });
     }
     if (
@@ -121,7 +121,7 @@ export const PagesUpdateArgs = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: [],
-        message: 'nichts zu ändern: mindestens eins von title, contentMd, appendMd, tags angeben',
+        message: 'nothing to change: pass at least one of title, contentMd, appendMd, tags',
       });
     }
   });

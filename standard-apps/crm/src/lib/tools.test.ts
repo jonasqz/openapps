@@ -11,6 +11,7 @@ import {
   USER_ID_HEADER,
   type ToolRouteOptions,
 } from '@openapps/sdk';
+import { ACTIVITY_KINDS, STAGES } from './domain';
 import { TOOL_NAMES, toolHandlers } from './tools';
 
 /**
@@ -59,12 +60,12 @@ function specOperations(text: string): SpecOperation[] {
 }
 
 describe('Manifest', () => {
-  it('besteht das echte Manifest-Schema der Plattform', () => {
+  it('passes the real manifest schema of the platform', () => {
     const manifest = parseAppManifest(JSON.parse(manifestText), 'standard-apps/crm/app.json');
     expect(manifest.name).toBe('crm');
   });
 
-  it('nennt jede Tabelle aus der Migration', () => {
+  it('names every table from the migration', () => {
     const manifest = parseAppManifest(JSON.parse(manifestText));
     const sql = readFileSync(new URL('../../migrations/0001_crm.sql', import.meta.url), 'utf8');
     const created = [...sql.matchAll(/^create table (\w+)/gm)].map((match) => match[1]);
@@ -72,35 +73,58 @@ describe('Manifest', () => {
   });
 });
 
-describe('Tool-Zuordnung', () => {
+describe('fixed values', () => {
+  // Die zuletzt gesetzten Checks stehen in 0002_english_values.sql.
+  const sql = readFileSync(new URL('../../migrations/0002_english_values.sql', import.meta.url), 'utf8');
+  const checkValues = (column: string): string[] => {
+    const match = new RegExp(`check \\(${column} in \\(([^)]*)\\)\\)`).exec(sql);
+    return (match?.[1] ?? '').split(',').map((value) => value.trim().replace(/^'|'$/g, ''));
+  };
+  const enumValues = (schemaName: string): string[] => {
+    const match = new RegExp(`\\n    ${schemaName}:[\\s\\S]*?enum: \\[([^\\]]*)\\]`).exec(openapiText);
+    return (match?.[1] ?? '').split(',').map((value) => value.trim());
+  };
+
+  it('uses the same stages in code, database check and openapi', () => {
+    expect(checkValues('stage')).toEqual([...STAGES]);
+    expect(enumValues('Stage')).toEqual([...STAGES]);
+  });
+
+  it('uses the same activity kinds in code, database check and openapi', () => {
+    expect(checkValues('kind')).toEqual([...ACTIVITY_KINDS]);
+    expect(enumValues('ActivityKind')).toEqual([...ACTIVITY_KINDS]);
+  });
+});
+
+describe('tool mapping', () => {
   const manifest = parseAppManifest(JSON.parse(manifestText));
   const operations = specOperations(openapiText);
 
-  it('hat genau die Tools des Manifests als Handler, nicht mehr und nicht weniger', () => {
+  it('has exactly the tools of the manifest as handlers, no more and no fewer', () => {
     expect([...TOOL_NAMES].sort()).toEqual(manifest.offeredTools.map((tool) => tool.name).sort());
   });
 
-  it('hat fuer jedes Tool eine Operation /tools/<name> mit gleicher operationId und gleichem Verb', () => {
+  it('has an operation /tools/<name> with the same operationId and verb for every tool', () => {
     for (const tool of manifest.offeredTools) {
       const operation = operations.find((op) => op.path === `/tools/${tool.name}`);
-      expect(operation, `openapi.yaml: /tools/${tool.name} fehlt`).toBeDefined();
+      expect(operation, `openapi.yaml: /tools/${tool.name} is missing`).toBeDefined();
       expect(operation?.operationId, tool.name).toBe(tool.operationId);
       expect(operation?.verb, tool.name).toBe(tool.verb);
     }
   });
 
-  it('hat keine Operation ohne Tool im Manifest', () => {
+  it('has no operation without a tool in the manifest', () => {
     const names = new Set(manifest.offeredTools.map((tool) => `/tools/${tool.name}`));
     for (const operation of operations) expect(names.has(operation.path), operation.path).toBe(true);
     expect(operations.length).toBe(manifest.offeredTools.length);
   });
 
-  it('vergibt jede operationId nur einmal', () => {
+  it('uses each operationId only once', () => {
     const ids = operations.map((op) => op.operationId);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('nutzt genau die verlangten Tool-Namen', () => {
+  it('uses exactly the required tool names', () => {
     expect([...TOOL_NAMES].sort()).toEqual(
       [
         'activities.list',
@@ -120,7 +144,7 @@ describe('Tool-Zuordnung', () => {
     );
   });
 
-  it('beschreibt Lesen als read und alles Schreibende als write', () => {
+  it('declares reads as read and everything that writes as write', () => {
     for (const tool of manifest.offeredTools) {
       const reads = /\.(list|get|summary)$/.test(tool.name);
       expect(tool.verb, tool.name).toBe(reads ? 'read' : 'write');
@@ -134,7 +158,7 @@ describe('Tool-Zuordnung', () => {
  * DATABASE_URL wuerde jeder DB-Zugriff mit 500 scheitern — eine 400 belegt
  * also, dass vorher abgewiesen wurde.
  */
-describe('Tool-Route mit den CRM-Handlern', () => {
+describe('tool route with the CRM handlers', () => {
   const SECRET = 'k'.repeat(48);
   const APP_ID = 'crm';
   const APP_HOST = 'apps.example.test';
@@ -149,7 +173,7 @@ describe('Tool-Route mit den CRM-Handlern', () => {
   const route = createToolRoute(toolHandlers, OPTIONS);
 
   function signed(): Record<string, string> {
-    const values = { userId: 'agent:vertrieb', email: 'vertrieb@agents.invalid', groups: '', issuedAt: String(NOW) };
+    const values = { userId: 'agent:sales', email: 'sales@agents.invalid', groups: '', issuedAt: String(NOW) };
     return {
       [USER_ID_HEADER]: values.userId,
       [USER_EMAIL_HEADER]: values.email,
@@ -169,23 +193,23 @@ describe('Tool-Route mit den CRM-Handlern', () => {
       { params: Promise.resolve({ tool }) },
     );
 
-  it('weist jeden Aufruf ohne Signatur mit 401 ab, auch Schreibzugriffe', async () => {
+  it('rejects every call without a signature with 401, writes included', async () => {
     for (const tool of TOOL_NAMES) {
       expect((await call(tool, {}, {})).status, tool).toBe(401);
     }
   });
 
-  it('weist eine gefaelschte Signatur ab', async () => {
+  it('rejects a forged signature', async () => {
     const headers = { ...signed(), [USER_ID_HEADER]: 'admin' };
     expect((await call('contacts.create', { name: 'X' }, headers)).status).toBe(401);
   });
 
-  it('antwortet auf falsche Argumente mit 400 und Hinweis, bevor die Datenbank gefragt wird', async () => {
+  it('answers wrong arguments with 400 and a hint before asking the database', async () => {
     const cases: [string, unknown][] = [
-      ['deals.update_stage', { id: '0d000000-0000-4000-8000-000000000001', stage: 'gewonnen!' }],
-      ['deals.create', { title: 'X', companyId: 'keine-uuid', valueCents: 1 }],
+      ['deals.update_stage', { id: '0d000000-0000-4000-8000-000000000001', stage: 'won!' }],
+      ['deals.create', { title: 'X', companyId: 'not-a-uuid', valueCents: 1 }],
       ['deals.create', { title: 'X', company_id: '0a000000-0000-4000-8000-000000000001', valueCents: 1 }],
-      ['activities.log', { kind: 'notiz', subject: 'ohne Bezug' }],
+      ['activities.log', { kind: 'note', subject: 'no reference' }],
       ['contacts.update', { id: '0b000000-0000-4000-8000-000000000001' }],
       ['companies.get', {}],
       ['pipeline.summary', { stage: 'lead' }],
@@ -199,7 +223,7 @@ describe('Tool-Route mit den CRM-Handlern', () => {
     }
   });
 
-  it('kennt kein Tool ausserhalb der Tabelle', async () => {
+  it('knows no tool outside the table', async () => {
     expect((await call('contacts.delete', {})).status).toBe(404);
   });
 });

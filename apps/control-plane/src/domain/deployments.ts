@@ -94,7 +94,7 @@ export async function requestDeploy(
 
       const existing = await ctx.deployments.listByApp(app.id);
       if (existing.some((d) => d.version === input.version && d.status === 'live')) {
-        throw new ConflictError(`Version "${input.version}" ist schon live`);
+        throw new ConflictError(`version "${input.version}" is already live`);
       }
 
       let deployment = await ctx.deployments.create({
@@ -121,7 +121,7 @@ export async function requestDeploy(
         } catch (cause) {
           await ctx.deployments.patch(deployment.id, { status: 'failed' });
           throw new ConflictError(
-            `der Commit ${input.gitSha} liess sich nicht holen: ${
+            `commit ${input.gitSha} could not be fetched: ${
               cause instanceof Error ? cause.message : String(cause)
             }`,
           );
@@ -171,7 +171,7 @@ export async function requestDeploy(
       // gegeben (ADR 0008)?
       const gateway: GatewayConfigReport = result.ok
         ? await inspectGatewayConfig(ctx, app, result.backendRef)
-        : { state: 'skipped', reason: 'der Deploy ist nicht gelaufen' };
+        : { state: 'skipped', reason: 'the deploy did not run' };
 
       deployment = await ctx.deployments.patch(deployment.id, {
         // `degraded` statt `live`: Der Deploy laeuft, aber er gilt nicht als
@@ -237,20 +237,20 @@ export async function rollback(ctx: DomainContext, input: RollbackInput): Promis
       await requireAppPermission(ctx, input.actor, 'write', app);
 
       if (app.previousDeploymentId === null) {
-        throw new ConflictError(`App "${app.name}" hat keine Vorversion`);
+        throw new ConflictError(`App "${app.name}" has no previous version`);
       }
       const target = await ctx.deployments.findById(app.previousDeploymentId);
       if (target === null) {
-        throw new NotFoundError('Vorversion ist nicht mehr auffindbar');
+        throw new NotFoundError('the previous version can no longer be found');
       }
 
       const backendRef = target.backendRef;
       if (backendRef === null) {
-        throw new ConflictError('die Vorversion hat keine Referenz im Deploy-Backend');
+        throw new ConflictError('the previous version has no reference in the deploy backend');
       }
       const result = await ctx.backend.rollback(backendRef, target.gitSha);
       if (!result.ok) {
-        throw new ConflictError(`Rollback fehlgeschlagen: ${result.message ?? 'kein Grund'}`);
+        throw new ConflictError(`rollback failed: ${result.message ?? 'no reason given'}`);
       }
 
       if (app.currentDeploymentId !== null) {
@@ -304,7 +304,7 @@ export async function listDeployments(
 export async function gatewayConfigFor(ctx: DomainContext): Promise<GatewayDynamicConfig> {
   if (ctx.appsDomain === undefined) {
     throw new ConflictError(
-      'ohne APPS_DOMAIN gibt es keine gemeinsame Domain und damit keinen Router (ADR 0007)',
+      'without APPS_DOMAIN there is no shared domain and therefore no router (ADR 0007)',
     );
   }
   const apps = await ctx.apps.listAll();
@@ -334,7 +334,7 @@ async function publishGatewayConfig(ctx: DomainContext): Promise<GatewayDynamicC
   const problems = gatewayConfigProblems(config);
   if (problems.length > 0) {
     throw new ConflictError(
-      `die erzeugte Gateway-Konfiguration traegt nicht: ${problems.join(' | ')}`,
+      `the generated gateway configuration does not hold: ${problems.join(' | ')}`,
     );
   }
   await ctx.gatewayConfig.publish(config);
@@ -392,7 +392,7 @@ async function inspectGatewayConfig(
     return {
       state: 'finding',
       problems: [
-        `Gateway-Konfiguration nicht ableitbar: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `gateway configuration cannot be derived: ${cause instanceof Error ? cause.message : String(cause)}`,
       ],
     };
   }
@@ -444,22 +444,22 @@ export function ownRouterProblems(
   );
   if (traefikLabels.length > 0) {
     problems.push(
-      `das Deploy-Backend fuehrt an "${app.name}" eigene Traefik-Labels [${traefikLabels.join(', ')}] — ` +
-        'ein Router daraus traegt unsere Middlewares nicht (ADR 0008)',
+      `the deploy backend puts its own Traefik labels on "${app.name}" [${traefikLabels.join(', ')}]: ` +
+        'a router built from them does not carry our middlewares (ADR 0008)',
     );
   }
 
   if (facts.portsMappings.trim() !== '') {
     problems.push(
-      `die App "${app.name}" veroeffentlicht den Host-Port "${facts.portsMappings.trim()}" — ` +
-        'dann ist der Container am Gateway vorbei erreichbar und die Signatur aus Spec 3.2 ist wertlos',
+      `the app "${app.name}" publishes the host port "${facts.portsMappings.trim()}": ` +
+        'the container is then reachable past the gateway and the signature from spec 3.2 is worthless',
     );
   }
 
   if (facts.domains.trim() !== '') {
     problems.push(
-      `das Deploy-Backend hat "${app.name}" die Domain "${facts.domains.trim()}" gegeben — ` +
-        'daraus entsteht ein Router ohne unsere Middlewares (ADR 0008, autogenerate_domain)',
+      `the deploy backend gave "${app.name}" the domain "${facts.domains.trim()}": ` +
+        'this creates a router without our middlewares (ADR 0008, autogenerate_domain)',
     );
   }
 
@@ -538,7 +538,7 @@ async function ensureBackendApp(
 
   if (app.primaryDomain === null) {
     throw new ConflictError(
-      `App "${app.name}" hat keine Domain. Ohne Domain gibt es keinen Router und keine Forward-Auth.`,
+      `App "${app.name}" has no domain. Without a domain there is no router and no forward auth.`,
     );
   }
 
@@ -591,7 +591,7 @@ function appEnvironment(
   dsn: string,
 ): Readonly<Record<string, string>> {
   if (app.primaryDomain === null) {
-    throw new ConflictError(`App "${app.name}" hat keine Domain`);
+    throw new ConflictError(`App "${app.name}" has no domain`);
   }
   return {
     DATABASE_URL: dsn,
@@ -614,6 +614,6 @@ function appEnvironment(
 
 async function resolveApp(ctx: DomainContext, appIdOrName: string): Promise<App> {
   const app = (await ctx.apps.findById(appIdOrName)) ?? (await ctx.apps.findByName(appIdOrName));
-  if (app === null) throw new NotFoundError(`App "${appIdOrName}" gibt es nicht`);
+  if (app === null) throw new NotFoundError(`App "${appIdOrName}" does not exist`);
   return app;
 }

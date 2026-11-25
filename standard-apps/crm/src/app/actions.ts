@@ -74,7 +74,7 @@ async function runTool(
     return {
       ok: false,
       fieldErrors: {},
-      formError: 'Nicht angemeldet: Die Anfrage kam nicht über das Gateway. Lade die Seite neu.',
+      formError: 'Not signed in: the request did not come through the gateway. Reload the page.',
     };
   }
 
@@ -89,7 +89,7 @@ async function runTool(
       return {
         ok: false,
         fieldErrors,
-        formError: formErrorOf(error.issues, Object.keys(fieldErrors).length > 0 ? 'Bitte die markierten Felder prüfen.' : error.message),
+        formError: formErrorOf(error.issues, Object.keys(fieldErrors).length > 0 ? 'Please check the highlighted fields.' : error.message),
       };
     }
     if (error instanceof ToolNotFoundError) {
@@ -99,7 +99,7 @@ async function runTool(
     return {
       ok: false,
       fieldErrors: {},
-      formError: 'Speichern ist fehlgeschlagen. Versuche es gleich noch einmal.',
+      formError: 'Saving failed. Please try again in a moment.',
     };
   }
 }
@@ -110,7 +110,7 @@ const idAt =
   (result: unknown): string => {
     const inner = (result as Record<string, unknown> | null)?.[key];
     const id = (inner as Record<string, unknown> | null | undefined)?.id;
-    if (typeof id !== 'string') throw new Error(`Tool-Antwort ohne ${key}.id`);
+    if (typeof id !== 'string') throw new Error(`tool response without ${key}.id`);
     return id;
   };
 
@@ -128,7 +128,7 @@ export async function createDealAction(values: FormInput): Promise<ActionResult>
   if (valueCents === null) {
     return {
       ok: false,
-      fieldErrors: { value: 'Betrag wie 12.500 oder 12.500,50 eingeben.' },
+      fieldErrors: { value: 'Enter an amount like 12,500 or 12,500.50.' },
     };
   }
   return runTool('deals.create', { ...rest, valueCents }, idAt('deal'), { valueCents: 'value' });

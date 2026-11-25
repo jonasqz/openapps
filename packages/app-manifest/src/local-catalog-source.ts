@@ -46,7 +46,7 @@ export class LocalCatalogSource implements CatalogSource {
     } catch (cause) {
       throw new CatalogSourceError(
         this.id,
-        `Verzeichnis nicht lesbar: ${this.directory}`,
+        `directory not readable: ${this.directory}`,
         cause instanceof Error ? { cause } : undefined,
       );
     }
@@ -65,7 +65,7 @@ export class LocalCatalogSource implements CatalogSource {
       if (previous !== undefined) {
         throw new CatalogSourceError(
           this.id,
-          `zwei Manifeste nennen sich '${entry.manifest.name}': ${previous} und ${entry.location}`,
+          `two manifests are named '${entry.manifest.name}': ${previous} and ${entry.location}`,
         );
       }
       seen.set(entry.manifest.name, entry.location);
@@ -82,7 +82,7 @@ export class LocalCatalogSource implements CatalogSource {
     if (entry.manifest.name !== name) {
       throw new CatalogSourceError(
         this.id,
-        `Ordner '${name}' enthält ein Manifest für '${entry.manifest.name}'`,
+        `folder '${name}' contains a manifest for '${entry.manifest.name}'`,
       );
     }
     return entry;
@@ -92,7 +92,7 @@ export class LocalCatalogSource implements CatalogSource {
   private async readFolder(folder: string): Promise<CatalogEntry | undefined> {
     // Kein Pfad-Ausbruch: nur ein einfacher Ordnername ist erlaubt.
     if (folder === '' || folder.includes('/') || folder.includes('\\') || folder.startsWith('.')) {
-      throw new CatalogSourceError(this.id, `kein gültiger App-Ordner: '${folder}'`);
+      throw new CatalogSourceError(this.id, `not a valid app folder: '${folder}'`);
     }
 
     const location = join(this.directory, folder, this.manifestFileName);

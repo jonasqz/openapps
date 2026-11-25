@@ -6,7 +6,7 @@ import '../src/tokens/tokens.css';
 import { Showcase } from './Showcase.tsx';
 
 const container = document.getElementById('root');
-if (container === null) throw new Error('#root fehlt');
+if (container === null) throw new Error('#root missing');
 createRoot(container).render(
   <StrictMode>
     <Showcase />

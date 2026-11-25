@@ -25,8 +25,8 @@ export function StageForm({
 
   return (
     <FormPattern
-      title="Stage ändern"
-      description="Ein Wechsel landet automatisch als Notiz im Verlauf, mit der Begründung."
+      title="Change stage"
+      description="Each change is added to the history as a note, together with the reason."
       initialValues={{ id: dealId }}
       fields={[
         {
@@ -34,20 +34,20 @@ export function StageForm({
           label: 'Deal',
           kind: 'select',
           options: deals,
-          placeholder: 'Deal wählen',
+          placeholder: 'Choose a deal',
           required: true,
         },
         {
           name: 'stage',
-          label: 'Neue Stage',
+          label: 'New stage',
           kind: 'select',
           options: STAGE_OPTIONS,
-          placeholder: 'Stage wählen',
+          placeholder: 'Choose a stage',
           required: true,
         },
-        { name: 'note', label: 'Begründung', kind: 'text' },
+        { name: 'note', label: 'Reason', kind: 'text' },
       ]}
-      submitLabel="Stage setzen"
+      submitLabel="Set stage"
       onCancel={() => router.back()}
       onSubmit={onSubmit}
       {...(formError === undefined ? {} : { formError })}

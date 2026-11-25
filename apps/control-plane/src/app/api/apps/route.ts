@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
     const body = await readJson<CreateAppBody>(request);
     if (body.name === undefined || body.manifest === undefined) {
       return jsonResponse(
-        { error: 'validation_failed', message: 'name und manifest sind nötig' },
+        { error: 'validation_failed', message: 'name and manifest are required' },
         422,
       );
     }

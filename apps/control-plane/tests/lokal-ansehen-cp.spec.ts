@@ -62,7 +62,7 @@ describe('Ansehen-Proxy fuer die Control Plane: Weiterleitung', () => {
 
   it('schickt nur die eigene Session nach innen, nie Cookies oder Identitaet des Browsers', () => {
     const out = forward('GET', {
-      cookie: '__Secure-better-auth.session_token=gestohlen; openapps_lokal_rolle=nutzer',
+      cookie: '__Secure-better-auth.session_token=gestohlen; openapps_local_role=user',
       authorization: 'Bearer fremd',
       'x-auth-user-id': 'admin',
       accept: 'text/html',
@@ -75,11 +75,17 @@ describe('Ansehen-Proxy fuer die Control Plane: Weiterleitung', () => {
   });
 
   it('liest Rolle und Rollenwechsel nur aus festen Werten', () => {
-    expect(rolleAusCookie('openapps_lokal_rolle=nutzer')).toBe('nutzer');
-    expect(rolleAusCookie('openapps_lokal_rolle=root')).toBe('admin');
+    expect(rolleAusCookie('openapps_local_role=user')).toBe('user');
+    expect(rolleAusCookie('openapps_local_role=root')).toBe('admin');
+    // Der alte Cookie-Name gilt nicht mehr: ohne gueltiges Cookie bleibt es admin.
+    expect(rolleAusCookie('openapps_lokal_rolle=user')).toBe('admin');
     expect(rolleAusCookie(undefined)).toBe('admin');
-    expect(rollenwechsel('/_lokal/als/nutzer')).toBe('nutzer');
-    expect(rollenwechsel('/_lokal/als/root')).toBeNull();
+    expect(rollenwechsel('/_local/as/user')).toBe('user');
+    expect(rollenwechsel('/_local/as/admin')).toBe('admin');
+    expect(rollenwechsel('/_local/as/root')).toBeNull();
+    // Die alten Pfade schalten nichts mehr um.
+    expect(rollenwechsel('/_lokal/als/nutzer')).toBeNull();
+    expect(rollenwechsel('/_local/as/nutzer')).toBeNull();
     expect(rollenwechsel('/grants')).toBeNull();
   });
 
@@ -93,7 +99,7 @@ describe('Ansehen-Proxy fuer die Control Plane: Weiterleitung', () => {
 
   it('nimmt die Adressen aus der Auth-Env', () => {
     expect(emailFuerRolle('admin', env)).toBe('admin@example.com');
-    expect(emailFuerRolle('nutzer', env)).toBe('nutzer@example.com');
+    expect(emailFuerRolle('user', env)).toBe('user@example.com');
     expect(() => emailFuerRolle('admin', { ...env, bootstrapAdmins: [] })).toThrow();
   });
 });
@@ -129,12 +135,9 @@ describe.skipIf(!reachable)('Ansehen-Proxy fuer die Control Plane: Sessions gege
 
   it('gibt dem Nutzer eine Session ohne Gruppe', async () => {
     const auth = createAuth({ pool: db.pool, env });
-    const session = await lokaleSession(
-      auth as unknown as LokalAuth,
-      emailFuerRolle('nutzer', env),
-    );
+    const session = await lokaleSession(auth as unknown as LokalAuth, emailFuerRolle('user', env));
     const user = await read(auth, `${session.cookieName}=${session.value}`);
-    expect(user?.email).toBe('nutzer@example.com');
+    expect(user?.email).toBe('user@example.com');
     expect(user?.groups).toEqual([]);
   });
 

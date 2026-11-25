@@ -15,13 +15,12 @@ export const dynamic = 'force-dynamic';
 
 /** Fehlercodes vom Rueckweg in Worte. Unbekanntes bleibt allgemein. */
 const MESSAGES: Record<string, string> = {
-  abgelehnt:
-    'Diese Anmeldung wurde abgelehnt. Erlaubt sind nur E-Mail-Adressen der Domains, ' +
-    'die für diese Instanz freigegeben sind.',
-  access_denied: 'Die Anmeldung wurde bei Google abgebrochen.',
+  rejected:
+    'This sign-in was rejected. Only email addresses from the domains approved ' +
+    'for this instance are allowed.',
+  access_denied: 'The sign-in was cancelled at Google.',
   unable_to_create_user:
-    'Für diese E-Mail-Adresse wird kein Konto angelegt. Sie liegt außerhalb der ' +
-    'freigegebenen Domains.',
+    'No account is created for this email address. It is outside the ' + 'approved domains.',
 };
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -57,15 +56,15 @@ export default async function LoginPage({
         // Bewusst ohne "bitte erneut versuchen": Der haeufigste unbekannte
         // Code ist eine abgelehnte Domain, und da hilft ein zweiter Versuch
         // nicht. Lieber sagen, wo die Antwort liegt.
-        'Die Anmeldung ist fehlgeschlagen. Prüfe, ob deine Adresse für diese Instanz ' +
-          'freigegeben ist, und wende dich sonst an die Administration.');
+        'Sign-in failed. Check whether your address is approved for this instance, ' +
+          'and otherwise contact your administrator.');
 
   return (
     <section className="mx-auto flex max-w-md flex-col gap-6 px-4 py-12">
-      <h1 className="text-xl font-semibold">Anmelden</h1>
+      <h1 className="text-xl font-semibold">Sign in</h1>
       <p className="max-w-prose text-sm">
-        Die Control Plane verwaltet Apps, Deployments und Freigaben dieser Instanz. Der Zugang läuft
-        über das Google-Konto deiner Organisation; ohne Freigabe bleibt alles gesperrt.
+        The control plane manages the apps, deployments and grants of this instance. Access goes
+        through your organisation's Google account; without a grant, everything stays locked.
       </p>
       <SignInWithGoogle
         callbackUrl={safeCallback(first(params.next))}

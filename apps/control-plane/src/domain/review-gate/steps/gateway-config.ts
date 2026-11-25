@@ -93,7 +93,7 @@ export function gatewayConfigStep(
           kind: 'deterministic',
           findings: [],
           error:
-            'kein Gateway-Ziel im Review-Eingang — ohne App-Name und Domain ist der Konfigurations-Lint nicht pruefbar',
+            'no gateway target in the review input: without an app name and domain the configuration lint cannot run',
         };
       }
 
@@ -124,7 +124,7 @@ export function checkGatewayConfig(
 
   const target = input.gateway;
   if (target === undefined) {
-    blocking('gateway.no_target', 'kein Gateway-Ziel im Review-Eingang');
+    blocking('gateway.no_target', 'no gateway target in the review input');
     return findings;
   }
 
@@ -134,7 +134,7 @@ export function checkGatewayConfig(
   if (!SAFE_APP_NAME.test(target.appName)) {
     brokenDerivation(
       'gateway.unsafe_app_name',
-      `App-Name "${target.appName}" taugt nicht als Router- und Dienstname ([a-z0-9-], nicht am Rand)`,
+      `app name "${target.appName}" is not usable as a router and service name ([a-z0-9-], not at the start or end)`,
     );
   }
 
@@ -142,7 +142,7 @@ export function checkGatewayConfig(
   if (domain === '') {
     brokenDerivation(
       'gateway.missing_domain',
-      'die App hat keine Domain — ohne die gemeinsame Domain gibt es keinen Router und keine Forward-Auth (ADR 0007)',
+      'the app has no domain: without the shared domain there is no router and no forward auth (ADR 0007)',
     );
   }
 
@@ -152,7 +152,7 @@ export function checkGatewayConfig(
   } catch (cause) {
     brokenDerivation(
       'gateway.invalid_port',
-      `Port aus dem Manifest unbrauchbar: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `port from the manifest is unusable: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
   }
 
@@ -179,18 +179,18 @@ export function checkGatewayConfig(
     if (router === undefined) {
       blocking(
         'gateway.missing_router',
-        `die erzeugte Konfiguration enthaelt keinen Router fuer "${target.appName}"`,
+        `the generated configuration contains no router for "${target.appName}"`,
       );
     } else if (!router.rule.includes(`Host(\`${domain}\`)`)) {
       blocking(
         'gateway.missing_host_rule',
-        `die Regel des Routers ist "${router.rule}" und nennt die Domain "${domain}" nicht`,
+        `the router rule is "${router.rule}" and does not name the domain "${domain}"`,
       );
     } else if (!router.rule.includes(`PathPrefix(\`/${target.appName}\`)`)) {
       blocking(
         'gateway.missing_path_prefix',
-        `die Regel des Routers ist "${router.rule}" und nennt den Pfad "/${target.appName}" nicht — ` +
-          'unter ADR 0007 trennt der Pfad die Apps, nicht der Host',
+        `the router rule is "${router.rule}" and does not name the path "/${target.appName}": ` +
+          'under ADR 0007 the path separates the apps, not the host',
       );
     }
   } catch (cause) {
@@ -199,7 +199,7 @@ export function checkGatewayConfig(
     // Befund, kein Fehler des Schrittes.
     blocking(
       'gateway.config_rejected',
-      `die Gateway-Konfiguration liess sich nicht erzeugen: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `the gateway configuration could not be generated: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
     return findings;
   }
@@ -231,8 +231,8 @@ function manifestInfrastructureFindings(input: ReviewInput): readonly Finding[] 
         severity: 'blocking',
         code: 'gateway.manifest_sets_infrastructure',
         message:
-          `das Manifest deklariert "${entry.name}" — Labels, Ports und Netze vergibt die ` +
-          'Plattform (Spec 3.3), nicht die App',
+          `the manifest declares "${entry.name}": labels, ports and networks are assigned by the ` +
+          'platform (spec 3.3), not by the app',
       });
     }
   }
@@ -264,8 +264,8 @@ function containerReachabilityFindings(
       severity: 'warning',
       code: 'gateway.container_facts_unknown',
       message:
-        'veroeffentlichte Host-Ports und Docker-Netze der Arbeitskopie wurden nicht erhoben — ' +
-        'die Annahme aus Spec 3.3 ist fuer diesen Deploy ungeprueft',
+        'published host ports and Docker networks of the working copy were not collected: ' +
+        'the assumption from spec 3.3 is unchecked for this deploy',
     });
   }
 
@@ -275,8 +275,8 @@ function containerReachabilityFindings(
       severity: 'blocking',
       code: 'gateway.published_port',
       message:
-        `die App veroeffentlicht den Host-Port "${port}" — dann ist der Container am Gateway ` +
-        'vorbei erreichbar und die Signatur aus Spec 3.2 ist wertlos',
+        `the app publishes the host port "${port}": the container is then reachable past the ` +
+        'gateway and the signature from spec 3.2 is worthless',
     });
   }
 
@@ -287,8 +287,8 @@ function containerReachabilityFindings(
         severity: 'blocking',
         code: 'gateway.extra_network',
         message:
-          `die App liegt im Netz "${network}" neben dem Gateway-Netz "${gatewayNetwork}" — ` +
-          'Spec 3.3 erlaubt genau ein Netz',
+          `the app is in the network "${network}" besides the gateway network "${gatewayNetwork}": ` +
+          'spec 3.3 allows exactly one network',
       });
     }
   }

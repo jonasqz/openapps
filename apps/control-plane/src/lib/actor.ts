@@ -43,7 +43,7 @@ function sessionReader(): SessionReader {
 export async function currentActor(request: Request): Promise<Actor> {
   const user = await sessionReader().read(request);
   if (user === null) {
-    throw new PermissionDeniedError('keine Session');
+    throw new PermissionDeniedError('no session');
   }
   return actorFromSession(user);
 }

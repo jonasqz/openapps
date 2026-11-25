@@ -8,18 +8,18 @@ import { createAppPool, runMigrations, runSeeds } from '@openapps/sdk';
  */
 export async function migrateOnStart(): Promise<void> {
   if ((process.env.DATABASE_URL ?? '').trim() === '') {
-    console.warn('[app] DATABASE_URL ist nicht gesetzt — Migrationen übersprungen.');
+    console.warn('[app] DATABASE_URL is not set — migrations skipped.');
     return;
   }
   const pool = createAppPool();
   try {
     const result = await runMigrations(pool, join(process.cwd(), 'migrations'));
     if (result.applied.length > 0) {
-      console.info(`[app] Migrationen angewendet: ${result.applied.join(', ')}`);
+      console.info(`[app] migrations applied: ${result.applied.join(', ')}`);
     }
     const seeded = await runSeeds(pool, join(process.cwd(), 'seeds'));
     if (seeded !== null && seeded.applied.length > 0) {
-      console.info(`[app] Beispieldaten eingespielt: ${seeded.applied.join(', ')}`);
+      console.info(`[app] sample data loaded: ${seeded.applied.join(', ')}`);
     }
   } finally {
     await pool.end();

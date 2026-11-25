@@ -17,29 +17,29 @@ export function ContactForm({
   const router = useRouter();
   const { onSubmit, formError } = useActionSubmit(createContactAction, (_id, values) => {
     const firma = text(values, 'companyId');
-    return firma === '' ? '/kontakte' : `/firmen/${firma}`;
+    return firma === '' ? '/contacts' : `/companies/${firma}`;
   });
 
   return (
     <FormPattern
-      title="Neuer Kontakt"
-      description="Die E-Mail-Adresse darf es nur einmal geben."
+      title="New contact"
+      description="Each email address can only be used once."
       columns={2}
       initialValues={{ companyId }}
       fields={[
         { name: 'name', label: 'Name', kind: 'text', required: true },
-        { name: 'email', label: 'E-Mail', kind: 'email', placeholder: 'name@example.com' },
-        { name: 'phone', label: 'Telefon', kind: 'text', placeholder: '+49 30 123456' },
-        { name: 'role', label: 'Rolle', kind: 'text', placeholder: 'z. B. Einkauf' },
+        { name: 'email', label: 'Email', kind: 'email', placeholder: 'name@example.com' },
+        { name: 'phone', label: 'Phone', kind: 'text', placeholder: '+44 20 7946 0000' },
+        { name: 'role', label: 'Role', kind: 'text', placeholder: 'e.g. Procurement' },
         {
           name: 'companyId',
-          label: 'Firma',
+          label: 'Company',
           kind: 'select',
           options: companies,
-          placeholder: 'Keine Firma',
+          placeholder: 'No company',
         },
       ]}
-      submitLabel="Kontakt anlegen"
+      submitLabel="Create contact"
       onCancel={() => router.back()}
       onSubmit={onSubmit}
       {...(formError === undefined ? {} : { formError })}

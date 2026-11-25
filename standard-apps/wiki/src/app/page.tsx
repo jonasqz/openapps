@@ -38,7 +38,7 @@ export default async function WikiHome({
     const all = await listPages({});
     truncated = all.truncated;
     tagOptions = [...new Set(all.pages.flatMap((page) => page.tags))].sort((a, b) =>
-      a.localeCompare(b, 'de'),
+      a.localeCompare(b, 'en'),
     );
 
     if (q !== '') {
@@ -62,7 +62,7 @@ export default async function WikiHome({
       rows = toTreeRows(all.pages);
     }
   } catch (error) {
-    console.error('[wiki] Startseite:', error);
+    console.error('[wiki] home page:', error);
     failed = true;
   }
 

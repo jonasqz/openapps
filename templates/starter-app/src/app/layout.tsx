@@ -10,7 +10,7 @@ export const metadata = { title: 'Starter App' };
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

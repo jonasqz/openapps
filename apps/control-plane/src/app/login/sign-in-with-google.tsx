@@ -39,7 +39,7 @@ export function SignInWithGoogle({
           callbackURL: callbackUrl,
           // Scheitert der Rueckweg — etwa weil die Domain nicht zugelassen
           // ist —, landet der Nutzer wieder hier, mit Grund.
-          errorCallbackURL: '/login?error=abgelehnt',
+          errorCallbackURL: '/login?error=rejected',
         }),
       });
       const payload: unknown = await response.json().catch(() => null);
@@ -52,14 +52,14 @@ export function SignInWithGoogle({
         setError(
           typeof payload === 'object' && payload !== null && 'message' in payload
             ? String((payload as { message?: unknown }).message)
-            : 'Die Anmeldung konnte nicht gestartet werden.',
+            : 'Sign-in could not be started.',
         );
         setPending(false);
         return;
       }
       window.location.assign(url);
     } catch {
-      setError('Die Anmeldung konnte nicht gestartet werden. Netzwerkfehler.');
+      setError('Sign-in could not be started. Network error.');
       setPending(false);
     }
   }
@@ -68,17 +68,17 @@ export function SignInWithGoogle({
     <div className="flex flex-col gap-4">
       {error === undefined ? null : (
         <ErrorState
-          title="Anmeldung nicht möglich"
+          title="Sign-in not possible"
           description={error}
           action={
             <Button variant="secondary" onClick={() => void start()}>
-              Erneut versuchen
+              Try again
             </Button>
           }
         />
       )}
-      <Button loading={pending} loadingLabel="Weiterleitung zu Google" onClick={() => void start()}>
-        Mit Google anmelden
+      <Button loading={pending} loadingLabel="Redirecting to Google" onClick={() => void start()}>
+        Sign in with Google
       </Button>
     </div>
   );

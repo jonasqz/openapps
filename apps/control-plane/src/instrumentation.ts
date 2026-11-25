@@ -36,21 +36,21 @@ async function startGateway(): Promise<void> {
     const { publishGatewayAtStartup } = await import('./domain');
     const config = await publishGatewayAtStartup(domainContext());
     console.info(
-      `Gateway-Konfiguration geschrieben: ${String(Object.keys(config.http.routers).length)} Router.`,
+      `gateway configuration written: ${String(Object.keys(config.http.routers).length)} router(s).`,
     );
     await new Promise((resolve) => setTimeout(resolve, TRAEFIK_RELOAD_GRACE_MS));
   } catch (cause) {
     console.error(
-      `ALARM Gateway-Konfiguration beim Start nicht geschrieben: ${errorText(cause)} — ` +
-        'die Control Plane ist ueber Traefik nicht erreichbar. Mount von ' +
-        '/data/coolify/proxy/dynamic und Schreibrechte pruefen (infra/betrieb/README.md).',
+      `ALARM gateway configuration not written at startup: ${errorText(cause)}: ` +
+        'the control plane is not reachable through Traefik. Check the mount of ' +
+        '/data/coolify/proxy/dynamic and write permissions (infra/betrieb/README.md).',
     );
   }
 
   // 2. Messen, was Traefik daraus gemacht hat.
   const { runGatewayStartupCheck } = await import('./infra/gateway-guard');
   await runGatewayStartupCheck().catch((cause: unknown) => {
-    console.warn(`WARN Startup-Check des Gateways abgebrochen: ${errorText(cause)}`);
+    console.warn(`WARN gateway startup check aborted: ${errorText(cause)}`);
   });
 }
 

@@ -20,14 +20,14 @@ describe('Textarea', () => {
   });
 });
 
-describe('Zurück-Link im DetailPattern', () => {
+describe('Back-Link im DetailPattern', () => {
   const sections = [{ title: 'A', fields: [{ label: 'x', value: 'y' }] }];
 
   it('ist ohne Provider ein schlichter Anker', () => {
     render(
-      <DetailPattern title="T" sections={sections} back={{ label: 'Zurück', href: '/firmen' }} />,
+      <DetailPattern title="T" sections={sections} back={{ label: 'Back', href: '/companies' }} />,
     );
-    expect(screen.getByRole('link', { name: /Zurück/ })).toHaveAttribute('href', '/firmen');
+    expect(screen.getByRole('link', { name: /Back/ })).toHaveAttribute('href', '/companies');
   });
 
   it('nimmt den Link der App, damit der Pfad der App stimmt', () => {
@@ -46,11 +46,11 @@ describe('Zurück-Link im DetailPattern', () => {
     );
     render(
       <LinkProvider component={AppLink}>
-        <DetailPattern title="T" sections={sections} back={{ label: 'Zurück', href: '/firmen' }} />
+        <DetailPattern title="T" sections={sections} back={{ label: 'Back', href: '/companies' }} />
       </LinkProvider>,
     );
-    const link = screen.getByRole('link', { name: /Zurück/ });
-    expect(link).toHaveAttribute('href', '/crm/firmen');
+    const link = screen.getByRole('link', { name: /Back/ });
+    expect(link).toHaveAttribute('href', '/crm/companies');
     expect(link).toHaveAttribute('data-app-link');
   });
 });

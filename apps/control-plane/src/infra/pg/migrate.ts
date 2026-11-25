@@ -42,7 +42,7 @@ export async function migrate(): Promise<readonly string[]> {
         // den CLAUDE.md ausschliesst, und er bricht hier ab statt still zu
         // divergieren.
         throw new Error(
-          `Migration ${file} wurde nach dem Anwenden geaendert. Bestehende Migrationen bleiben unveraendert; lege eine neue an.`,
+          `migration ${file} was changed after it was applied. Existing migrations stay unchanged; create a new one.`,
         );
       }
       continue;
@@ -60,7 +60,7 @@ export async function migrate(): Promise<readonly string[]> {
       ran.push(file);
     } catch (error) {
       await client.query('ROLLBACK');
-      throw new Error(`Migration ${file} fehlgeschlagen: ${String(error)}`);
+      throw new Error(`migration ${file} failed: ${String(error)}`);
     } finally {
       client.release();
     }
@@ -74,7 +74,7 @@ if (invokedDirectly) {
   migrate()
     .then((ran) => {
       process.stdout.write(
-        ran.length === 0 ? 'keine neue Migration\n' : `angewendet: ${ran.join(', ')}\n`,
+        ran.length === 0 ? 'no new migration\n' : `applied: ${ran.join(', ')}\n`,
       );
       return getPool().end();
     })

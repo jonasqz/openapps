@@ -20,14 +20,14 @@ export default async function NewPage({
     if (loaded.kind !== 'ok' || loaded.value.archivedAt !== null) {
       return (
         <main className="flex flex-col gap-4 p-6">
-          <TextLink href="/">← Alle Seiten</TextLink>
+          <TextLink href="/">← All pages</TextLink>
           <ErrorState
             title={
               loaded.kind === 'failed'
-                ? 'Elternseite konnte nicht geladen werden'
-                : 'Elternseite gibt es nicht oder sie ist archiviert'
+                ? 'Parent page could not be loaded'
+                : 'Parent page does not exist or is archived'
             }
-            description="Lege die Seite ohne Elternseite an oder wähle eine andere."
+            description="Create the page without a parent or choose a different one."
           />
         </main>
       );

@@ -8,7 +8,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { hashAgentSecret, type Actor, type DomainContext } from '@openapps/control-plane/domain';
 
 export class UnauthenticatedError extends Error {
-  constructor(message = 'unbekannter oder gesperrter Client') {
+  constructor(message = 'unknown or disabled client') {
     super(message);
     this.name = 'UnauthenticatedError';
   }

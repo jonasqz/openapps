@@ -1,128 +1,127 @@
 # @openapps/control-plane
 
-Die einzige eigene App des Layers. Sie führt das Register der Apps, hält **das
-eine** Rechtemodell, betreibt das Review-Gate, schreibt das Audit-Log und
-steuert Deploy- und Repo-Backend.
+The only app of the layer that we build ourselves. It keeps the register of
+apps, holds **the one** permission model, runs the review gate, writes the audit
+log and controls the deploy and repo backends.
 
-## Aufbau
+## Layout
 
 ```
-migrations/              aufsteigend numeriert, vorwärts, nie geändert
-src/domain/              Domänenlogik — ohne HTTP, ohne Anbieternamen
-  can.ts                 die eine Rechteprüfung (Default-Deny, kein Cache)
-  apps.ts                createApp (legt das Repo an), listApps
-  deployments.ts         requestDeploy, rollback, Env und Gateway pro App
+migrations/              numbered ascending, forward only, never changed
+src/domain/              domain logic — no HTTP, no vendor names
+  can.ts                 the one permission check (default-deny, no cache)
+  apps.ts                createApp (creates the repo), listApps
+  deployments.ts         requestDeploy, rollback, env and gateway per app
   grants.ts              grant, revoke
-  gateway-headers.ts     die fünf Identitäts-Header, signiert über das SDK
-  gateway-identity.ts    App-Id und Host — eine Quelle für Signatur und Env
-  app-secret.ts          OPENAPPS_AUTH_SECRET pro App, abgeleitet
-  manifest-grants.ts     Übersetzung Manifest → Rechtemodell (`human` → `user`)
-  review-gate/           Pipeline, Schritte, Zusammenführung
-src/adapters/coolify/    der einzige Ort, der Coolify kennt
-src/adapters/github/     der einzige Ort, der GitHub kennt
-src/infra/pg/            Repositories, Provisioner, Migrations-Läufer
-src/infra/memory/        Speicher im Prozess plus Doubles (Tests, Entwicklung)
-src/lib/                 Env, Session, HTTP-Abbildung, Zusammensetzung
-src/app/api/             Route-Handler — rufen nur die Domäne
-src/app/                 zwei Seiten: Apps und Freigaben
-tests/                   die riskanten Pfade (DoD 1, 3, 4, 5)
-docker-compose.yml       Test-Postgres für die Nachweise zu DoD 3
+  gateway-headers.ts     the five identity headers, signed via the SDK
+  gateway-identity.ts    app id and host — one source for signature and env
+  app-secret.ts          OPENAPPS_AUTH_SECRET per app, derived
+  manifest-grants.ts     translation manifest → permission model (`human` → `user`)
+  review-gate/           pipeline, steps, merging
+src/adapters/coolify/    the only place that knows Coolify
+src/adapters/github/     the only place that knows GitHub
+src/infra/pg/            repositories, provisioner, migration runner
+src/infra/memory/        in-process storage plus doubles (tests, development)
+src/lib/                 env, session, HTTP mapping, composition
+src/app/api/             route handlers — they only call the domain
+src/app/                 two pages: apps and grants
+tests/                   the risky paths (DoD 1, 3, 4, 5)
+docker-compose.yml       test Postgres for the evidence on DoD 3
 ```
 
-## Die fünf Regeln dieses Pakets
+## The five rules of this package
 
-1. **Agents first.** Jede Aktion ist zuerst Domänenfunktion, dann Endpunkt und
-   MCP-Tool, zuletzt Button. `src/app/api` enthält keine Logik.
-2. **Default-Deny.** `can` gibt `false` zurück, solange keine passende, nicht
-   widerrufene Freigabe existiert. Es gibt keinen Zweig ohne Freigabe.
-3. **Kein Cache über Freigaben.** Jede Prüfung fragt den Speicher, damit ein
-   Widerruf sofort wirkt (DoD 3).
-4. **Coolify und GitHub nur im Adapter.** Außerhalb von `src/adapters/*` kommen
-   die Namen nicht vor. Trägt einer nicht, wird ein Ordner ersetzt.
-5. **Eine Implementierung pro Format.** Die Signatur der Identitäts-Header kommt
-   aus `@openapps/sdk` (`signatureFor`). Diese App baut sie nicht nach — zwei
-   Implementierungen desselben Formats driften, und zwar leise.
+1. **Agents first.** Every action is a domain function first, then an endpoint
+   and MCP tool, and a button last. `src/app/api` contains no logic.
+2. **Default-deny.** `can` returns `false` as long as no matching, unrevoked
+   grant exists. There is no branch without a grant.
+3. **No cache over grants.** Every check asks the store, so that a revocation
+   takes effect immediately (DoD 3).
+4. **Coolify and GitHub only in the adapter.** Outside `src/adapters/*` the
+   names do not appear. If one of them does not hold up, we replace a folder.
+5. **One implementation per format.** The signature of the identity headers
+   comes from `@openapps/sdk` (`signatureFor`). This app does not rebuild it —
+   two implementations of the same format drift apart, and they do so silently.
 
-## Forward-Auth und die fünf Header
+## Forward auth and the five headers
 
-`GET /api/authz/forward` ist die Route, die Traefik pro Aufruf fragt (Spec
-`docs/specs/woche-1-forward-auth.md` Abschnitt 1.1). Bei 200 setzt sie:
+`GET /api/authz/forward` is the route that Traefik asks on every request (spec
+`docs/specs/woche-1-forward-auth.md` section 1.1, German). On 200 it sets:
 
-| Header              | Inhalt                                                 |
-| ------------------- | ------------------------------------------------------ |
-| `X-Auth-User-Id`    | Nutzer-Id aus Better Auth                              |
-| `X-Auth-User-Email` | E-Mail                                                 |
-| `X-Auth-Groups`     | Gruppen, mit Komma getrennt                            |
-| `X-Auth-Issued-At`  | Unix-Sekunden der Entscheidung                         |
-| `X-Auth-Signature`  | HMAC-SHA256, Hex, über App-Id, Host und die vier Werte |
+| Header              | Content                                                 |
+| ------------------- | ------------------------------------------------------- |
+| `X-Auth-User-Id`    | User id from Better Auth                                |
+| `X-Auth-User-Email` | Email                                                   |
+| `X-Auth-Groups`     | Groups, comma-separated                                 |
+| `X-Auth-Issued-At`  | Unix seconds of the decision                            |
+| `X-Auth-Signature`  | HMAC-SHA256, hex, over app id, host and the four values |
 
-Alle fünf werden immer gesetzt, auch leer. Die Traefik-Labels aus
-`src/adapters/coolify/traefik.ts` entfernen zuerst alle mitgeschickten
-`X-Auth-*`-Header (`openapps-strip-<app>`) und übernehmen danach genau diese
-fünf aus der Antwort — ADR 0004 nennt das Vergessen dieses Schritts als den
-Punkt, an dem das Modell wertlos wird. `missingForwardAuthLabels()` ist die
-Grundlage für den Label-Lint aus der Spec.
+All five are always set, even if empty. The Traefik labels from
+`src/adapters/coolify/traefik.ts` first remove all `X-Auth-*` headers that came
+with the request (`openapps-strip-<app>`) and then take over exactly these five
+from the response — ADR 0004 names forgetting this step as the point where the
+model becomes worthless. `missingForwardAuthLabels()` is the basis for the label
+lint from the spec.
 
-### Das Secret pro App
+### The secret per app
 
-`OPENAPPS_AUTH_SECRET` ist pro App verschieden und wird **nicht gespeichert**,
-sondern abgeleitet: HKDF-SHA256 aus `OPENAPPS_AUTH_MASTER_SECRET`, der App-Id
-und `apps.auth_secret_generation`. Folgen:
+`OPENAPPS_AUTH_SECRET` differs per app and is **not stored** but derived:
+HKDF-SHA256 from `OPENAPPS_AUTH_MASTER_SECRET`, the app id and
+`apps.auth_secret_generation`. Consequences:
 
-- In der Datenbank liegt kein App-Secret.
-- Rotation einer App: Generation hochzählen, Redeploy.
-- Rotation aller Apps: neues Master-Secret.
-- Das Master-Secret ist der eine Punkt, an dem alles hängt. Es liegt nur in der
-  Env der Control Plane und geht nie in eine App.
+- No app secret lies in the database.
+- Rotating one app: increment the generation, redeploy.
+- Rotating all apps: new master secret.
+- The master secret is the one point everything hangs on. It lives only in the
+  env of the control plane and never goes into an app.
 
-Die Control Plane setzt pro Deployment in die Env **der App**: `DATABASE_URL`,
-`DATABASE_SCHEMA`, `OPENAPPS_APP_ID`, `OPENAPPS_APP_HOST` und
-`OPENAPPS_AUTH_SECRET`. App-Id und Host kommen aus
-`src/domain/gateway-identity.ts` — denselben Funktionen, die auch signieren.
-Nur deshalb sind sie byte-gleich.
+For every deployment the control plane sets these in the env **of the app**:
+`DATABASE_URL`, `DATABASE_SCHEMA`, `OPENAPPS_APP_ID`, `OPENAPPS_APP_HOST` and
+`OPENAPPS_AUTH_SECRET`. App id and host come from
+`src/domain/gateway-identity.ts` — the same functions that also sign. Only that
+makes them byte-identical.
 
-## Repo-Backend
+## Repo backend
 
-`create_app` legt das Repo an, bevor es registriert. Scheitert das, wird nichts
-registriert. Der Adapter liegt in `src/adapters/github` und kopiert das
-Starter-Template (`POST /repos/{template}/generate`, kein Fork).
+`create_app` creates the repo before it registers. If that fails, nothing is
+registered. The adapter lives in `src/adapters/github` and copies the starter
+template (`POST /repos/{template}/generate`, no fork).
 
-**Rechte, die der Token braucht** (`GITHUB_TOKEN`):
+**Permissions the token needs** (`GITHUB_TOKEN`):
 
-- _Fine-grained token_ auf die Organisation aus `GITHUB_OWNER`:
-  `Administration: Read and write` (Repos anlegen) und
-  `Contents: Read and write`. Das Template-Repo muss für den Token lesbar sein
-  und als Template markiert sein.
-- _Classic token_: `repo`. Für eine Organisation zusätzlich die Freigabe des
-  Tokens durch die Organisation.
+- _Fine-grained token_ on the organisation from `GITHUB_OWNER`:
+  `Administration: Read and write` (create repos) and
+  `Contents: Read and write`. The template repo must be readable by the token
+  and marked as a template.
+- _Classic token_: `repo`. For an organisation, the organisation must
+  additionally approve the token.
 
-Mehr braucht der Adapter nicht: kein `delete_repo`, kein `workflow`, keine
-Rechte auf andere Organisationen. Welcher Tokentyp eingesetzt wird, entscheidet
-der Nutzer.
+The adapter needs nothing more: no `delete_repo`, no `workflow`, no permissions
+on other organisations. Which token type to use is the user's decision.
 
-## Betrieb
+## Operation
 
 ```bash
-pnpm --filter @openapps/control-plane migrate   # Migrationen vorwärts
-pnpm --filter @openapps/control-plane dev       # Entwicklung
-pnpm --filter @openapps/control-plane test      # DoD-Tests
+pnpm --filter @openapps/control-plane migrate   # migrations, forward only
+pnpm --filter @openapps/control-plane dev       # development
+pnpm --filter @openapps/control-plane test      # DoD tests
 ```
 
-Variablen stehen in `.env.example`. Secrets kommen nie in den Code.
+Variables are listed in `.env.example`. Secrets never go into the code.
 
-## Nachweise
+## Evidence
 
-| Datei                             | Kriterium                                                                                                                                                     |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/create-app.spec.ts`        | DoD 1: Repo entsteht vor der Registrierung; scheitert es, wird nichts registriert                                                                             |
-| `tests/grants.spec.ts`            | DoD 3 im Rechtemodell: blockiert → Freigabe → lesbar → Widerruf → blockiert                                                                                   |
-| `tests/grants-postgres.spec.ts`   | DoD 3 in Postgres, als Rolle ohne Superuser wie im Betrieb: fremdes Schema gesperrt, `search_path`-Trick scheitert, keine Rolle mit `rolsuper`/`rolbypassrls` |
-| `tests/review-gate.spec.ts`       | DoD 4: eingebautes Secret blockiert; ein Claude-Report allein gibt nie frei                                                                                   |
-| `tests/deployments.spec.ts`       | DoD 5: Rollback tauscht die Zeiger, Backend genau einmal gerufen                                                                                              |
-| `tests/gateway-start.spec.ts`     | ADR 0008: `openapps.yaml` entsteht beim Start, auch ohne App — sonst gaebe es keinen Login                                                                    |
-| `tests/gateway-signature.spec.ts` | die Naht zum SDK: `getUser` nimmt die Signatur der Control Plane an und lehnt jede Abweichung ab                                                              |
+| File                              | Criterion                                                                                                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/create-app.spec.ts`        | DoD 1: the repo exists before registration; if it fails, nothing is registered                                                                              |
+| `tests/grants.spec.ts`            | DoD 3 in the permission model: blocked → grant → readable → revocation → blocked                                                                            |
+| `tests/grants-postgres.spec.ts`   | DoD 3 in Postgres, as a non-superuser role like in operation: foreign schema blocked, the `search_path` trick fails, no role with `rolsuper`/`rolbypassrls` |
+| `tests/review-gate.spec.ts`       | DoD 4: an embedded secret blocks; a Claude report alone never approves                                                                                      |
+| `tests/deployments.spec.ts`       | DoD 5: rollback swaps the pointers, backend called exactly once                                                                                             |
+| `tests/gateway-start.spec.ts`     | ADR 0008: `openapps.yaml` is created at startup, even without an app — otherwise there would be no login                                                    |
+| `tests/gateway-signature.spec.ts` | the seam to the SDK: `getUser` accepts the signature of the control plane and rejects every deviation                                                       |
 
-### Tests gegen eine echte Postgres-Instanz
+### Tests against a real Postgres instance
 
 ```bash
 docker compose -f apps/control-plane/docker-compose.yml up -d
@@ -130,6 +129,6 @@ pnpm --filter @openapps/control-plane test
 docker compose -f apps/control-plane/docker-compose.yml down -v
 ```
 
-Ohne laufende Instanz überspringen sich diese Tests (`describe.skipIf`) und
-melden das sichtbar. Ein fehlender Container ist ein fehlender Nachweis, kein
-fehlgeschlagener — `pnpm check` bleibt auf einem Rechner ohne Docker grün.
+Without a running instance these tests skip themselves (`describe.skipIf`) and
+say so visibly. A missing container is missing evidence, not a failed test —
+`pnpm check` stays green on a machine without Docker.

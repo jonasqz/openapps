@@ -129,12 +129,12 @@ export const noServerFunctionProps = {
     type: 'problem',
     docs: {
       description:
-        'Eine serverseitig gerenderte Seite darf einer Client-Komponente aus @openapps/ui keine Funktion übergeben (cell, rowKey, onRowActivate, onSubmit …).',
+        'A server-rendered page must not pass a function to a client component from @openapps/ui (cell, rowKey, onRowActivate, onSubmit …).',
     },
     schema: [],
     messages: {
       functionProp:
-        '`{{prop}}` an <{{component}}> enthält eine Funktion, diese Datei rendert aber auf dem Server — React reicht keine Funktion in eine Client-Komponente, der Build bricht. Nimm die serverfähige Form (Spalte mit `field`, `rowKey` als Feldname, Verweis mit `href`) und rechne abgeleitete Werte vorher in die Zeile. Braucht die Seite wirklich einen Rückruf, gehört der Teil in eine eigene Datei mit `\'use client\'`.',
+        '`{{prop}}` on <{{component}}> contains a function, but this file renders on the server — React cannot pass a function into a client component, and the build breaks. Use the server-capable form (column with `field`, `rowKey` as a field name, link with `href`) and compute derived values into the row beforehand. If the page really needs a callback, that part belongs in its own file with `\'use client\'`.',
     },
   },
   create(context) {

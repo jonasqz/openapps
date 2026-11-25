@@ -9,25 +9,25 @@
 openapi: 3.1.0
 info:
   title: CRM
-  version: 0.1.0
+  version: 0.1.2
   description: >-
-    Schlankes CRM für Menschen und Agents. Firmen, Kontakte, Deals mit
-    Pipeline und Aktivitäten. Beträge sind ganze Euro-Cent, Datumswerte
-    JJJJ-MM-TT, Zeitpunkte ISO 8601. Ids sind UUIDs.
+    Lean CRM for humans and agents. Companies, contacts, deals with a
+    pipeline, and activities. Amounts are whole euro cents, dates
+    YYYY-MM-DD, timestamps ISO 8601. Ids are UUIDs.
 servers:
   # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
   # `basePath` ist byte-gleich mit OPENAPPS_APP_BASE_PATH.
   - url: '{basePath}/api'
-    description: Diese App hinter dem Gateway.
+    description: This app behind the gateway.
     variables:
       basePath:
         default: /crm
-        description: Pfad der App, byte-gleich mit OPENAPPS_APP_BASE_PATH.
+        description: Path of the app, byte-identical to OPENAPPS_APP_BASE_PATH.
 paths:
   /tools/companies.list:
     post:
       operationId: listCompanies
-      summary: Firmen auflisten, optional mit Freitextsuche
+      summary: List companies, optionally with a free-text search
       x-openapps-verb: read
       requestBody:
         required: false
@@ -37,11 +37,11 @@ paths:
               type: object
               additionalProperties: false
               properties:
-                q: { type: string, maxLength: 200, description: Sucht in Name, Branche und Website. }
+                q: { type: string, maxLength: 200, description: Searches name, industry and website. }
                 limit: { $ref: '#/components/schemas/Limit' }
       responses:
         '200':
-          description: Firmen, alphabetisch
+          description: Companies, alphabetical
           content:
             application/json:
               schema:
@@ -57,7 +57,7 @@ paths:
   /tools/companies.get:
     post:
       operationId: getCompany
-      summary: Eine Firma mit Kontakten, Deals und letzten Aktivitäten
+      summary: A company with its contacts, deals and latest activities
       x-openapps-verb: read
       requestBody:
         required: true
@@ -66,7 +66,7 @@ paths:
             schema: { $ref: '#/components/schemas/IdArgs' }
       responses:
         '200':
-          description: Firma mit allem, was dazugehört
+          description: The company with everything that belongs to it
           content:
             application/json:
               schema:
@@ -91,7 +91,7 @@ paths:
   /tools/companies.create:
     post:
       operationId: createCompany
-      summary: Firma anlegen
+      summary: Create a company
       x-openapps-verb: write
       requestBody:
         required: true
@@ -103,12 +103,12 @@ paths:
               required: [name]
               properties:
                 name: { type: string, minLength: 1, maxLength: 200 }
-                website: { type: string, maxLength: 500, description: 'http(s)-Adresse; ohne Schema wird https:// ergänzt.' }
-                branche: { type: string, maxLength: 100 }
+                website: { type: string, maxLength: 500, description: 'http(s) address; https:// is added if no scheme is given.' }
+                industry: { type: string, maxLength: 100 }
                 notes: { type: string, maxLength: 5000 }
       responses:
         '200':
-          description: Angelegt
+          description: Created
           content:
             application/json:
               schema:
@@ -122,7 +122,7 @@ paths:
   /tools/contacts.list:
     post:
       operationId: listContacts
-      summary: Kontakte auflisten, optional mit Suche und Firmenfilter
+      summary: List contacts, optionally with a search and a company filter
       x-openapps-verb: read
       requestBody:
         required: false
@@ -132,12 +132,12 @@ paths:
               type: object
               additionalProperties: false
               properties:
-                q: { type: string, maxLength: 200, description: Sucht in Name, E-Mail, Telefon und Rolle. }
+                q: { type: string, maxLength: 200, description: Searches name, email, phone and role. }
                 companyId: { type: string, format: uuid }
                 limit: { $ref: '#/components/schemas/Limit' }
       responses:
         '200':
-          description: Kontakte, alphabetisch
+          description: Contacts, alphabetical
           content:
             application/json:
               schema:
@@ -153,7 +153,7 @@ paths:
   /tools/contacts.get:
     post:
       operationId: getContact
-      summary: Ein Kontakt mit Deals und letzten Aktivitäten
+      summary: A contact with its deals and latest activities
       x-openapps-verb: read
       requestBody:
         required: true
@@ -162,7 +162,7 @@ paths:
             schema: { $ref: '#/components/schemas/IdArgs' }
       responses:
         '200':
-          description: Kontakt
+          description: The contact
           content:
             application/json:
               schema:
@@ -184,7 +184,7 @@ paths:
   /tools/contacts.create:
     post:
       operationId: createContact
-      summary: Kontakt anlegen
+      summary: Create a contact
       x-openapps-verb: write
       requestBody:
         required: true
@@ -196,13 +196,13 @@ paths:
               required: [name]
               properties:
                 name: { type: string, minLength: 1, maxLength: 200 }
-                email: { type: string, format: email, maxLength: 254, description: Eindeutig ohne Groß-/Kleinschreibung. }
+                email: { type: string, format: email, maxLength: 254, description: Unique, case-insensitive. }
                 phone: { type: string, maxLength: 50 }
                 role: { type: string, maxLength: 100 }
                 companyId: { type: string, format: uuid }
       responses:
         '200':
-          description: Angelegt
+          description: Created
           content:
             application/json:
               schema:
@@ -216,8 +216,8 @@ paths:
   /tools/contacts.update:
     post:
       operationId: updateContact
-      summary: Kontakt ändern
-      description: Nur genannte Felder ändern sich. null oder leerer Text löscht email, phone, role, companyId.
+      summary: Update a contact
+      description: Only the fields you pass change. null or empty text clears email, phone, role, companyId.
       x-openapps-verb: write
       requestBody:
         required: true
@@ -237,7 +237,7 @@ paths:
                 companyId: { type: [string, 'null'], format: uuid }
       responses:
         '200':
-          description: Geändert
+          description: Updated
           content:
             application/json:
               schema:
@@ -252,7 +252,7 @@ paths:
   /tools/deals.list:
     post:
       operationId: listDeals
-      summary: Deals auflisten, optional nach Stage und Firma
+      summary: List deals, optionally by stage and company
       x-openapps-verb: read
       requestBody:
         required: false
@@ -267,7 +267,7 @@ paths:
                 limit: { $ref: '#/components/schemas/Limit' }
       responses:
         '200':
-          description: Deals, nach erwartetem Abschluss
+          description: Deals, by expected close date
           content:
             application/json:
               schema:
@@ -283,7 +283,7 @@ paths:
   /tools/deals.create:
     post:
       operationId: createDeal
-      summary: Deal anlegen
+      summary: Create a deal
       x-openapps-verb: write
       requestBody:
         required: true
@@ -296,14 +296,14 @@ paths:
               properties:
                 title: { type: string, minLength: 1, maxLength: 200 }
                 companyId: { type: string, format: uuid }
-                contactId: { type: string, format: uuid, description: Muss zur Firma gehören. }
+                contactId: { type: string, format: uuid, description: Must belong to the company. }
                 valueCents: { $ref: '#/components/schemas/Cents' }
                 stage: { $ref: '#/components/schemas/Stage' }
                 expectedClose: { type: string, format: date }
-                owner: { type: string, maxLength: 200, description: Vorgabe ist der Aufrufer. }
+                owner: { type: string, maxLength: 200, description: Defaults to the caller. }
       responses:
         '200':
-          description: Angelegt
+          description: Created
           content:
             application/json:
               schema:
@@ -317,7 +317,7 @@ paths:
   /tools/deals.update_stage:
     post:
       operationId: updateDealStage
-      summary: Stage eines Deals setzen, mit automatischer Aktivität
+      summary: Set the stage of a deal, with an automatic activity
       x-openapps-verb: write
       requestBody:
         required: true
@@ -330,12 +330,12 @@ paths:
               properties:
                 id: { type: string, format: uuid }
                 stage: { $ref: '#/components/schemas/Stage' }
-                note: { type: string, maxLength: 2000, description: Begründung, landet im Text der Aktivität. }
+                note: { type: string, maxLength: 2000, description: The reason; goes into the body of the activity. }
       responses:
         '200':
           description: >-
-            Stage gesetzt. changed ist false und activity null, wenn die Stage
-            schon so war.
+            Stage set. changed is false and activity is null if the deal
+            already had that stage.
           content:
             application/json:
               schema:
@@ -355,7 +355,7 @@ paths:
   /tools/activities.log:
     post:
       operationId: logActivity
-      summary: Aktivität erfassen
+      summary: Log an activity
       x-openapps-verb: write
       requestBody:
         required: true
@@ -374,12 +374,12 @@ paths:
                 subject: { type: string, minLength: 1, maxLength: 200 }
                 body: { type: string, maxLength: 10000 }
                 contactId: { type: string, format: uuid }
-                companyId: { type: string, format: uuid, description: Fehlt sie, wird sie aus Deal oder Kontakt übernommen. }
+                companyId: { type: string, format: uuid, description: If missing, it is taken from the deal or contact. }
                 dealId: { type: string, format: uuid }
-                happenedAt: { type: string, format: date-time, description: Vorgabe jetzt. }
+                happenedAt: { type: string, format: date-time, description: Defaults to now. }
       responses:
         '200':
-          description: Erfasst
+          description: Logged
           content:
             application/json:
               schema:
@@ -394,7 +394,7 @@ paths:
   /tools/activities.list:
     post:
       operationId: listActivities
-      summary: Aktivitäten auflisten, neueste zuerst
+      summary: List activities, newest first
       x-openapps-verb: read
       requestBody:
         required: false
@@ -405,12 +405,12 @@ paths:
               additionalProperties: false
               properties:
                 contactId: { type: string, format: uuid }
-                companyId: { type: string, format: uuid, description: Findet auch Aktivitäten zu Kontakten und Deals der Firma. }
+                companyId: { type: string, format: uuid, description: Also finds activities on the company's contacts and deals. }
                 dealId: { type: string, format: uuid }
                 limit: { $ref: '#/components/schemas/Limit' }
       responses:
         '200':
-          description: Aktivitäten
+          description: Activities
           content:
             application/json:
               schema:
@@ -426,10 +426,10 @@ paths:
   /tools/pipeline.summary:
     post:
       operationId: getPipelineSummary
-      summary: Anzahl, Summe und gewichtete Summe je Stage
+      summary: Count, total and weighted total per stage
       description: >-
-        Gewichtung lead 10 %, qualifiziert 25 %, angebot 60 %, gewonnen 100 %,
-        verloren 0 %. weightedOpenCents zählt nur offene Stages.
+        Weighting lead 10 %, qualified 25 %, proposal 60 %, won 100 %,
+        lost 0 %. weightedOpenCents counts only open stages.
       x-openapps-verb: read
       requestBody:
         required: false
@@ -438,7 +438,7 @@ paths:
             schema: { type: object, additionalProperties: false }
       responses:
         '200':
-          description: Zusammenfassung
+          description: Summary
           content:
             application/json:
               schema:
@@ -471,17 +471,17 @@ paths:
 components:
   responses:
     Invalid:
-      description: Argumente passen nicht zum Tool. message und issues sagen, welches Feld.
+      description: The arguments do not fit the tool. message and issues say which field.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Unauthorized:
-      description: Kein gültiger Aufruf über die Plattform (Signatur fehlt oder ist falsch).
+      description: Not a valid call through the platform (signature missing or wrong).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     NotFound:
-      description: Datensatz mit dieser id gibt es nicht.
+      description: No record with this id exists.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -514,21 +514,26 @@ components:
       type: integer
       minimum: 0
       maximum: 9007199254740991
-      description: Betrag in ganzen Euro-Cent. 12.500,00 € = 1250000.
+      description: Amount in whole euro cents. €12,500.00 = 1250000.
     Stage:
       type: string
-      enum: [lead, qualifiziert, angebot, gewonnen, verloren]
+      description: >-
+        Deal stage. lead, qualified and proposal are open; won and lost are
+        closed.
+      enum: [lead, qualified, proposal, won, lost]
     ActivityKind:
       type: string
-      enum: [notiz, anruf, mail, termin]
+      description: >-
+        Activity kind. Stage changes are logged as note.
+      enum: [note, call, email, meeting]
     Company:
       type: object
-      required: [id, name, website, branche, notes, createdAt, updatedAt]
+      required: [id, name, website, industry, notes, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         website: { type: [string, 'null'] }
-        branche: { type: [string, 'null'] }
+        industry: { type: [string, 'null'] }
         notes: { type: [string, 'null'] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -584,5 +589,5 @@ components:
         dealId: { type: [string, 'null'], format: uuid }
         dealTitle: { type: [string, 'null'] }
         happenedAt: { type: string, format: date-time }
-        createdBy: { type: string, description: 'Nutzer-Id aus dem Gateway, bei Agents agent:<name>.' }
+        createdBy: { type: string, description: 'User id from the gateway; for agents agent:<name>.' }
         createdAt: { type: string, format: date-time }

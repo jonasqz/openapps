@@ -15,15 +15,15 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   if (loaded.kind === 'failed' || loaded.value.archivedAt !== null) {
     return (
       <main className="flex flex-col gap-4 p-6">
-        <TextLink href={`/pages/${id}`}>← Zur Seite</TextLink>
+        <TextLink href={`/pages/${id}`}>← Back to page</TextLink>
         <ErrorState
           title={
             loaded.kind === 'failed'
-              ? 'Seite konnte nicht geladen werden'
-              : 'Archivierte Seiten können nicht bearbeitet werden'
+              ? 'Page could not be loaded'
+              : 'Archived pages cannot be edited'
           }
           {...(loaded.kind === 'failed'
-            ? { description: 'Die Datenbank hat nicht geantwortet. Lade die Seite neu.' }
+            ? { description: 'The database did not respond. Reload the page.' }
             : {})}
         />
       </main>
@@ -33,7 +33,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   const page = loaded.value;
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
-      <TextLink href={`/pages/${page.id}`}>← Zur Seite</TextLink>
+      <TextLink href={`/pages/${page.id}`}>← Back to page</TextLink>
       <PageForm
         mode="edit"
         id={page.id}

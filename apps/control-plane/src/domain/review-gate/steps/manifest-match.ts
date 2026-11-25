@@ -40,7 +40,7 @@ export function checkManifestMatch(input: ReviewInput): readonly Finding[] {
         step: MANIFEST_MATCH_STEP,
         severity: 'blocking',
         code: 'manifest.undeclared_table',
-        message: `Code nutzt Tabelle "${table}", das Manifest kennt sie nicht`,
+        message: `code uses table "${table}", but the manifest does not list it`,
       });
     }
   }
@@ -50,7 +50,7 @@ export function checkManifestMatch(input: ReviewInput): readonly Finding[] {
         step: MANIFEST_MATCH_STEP,
         severity: 'warning',
         code: 'manifest.unused_table',
-        message: `Manifest fuehrt Tabelle "${table}", im Code kommt sie nicht vor`,
+        message: `manifest lists table "${table}", but the code does not use it`,
       });
     }
   }
@@ -60,7 +60,7 @@ export function checkManifestMatch(input: ReviewInput): readonly Finding[] {
         step: MANIFEST_MATCH_STEP,
         severity: 'blocking',
         code: 'manifest.undeclared_tool',
-        message: `Code bietet Tool "${tool}", das Manifest kennt es nicht`,
+        message: `code offers tool "${tool}", but the manifest does not list it`,
       });
     }
   }
@@ -70,7 +70,7 @@ export function checkManifestMatch(input: ReviewInput): readonly Finding[] {
         step: MANIFEST_MATCH_STEP,
         severity: 'blocking',
         code: 'manifest.undeclared_env',
-        message: `Code liest Env-Variable "${env}", das Manifest deklariert sie nicht`,
+        message: `code reads env variable "${env}", but the manifest does not declare it`,
       });
     }
   }
@@ -79,7 +79,7 @@ export function checkManifestMatch(input: ReviewInput): readonly Finding[] {
       step: MANIFEST_MATCH_STEP,
       severity: 'blocking',
       code: 'manifest.version_mismatch',
-      message: `Manifest-Version "${input.manifest.version}" passt nicht zur angefragten Version "${input.version}"`,
+      message: `manifest version "${input.manifest.version}" does not match the requested version "${input.version}"`,
     });
   }
   return findings;

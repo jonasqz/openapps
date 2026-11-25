@@ -1,37 +1,37 @@
-# Die Wahrheit über die Funktionen dieser App.
-# Aus dieser Datei erzeugt die Plattform die MCP-Tools. Eine UI-Aktion ohne
-# passende Operation hier blockiert das Review-Gate.
+# The source of truth for this app's functions.
+# The platform generates the MCP tools from this file. A UI action without a
+# matching operation here blocks the review gate.
 openapi: 3.1.0
 info:
   title: Starter App
   version: 0.1.0
-  description: Vorlage. Beschreibe hier jede Funktion, bevor du einen Screen baust.
+  description: Template. Describe every function here before you build a screen.
 servers:
-  # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007),
-  # also ist `/api` allein nicht die Adresse dieser App. `basePath` ist der
-  # Pfad, den die Control Plane pro Deployment in OPENAPPS_APP_BASE_PATH setzt
-  # und den next.config.js als basePath uebernimmt; der Default hier ist der
-  # Pfad dieser App. Benennst du die App um, aendere ihn mit.
+  # Every app lives under a path on the shared domain (ADR 0007), so `/api`
+  # alone is not this app's address. `basePath` is the path the control plane
+  # sets per deployment in OPENAPPS_APP_BASE_PATH and that next.config.js uses
+  # as basePath; the default here is this app's path. If you rename the app,
+  # change it too.
   - url: '{basePath}/api'
-    description: Diese App hinter dem Gateway.
+    description: This app behind the gateway.
     variables:
       basePath:
         default: /starter-app
-        description: Pfad der App, byte-gleich mit OPENAPPS_APP_BASE_PATH.
+        description: Path of the app, byte-identical to OPENAPPS_APP_BASE_PATH.
 paths:
   /items:
     get:
       operationId: listItems
-      summary: Listet Einträge
+      summary: Lists items
       x-openapps-verb: read
       parameters:
         - in: query
           name: q
           schema: { type: string }
-          description: Freitextfilter
+          description: Free-text filter
       responses:
         '200':
-          description: Liste
+          description: List
           content:
             application/json:
               schema:
@@ -41,10 +41,10 @@ paths:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/Item' }
-        '401': { description: Kein gültiger Gateway-Aufruf }
+        '401': { description: Not a valid gateway request }
     post:
       operationId: createItem
-      summary: Legt einen Eintrag an
+      summary: Creates an item
       x-openapps-verb: write
       requestBody:
         required: true
@@ -53,12 +53,12 @@ paths:
             schema: { $ref: '#/components/schemas/ItemInput' }
       responses:
         '201':
-          description: Angelegt
+          description: Created
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Item' }
-        '400': { description: Validierung fehlgeschlagen }
-        '401': { description: Kein gültiger Gateway-Aufruf }
+        '400': { description: Validation failed }
+        '401': { description: Not a valid gateway request }
 components:
   schemas:
     Item:

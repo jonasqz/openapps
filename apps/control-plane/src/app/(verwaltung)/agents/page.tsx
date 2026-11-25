@@ -33,21 +33,22 @@ interface AgentRow {
 
 const COLUMNS: readonly TableColumn<AgentRow>[] = [
   { field: 'name', header: 'Name' },
-  { field: 'subject', header: 'Subjekt', hideBelow: 'md' },
-  { field: 'owner', header: 'Angelegt von', hideBelow: 'md' },
-  { field: 'lastSeen', header: 'Zuletzt gesehen', hideBelow: 'sm' },
-  { field: 'state', header: 'Stand' },
+  { field: 'subject', header: 'Subject', hideBelow: 'md' },
+  { field: 'owner', header: 'Created by', hideBelow: 'md' },
+  { field: 'lastSeen', header: 'Last seen', hideBelow: 'sm' },
+  { field: 'state', header: 'State' },
 ];
 
-const day = (date: Date): string => date.toISOString().slice(0, 10);
+const DAY = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' });
+const day = (date: Date): string => DAY.format(date);
 
 const toRow = (agent: AgentIdentity): AgentRow => ({
   id: agent.id,
   name: agent.displayName,
   subject: `agent:${agent.name}`,
   owner: agent.ownerUserId,
-  lastSeen: agent.lastSeenAt === null ? 'noch nie' : day(agent.lastSeenAt),
-  state: agent.disabledAt === null ? 'aktiv' : `gesperrt am ${day(agent.disabledAt)}`,
+  lastSeen: agent.lastSeenAt === null ? 'never' : day(agent.lastSeenAt),
+  state: agent.disabledAt === null ? 'active' : `disabled on ${day(agent.disabledAt)}`,
 });
 
 export default async function AgentsPage() {
@@ -63,35 +64,35 @@ export default async function AgentsPage() {
   try {
     agents = await listAgentIdentities(domainContext(), { actor });
   } catch (error) {
-    failure = error instanceof Error ? error.message : 'unbekannter Fehler';
+    failure = error instanceof Error ? error.message : 'unknown error';
   }
 
   // Die Adresse, unter der ein Agent den Plattform-MCP erreicht (dieselbe wie
-  // auf der Seite Loslegen).
+  // auf der Seite Get started).
   const mcpUrl = publicMcpUrl();
 
   return (
     <section className="flex flex-col gap-8">
       <PageHeader
         title="Agents"
-        description="Jeder Agent hat eine eigene Identität und darf nur, was ihm freigegeben ist. In den Apps steht er als Urheber."
+        description="Each agent has its own identity and may only do what it has been granted. In the apps it appears as the author."
       />
       <Table
-        caption="Agent-Identitäten dieser Instanz"
+        caption="Agent identities on this instance"
         columns={COLUMNS}
         rows={agents.map(toRow)}
         {...(failure === undefined
           ? {}
-          : { error: { title: 'Agents konnten nicht geladen werden', description: failure } })}
+          : { error: { title: 'Agents could not be loaded', description: failure } })}
         empty={{
-          title: 'Noch kein Agent',
+          title: 'No agents yet',
           description:
-            'Ein Agent bekommt eine eigene Identität und danach Freigaben. Ohne beides kommt er nicht herein.',
+            'An agent gets its own identity and then grants. Without both, it cannot get in.',
         }}
       />
       <CreateAgentForm mcpUrl={mcpUrl} />
       <p className="text-sm text-fg-muted">
-        Sperren läuft über das MCP-Tool disable_agent oder DELETE /api/agents/&lt;name&gt;.
+        Disable an agent with the MCP tool disable_agent or DELETE /api/agents/&lt;name&gt;.
       </p>
     </section>
   );

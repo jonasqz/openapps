@@ -19,10 +19,10 @@ async function main(): Promise<void> {
   const masterSecret = process.env.OPENAPPS_AUTH_MASTER_SECRET;
 
   if (clientId === undefined || clientSecret === undefined) {
-    throw new Error('PLATFORM_MCP_CLIENT_ID und PLATFORM_MCP_CLIENT_SECRET fehlen');
+    throw new Error('PLATFORM_MCP_CLIENT_ID and PLATFORM_MCP_CLIENT_SECRET are missing');
   }
   if (masterSecret === undefined) {
-    throw new Error('OPENAPPS_AUTH_MASTER_SECRET fehlt');
+    throw new Error('OPENAPPS_AUTH_MASTER_SECRET is missing');
   }
 
   const ctx = platformContext();

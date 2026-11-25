@@ -47,7 +47,7 @@ export function PageForm(props: PageFormProps): JSX.Element {
   const submit = async (values: FormValues): Promise<Record<string, string> | void> => {
     setFormError(undefined);
     if (content.length > LIMITS.contentMax) {
-      setContentError(`Inhalt darf höchstens ${LIMITS.contentMax} Zeichen haben`);
+      setContentError(`Content must have at most ${LIMITS.contentMax} characters`);
       return;
     }
     setContentError(undefined);
@@ -66,7 +66,7 @@ export function PageForm(props: PageFormProps): JSX.Element {
             })
           : await updatePageAction({ id: props.id, title, contentMd: content, tags });
     } catch {
-      setFormError('Speichern ist fehlgeschlagen. Prüfe die Verbindung und versuche es erneut.');
+      setFormError('Saving failed. Check your connection and try again.');
       return;
     }
 
@@ -83,15 +83,15 @@ export function PageForm(props: PageFormProps): JSX.Element {
 
   return (
     <FormPattern
-      title={props.mode === 'create' ? 'Neue Seite' : 'Seite bearbeiten'}
+      title={props.mode === 'create' ? 'New page' : 'Edit page'}
       {...(props.mode === 'create' && props.parent !== null
-        ? { description: `Unterseite von „${props.parent.title}“` }
+        ? { description: `Subpage of “${props.parent.title}”` }
         : {})}
       fields={[
         {
           kind: 'text',
           name: 'title',
-          label: 'Titel',
+          label: 'Title',
           required: true,
           validate: (value) => firstIssue(Title.safeParse(value)),
         },
@@ -99,7 +99,7 @@ export function PageForm(props: PageFormProps): JSX.Element {
           kind: 'text',
           name: 'tags',
           label: 'Tags',
-          hint: 'Durch Komma getrennt, z. B. personal, urlaub',
+          hint: 'Comma-separated, e.g. people, leave',
           validate: (value) => firstIssue(Tags.safeParse(splitTags(String(value)))),
         },
       ]}
@@ -108,14 +108,14 @@ export function PageForm(props: PageFormProps): JSX.Element {
           ? { title: props.initial.title, tags: props.initial.tags.join(', ') }
           : { title: '', tags: '' }
       }
-      submitLabel={props.mode === 'create' ? 'Seite anlegen' : 'Speichern'}
+      submitLabel={props.mode === 'create' ? 'Create page' : 'Save'}
       onCancel={() => router.push(cancelTarget)}
       onSubmit={submit}
       {...(formError === undefined ? {} : { formError })}
     >
       <Textarea
-        label="Inhalt (Markdown)"
-        hint="# Überschrift, - Liste, **fett**, *kursiv*, `Code`, [Link](https://…)"
+        label="Content (Markdown)"
+        hint="# Heading, - list, **bold**, *italic*, `code`, [link](https://…)"
         value={content}
         onChange={(event) => setContent(event.target.value)}
         rows={18}

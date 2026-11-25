@@ -101,7 +101,7 @@ export function createToolRoute(
     try {
       args = await readJsonBody(request, maxBodyBytes);
     } catch (error) {
-      const message = error instanceof ToolInputError ? error.message : 'Body ist kein JSON';
+      const message = error instanceof ToolInputError ? error.message : 'body is not JSON';
       return Response.json({ error: 'invalid', message }, { status: 400 });
     }
 
@@ -135,17 +135,17 @@ export function createToolRoute(
 async function readJsonBody(request: Request, maxBytes: number): Promise<unknown> {
   const declared = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(declared) && declared > maxBytes) {
-    throw new ToolInputError(`Body groesser als ${maxBytes} Bytes`);
+    throw new ToolInputError(`body larger than ${maxBytes} bytes`);
   }
   const text = await request.text();
   if (Buffer.byteLength(text, 'utf8') > maxBytes) {
-    throw new ToolInputError(`Body groesser als ${maxBytes} Bytes`);
+    throw new ToolInputError(`body larger than ${maxBytes} bytes`);
   }
   if (text.trim() === '') return {};
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    throw new ToolInputError('Body ist kein JSON');
+    throw new ToolInputError('body is not JSON');
   }
 }
 
@@ -164,7 +164,7 @@ export function parseArgs<T>(
 ): T {
   const result = schema.safeParse(args);
   if (!result.success) {
-    throw new ToolInputError('Argumente passen nicht zum Tool', result.error.issues);
+    throw new ToolInputError('arguments do not match the tool', result.error.issues);
   }
   return result.data;
 }

@@ -69,7 +69,7 @@ describe('Review-Gate: deterministische Scanner', () => {
 
     expect(result.decision).toBe('blocked');
     expect(result.blockingFindings.map((f) => f.code)).toContain('gitleaks.generic-api-key');
-    expect(result.summary).toContain('blockiert');
+    expect(result.summary).toMatch(/^blocked: /);
   });
 
   it('gibt frei, wenn beide Scanner sauber sind', async () => {
@@ -161,7 +161,7 @@ describe('Review-Gate: der Claude-Report kann nicht freigeben', () => {
     const result = await pipeline.run(reviewInput);
 
     expect(result.decision).toBe('blocked');
-    expect(result.summary).toContain('kein deterministischer Schritt');
+    expect(result.summary).toContain('no deterministic step');
   });
 
   it('gibt nicht frei, wenn die Scanner scheitern und der Report begeistert ist', async () => {

@@ -51,7 +51,7 @@ async function requireAuthorityOver(
       return;
     }
     const app = (await ctx.apps.findById(resource.id)) ?? (await ctx.apps.findByName(resource.id));
-    if (app === null) throw new NotFoundError(`App "${resource.id}" gibt es nicht`);
+    if (app === null) throw new NotFoundError(`App "${resource.id}" does not exist`);
     await requireAppPermission(ctx, actor, verb, app);
     return;
   }
@@ -60,7 +60,7 @@ async function requireAuthorityOver(
     allowDotInObject: resource.kind === 'tool',
   });
   const owner = await ctx.apps.findByName(appName);
-  if (owner === null) throw new NotFoundError(`App "${appName}" gibt es nicht`);
+  if (owner === null) throw new NotFoundError(`App "${appName}" does not exist`);
   await requireAppPermission(ctx, actor, verb, owner);
 }
 
@@ -94,7 +94,7 @@ export async function grant(ctx: DomainContext, input: GrantInput): Promise<Gran
         resource: input.resource,
       });
       if (existing !== null) {
-        throw new ConflictError('diese Freigabe gibt es schon');
+        throw new ConflictError('this grant already exists');
       }
 
       const created = await ctx.grants.insert({
@@ -125,7 +125,7 @@ export interface RevokeInput {
 export async function revoke(ctx: DomainContext, input: RevokeInput): Promise<Grant> {
   const target = await ctx.grants.findActiveById(input.grantId);
   if (target === null) {
-    throw new NotFoundError(`offene Freigabe "${input.grantId}" gibt es nicht`);
+    throw new NotFoundError(`active grant "${input.grantId}" does not exist`);
   }
 
   return audited(
@@ -220,12 +220,12 @@ async function syncDatabaseGrant(
 
   const grantee = await ctx.apps.findByName(entry.subject.id);
   if (grantee === null) {
-    throw new NotFoundError(`App "${entry.subject.id}" gibt es nicht`);
+    throw new NotFoundError(`App "${entry.subject.id}" does not exist`);
   }
   const { appName, objectName } = parseObjectResourceId(entry.resource.id);
   const owner = await ctx.apps.findByName(appName);
   if (owner === null) {
-    throw new NotFoundError(`App "${appName}" gibt es nicht`);
+    throw new NotFoundError(`App "${appName}" does not exist`);
   }
 
   const payload = { grantee: grantee.dbRole, schemaName: owner.schemaName, objectName };

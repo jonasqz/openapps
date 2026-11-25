@@ -105,7 +105,7 @@ export function createAppRepository(db: Queryable): AppRepository {
           input.primaryDomain ?? null,
         ],
       );
-      return toApp(must(rows, 'App konnte nicht angelegt werden'));
+      return toApp(must(rows, 'app could not be created'));
     },
     async findById(id) {
       // Eine Nicht-UUID ist kein Fehler, sondern ein Name — und wird hier
@@ -199,7 +199,7 @@ export function createDeploymentRepository(db: Queryable): DeploymentRepository 
          RETURNING ${DEPLOYMENT_COLUMNS}`,
         [input.appId, input.version, input.gitSha, input.requestedBy],
       );
-      return toDeployment(must(rows, 'Deployment konnte nicht angelegt werden'));
+      return toDeployment(must(rows, 'deployment could not be created'));
     },
     async findById(id) {
       if (!UUID.test(id)) return null;
@@ -239,7 +239,7 @@ export function createDeploymentRepository(db: Queryable): DeploymentRepository 
         ],
       );
       const row = rows[0];
-      if (row === undefined) throw new NotFoundError(`Deployment "${id}" gibt es nicht`);
+      if (row === undefined) throw new NotFoundError(`deployment "${id}" does not exist`);
       return toDeployment(row);
     },
   };
@@ -293,7 +293,7 @@ export function createGrantRepository(db: Queryable): GrantRepository {
           input.grantedBy,
         ],
       );
-      return toGrant(must(rows, 'Freigabe konnte nicht angelegt werden'));
+      return toGrant(must(rows, 'grant could not be created'));
     },
 
     /**
@@ -347,7 +347,7 @@ export function createGrantRepository(db: Queryable): GrantRepository {
         [id, revokedAt, revokedBy],
       );
       const row = rows[0];
-      if (row === undefined) throw new NotFoundError(`offene Freigabe "${id}" gibt es nicht`);
+      if (row === undefined) throw new NotFoundError(`active grant "${id}" does not exist`);
       return toGrant(row);
     },
 
@@ -493,7 +493,7 @@ export function createAgentIdentityRepository(db: Queryable): AgentIdentityRepos
           input.ownerUserId,
         ],
       );
-      return toAgent(must(rows, 'Agent-Identitaet konnte nicht angelegt werden'));
+      return toAgent(must(rows, 'agent identity could not be created'));
     },
     async findByName(name) {
       const { rows } = await db.query<AgentRow>(
@@ -532,7 +532,7 @@ export function createAgentIdentityRepository(db: Queryable): AgentIdentityRepos
           RETURNING ${AGENT_COLUMNS}`,
         [name, at],
       );
-      return toAgent(must(rows, `Agent "${name}" gibt es nicht`));
+      return toAgent(must(rows, `agent "${name}" does not exist`));
     },
     async list() {
       const { rows } = await db.query<AgentRow>(

@@ -1,189 +1,184 @@
-# Infrastruktur
+# Infrastructure
 
-Was hier liegt, betreibt die Plattform — es ist kein Teil des Produkts.
+What lives here runs the platform — it is not part of the product.
 
-Stand nach [ADR 0007](../docs/decisions/0007-eine-domain-pfade-statt-subdomains.md)
-(eine Domain, ein Pfad je App) und
-[ADR 0008](../docs/decisions/0008-eigene-dynamische-konfiguration.md) (die
-Control Plane schreibt ihre Traefik-Router selbst). Eine eigene **statische**
-Traefik-Konfiguration gibt es nicht mehr; sie gehoert Coolify, und wir fassen
-sie nicht an.
+State after [ADR 0007](../docs/decisions/0007-eine-domain-pfade-statt-subdomains.md)
+(German; one domain, one path per app) and
+[ADR 0008](../docs/decisions/0008-eigene-dynamische-konfiguration.md) (German;
+the control plane writes its Traefik routers itself). There is no own **static**
+Traefik configuration any more; it belongs to Coolify, and we do not touch it.
 
-| Pfad                                    | Was                                                                                                                      |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `scripts/check-auth.sh`                 | Nachweis fuer DoD 2: kein App-Pfad ohne Session erreichbar, vor und nach jedem Coolify-Update                            |
-| `scripts/traefik-guard.py`              | Die Auswertung der Traefik-API fuer `check-auth.sh`: Router, Middlewares, `forwardedHeaders`                             |
-| `app-urls.txt.example`                  | Vorlage fuer die Adressliste, die das Skript prueft (eine Domain, ein Pfad je App — ADR 0007)                            |
-| `traefik/dynamic/openapps.example.yaml` | **Beispiel**, nicht zum Ausrollen: was der Generator ausgibt. Auf dem Host schreibt die Control Plane diese Datei selbst |
-| `traefik/deny-backend/`                 | nginx, das auf jede Anfrage 403 antwortet. Das Einzige hier, was auf einen Host gehoert                                  |
-| `traefik/docker-compose.yml`            | Lokaler Stapel fuer den Nachweis: Traefik in Coolifys statischer Form, Deny-Backend, Auth-Stub, drei Dummy-Apps          |
-| `traefik/local/`                        | Nur fuer den lokalen Lauf: Generator-Aufruf, Stub, Dummy-App, Wegwerf-Zertifikat, `nachweis.sh`                          |
-| `traefik/.env.example`                  | Nur Ports fuer den lokalen Stapel. Keine Secrets                                                                         |
-| `betrieb/`                              | Der Stapel fuer den Server: Control Plane, Deny-Backend, Postgres als eine Coolify-Ressource, plus Anleitung             |
+| Path                                    | What                                                                                                                 |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `scripts/check-auth.sh`                 | Evidence for DoD 2: no app path reachable without a session, before and after every Coolify update                   |
+| `scripts/traefik-guard.py`              | The evaluation of the Traefik API for `check-auth.sh`: routers, middlewares, `forwardedHeaders`                      |
+| `app-urls.txt.example`                  | Template for the address list that the script checks (one domain, one path per app — ADR 0007)                       |
+| `traefik/dynamic/openapps.example.yaml` | **Example**, not to be rolled out: what the generator outputs. On the host the control plane writes this file itself |
+| `traefik/deny-backend/`                 | nginx that answers every request with 403. The only thing here that belongs on a host                                |
+| `traefik/docker-compose.yml`            | Local stack for the evidence: Traefik in Coolify's static form, deny backend, auth stub, three dummy apps            |
+| `traefik/local/`                        | Only for the local run: generator call, stub, dummy app, throwaway certificate, `nachweis.sh`                        |
+| `traefik/.env.example`                  | Only ports for the local stack. No secrets                                                                           |
+| `betrieb/`                              | The stack for the server: control plane, deny backend, Postgres as one Coolify resource, plus instructions           |
 
-## Die groesste Annahme
+## The biggest assumption
 
-Der Schutz vor den Apps haengt an einer Datei im dynamischen Verzeichnis von
-Coolifys Proxy. Dass Coolify sie ueber ein Update nicht anfasst, ist fuer
-**v4.7.1** belegt (ADR 0008) und fuer jede spaetere Fassung wieder offen.
-Deshalb:
+The protection in front of the apps hangs on one file in the dynamic directory
+of Coolify's proxy. That Coolify does not touch it during an update is proven
+for **v4.7.1** (ADR 0008) and open again for every later version. Therefore:
 
 ```bash
-infra/scripts/check-auth.sh infra/app-urls.txt   # vor dem Update
-# Coolify aktualisieren
-infra/scripts/check-auth.sh infra/app-urls.txt   # danach, gleiche Liste
+infra/scripts/check-auth.sh infra/app-urls.txt   # before the update
+# update Coolify
+infra/scripts/check-auth.sh infra/app-urls.txt   # afterwards, same list
 ```
 
-Ein Lauf ohne Fehlschlag ist der Nachweis. Ein Dienst, der nicht antwortet,
-zaehlt als Fehlschlag — nicht als geschuetzt.
+A run without a failure is the evidence. A service that does not answer counts
+as a failure — not as protected.
 
-## Das Gateway: wo der Schutz haengt
+## The gateway: where the protection hangs
 
-**Eine Stelle, plus der Pfad, auf dem sie landet.**
+**One place, plus the path on which it lands.**
 
-1. `apps/control-plane/src/domain/gateway-config.ts` — der Generator. Jeder
-   Router, den er ausgibt, traegt die zwei Middlewares
-   (`openapps-strip-auth-headers`, dann `openapps-forward-auth`), und das
-   haengt am **Typ**: `GuardedRouter` ist ausserhalb der Datei nicht
-   konstruierbar, und die einzige Fabrik nimmt die Middlewares nicht als
-   Parameter. Ein Router ohne Forward-Auth kann hier nicht entstehen.
-   Die Reihenfolge ist Teil der Sicherheit: erst alle `X-Auth-*` der
-   eingehenden Anfrage loeschen, dann pruefen und setzen. Vertauscht ist das
-   Modell aus ADR 0004 wertlos.
-2. Der gemountete Pfad: `/data/coolify/proxy/dynamic/openapps.yaml` auf dem
-   Host, im Container der Control Plane `/traefik/dynamic`
-   (`GATEWAY_DYNAMIC_DIR`). Geschrieben wird atomar — Temporaerdatei im selben
-   Verzeichnis, dann `rename` —, damit Traefiks File-Provider mit `watch` nie
-   eine halbe Datei sieht. `openapps.yaml` ist keiner der vier Dateinamen, die
-   Coolify dort selbst schreibt; die Liste steht als
-   `RESERVED_DYNAMIC_FILENAMES` im Code und verhindert den Start, wenn jemand
-   einen davon konfiguriert.
+1. `apps/control-plane/src/domain/gateway-config.ts` — the generator. Every
+   router it outputs carries the two middlewares
+   (`openapps-strip-auth-headers`, then `openapps-forward-auth`), and that hangs
+   on the **type**: `GuardedRouter` cannot be constructed outside the file, and
+   the only factory does not take the middlewares as a parameter. A router
+   without forward auth cannot come into being here.
+   The order is part of the security: first delete all `X-Auth-*` of the
+   incoming request, then check and set. Swapped, the model from ADR 0004 is
+   worthless.
+2. The mounted path: `/data/coolify/proxy/dynamic/openapps.yaml` on the host,
+   `/traefik/dynamic` in the control plane container (`GATEWAY_DYNAMIC_DIR`).
+   It is written atomically — temporary file in the same directory, then
+   `rename` — so that Traefik's file provider with `watch` never sees a half
+   file. `openapps.yaml` is none of the four file names that Coolify writes
+   there itself; the list is in the code as `RESERVED_DYNAMIC_FILENAMES` and
+   prevents startup if someone configures one of them.
 
-Drei Messungen stehen daneben. Sie **setzen** nichts, sie sagen, was ist:
+Three measurements stand next to it. They **set** nothing, they say what is:
 
-- `verify` nach jedem Deploy vergleicht die Datei auf dem Host Zeichen fuer
-  Zeichen mit dem, was der Generator jetzt schreiben wuerde (`mismatch` nennt
-  die abweichende Zeile).
-- Der Startup-Check (`apps/control-plane/src/infra/gateway-guard.ts`) fragt die
-  Traefik-API: gibt es unsere zwei Middlewares, traegt **jeder** Router mit dem
-  Praefix `openapps-` die Kette in dieser Reihenfolge, ist er `enabled`, ist
-  der Catch-all da, und ist `forwardedHeaders` am Entrypoint leer. Befund =
-  Alarm, sichtbar in `/healthz`.
-- Der Review-Gate-Schritt `gateway-config` prueft vor dem Deploy, dass sich
-  fuer diese App ueberhaupt eine tragende Konfiguration erzeugen laesst.
+- `verify` after every deploy compares the file on the host character by
+  character with what the generator would write now (`mismatch` names the
+  differing line).
+- The startup check (`apps/control-plane/src/infra/gateway-guard.ts`) asks the
+  Traefik API: do our two middlewares exist, does **every** router with the
+  prefix `openapps-` carry the chain in this order, is it `enabled`, is the
+  catch-all there, and is `forwardedHeaders` empty on the entrypoint. A finding
+  = alarm, visible in `/healthz`.
+- The review gate step `gateway-config` checks before the deploy that a
+  supporting configuration can be generated for this app at all.
 
-Was es dafuer **nicht** mehr gibt: keine Entrypoint-Middleware, kein
-`traefik.yml` von uns, keine Traefik-Labels an den Apps. Apps werden ohne
-Domain deployt; Coolify erzeugt dann keine einzige Traefik-Label, und
-erreichbar wird eine App allein ueber ihren Router in `openapps.yaml`.
+What there is **no longer** for it: no entrypoint middleware, no `traefik.yml`
+of ours, no Traefik labels on the apps. Apps are deployed without a domain;
+Coolify then generates not a single Traefik label, and an app becomes reachable
+solely via its router in `openapps.yaml`.
 
-### Das verlorene 2-s-Timeout
+### The lost 2 s timeout
 
-Traefiks `forwardAuth` hat keine Timeout-Option; ihr HTTP-Client hat 30 s fest
-eingebaut. Die alte Fassung kam an ein 2-s-Timeout, indem die Auth-Anfrage
-ueber einen internen Entrypoint lief — und Entrypoints stehen in der statischen
-Konfiguration, die jetzt Coolify gehoert. Gemessen: Eine Control Plane mit
-3,5 s Antwortzeit kommt mit **200** durch.
+Traefik's `forwardAuth` has no timeout option; its HTTP client has 30 s built
+in. The old version reached a 2 s timeout by sending the auth request through an
+internal entrypoint — and entrypoints live in the static configuration, which
+now belongs to Coolify. Measured: a control plane with a 3.5 s response time
+gets through with **200**.
 
-Das ist hingenommen, nicht behoben. Die Alternative waere,
-`/api/authz/forward` auf einen Router ohne Middlewares zu legen — ein Loch in
-genau der Schicht, die ADR 0008 zumauert. Folge: Die Luecke laesst nichts
-Unfreigegebenes durch, verlaengert aber das Fenster, in dem eine haengende
-Control Plane das Gateway blockiert, von 2 s auf 30 s. Im Code steht sie als
-`GATEWAY_TIMEOUT_NOTE`, im Protokoll als Fall 8.
+This is accepted, not fixed. The alternative would be to put
+`/api/authz/forward` on a router without middlewares — a hole in exactly the
+layer that ADR 0008 closes. Consequence: the gap lets nothing unapproved
+through, but extends the window in which a hanging control plane blocks the
+gateway from 2 s to 30 s. In the code it is `GATEWAY_TIMEOUT_NOTE`, in the
+protocol case 8.
 
-## Lokalen Nachweis fahren
+## Running the local evidence
 
 ```bash
 cd infra/traefik
-./local/make-certs.sh                 # Wegwerf-Zertifikat fuer *.local.test
-./local/konfiguration-erzeugen.sh     # openapps.yaml mit dem echten Generator
+./local/make-certs.sh                 # throwaway certificate for *.local.test
+./local/konfiguration-erzeugen.sh     # openapps.yaml with the real generator
 docker compose up -d
-./local/nachweis.sh                   # neun Faelle, Exit-Code 1 bei Fehlschlag
+./local/nachweis.sh                   # nine cases, exit code 1 on failure
 docker compose down
 ```
 
-Der Stapel braucht keine Control Plane: `local/control-plane-stub.py` antwortet
-je nach Pfad 200, 302, 403 oder absichtlich zu langsam. Die Dummy-Apps geben
-zurueck, welche `X-Auth-*`-Header bei ihnen angekommen sind — daran haengt der
-Beweis fuer die Faelle 1 und 4.
+The stack needs no control plane: `local/control-plane-stub.py` answers 200,
+302, 403 or deliberately too slowly, depending on the path. The dummy apps
+return which `X-Auth-*` headers arrived at them — the proof for cases 1 and 4
+hangs on that.
 
-Geprueft wird die **erzeugte** Konfiguration, nicht eine Nachbildung:
-`local/konfiguration-erzeugen.sh` ruft `buildGatewayConfig()` und
-`renderGatewayConfig()` aus der Control Plane. Traefik laeuft mit
-Kommandozeilen-Argumenten, die Coolifys Defaults nachbilden (Entrypoints `http`
-und `https`, File-Provider mit `watch`, kein Docker-Provider, kein
-Docker-Socket). Lokal kommt nur ein selbst signiertes Standard-Zertifikat
-hinzu, weil Let's Encrypt fuer `.local.test` nichts ausstellt.
+What is checked is the **generated** configuration, not a replica:
+`local/konfiguration-erzeugen.sh` calls `buildGatewayConfig()` and
+`renderGatewayConfig()` from the control plane. Traefik runs with command-line
+arguments that replicate Coolify's defaults (entrypoints `http` and `https`,
+file provider with `watch`, no Docker provider, no Docker socket). Locally only
+a self-signed default certificate is added, because Let's Encrypt issues
+nothing for `.local.test`.
 
-`local/nachweis.sh` prueft die Kette, `scripts/check-auth.sh` prueft eine Liste
-echter Adressen. Das eine ersetzt das andere nicht.
+`local/nachweis.sh` checks the chain, `scripts/check-auth.sh` checks a list of
+real addresses. One does not replace the other.
 
-Der Lauf, der dabei herauskommt, liegt als
-`docs/nachweise/dod-02-laeufe/2026-11-09-lokal-eigene-konfiguration.txt`.
-Fall 8 ist darin ein **Fehlschlag** — das verlorene Timeout, siehe oben.
+The run that results is stored as
+`docs/nachweise/dod-02-laeufe/2026-11-09-lokal-eigene-konfiguration.txt`
+(German). Case 8 is a **failure** in it — the lost timeout, see above.
 
-## Nach einem Coolify-Update
+## After a Coolify update
 
 ```bash
-infra/scripts/check-auth.sh infra/app-urls.txt    # erst messen, nicht reparieren
+infra/scripts/check-auth.sh infra/app-urls.txt    # measure first, do not repair
 ```
 
-Schlaegt der Lauf an oder antwortet ein App-Pfad mit 200, dann in dieser
-Reihenfolge:
+If the run fails or an app path answers with 200, then in this order:
 
-1. Nachsehen, ob die Datei noch da ist:
+1. Check whether the file is still there:
    `ls -l /data/coolify/proxy/dynamic/openapps.yaml`.
-2. `curl http://<traefik>:8080/api/http/routers` und pruefen, ob jeder Router
-   mit dem Praefix `openapps-` noch
-   `["openapps-strip-auth-headers@file","openapps-forward-auth@file"]` traegt,
-   in dieser Reihenfolge, und `status: enabled` hat. Denselben Endpunkt fragt
-   der Startup-Check der Control Plane ab; sein Ergebnis steht in `/healthz`.
-3. Fehlt oder weicht etwas ab: die Control Plane einen Deploy ausloesen lassen
-   (jeder Deploy schreibt die Datei vollstaendig neu) oder sie neu starten. Von
-   Hand editieren ist der Weg, der den Lint ausloest, nicht der, der ihn
-   beruhigt.
-4. `check-auth.sh` erneut. Erst ein Lauf ohne Fehlschlag ist die Freigabe.
+2. `curl http://<traefik>:8080/api/http/routers` and check whether every router
+   with the prefix `openapps-` still carries
+   `["openapps-strip-auth-headers@file","openapps-forward-auth@file"]`, in this
+   order, and has `status: enabled`. The startup check of the control plane asks
+   the same endpoint; its result is in `/healthz`.
+3. If something is missing or deviates: let the control plane trigger a deploy
+   (every deploy rewrites the file completely) or restart it. Editing by hand is
+   the path that triggers the lint, not the one that calms it.
+4. `check-auth.sh` again. Only a run without a failure is the release.
 
-Fehlt die Datei ganz, ist das gemessen **kein** Loch: Ohne sie existiert kein
-Router mit unserem Praefix, kein App-Pfad ist erreichbar, und der Startup-Check
-meldet „kein einziger Router mit dem Praefix `openapps-`“. Laut im Log,
-geschlossen nach aussen.
+If the file is missing entirely, that is measured **not** a hole: without it no
+router with our prefix exists, no app path is reachable, and the startup check
+reports "no router with the prefix `openapps-`". Loud in the log, closed to the
+outside.
 
-Das Update selbst ist kein Grund, eine Reparatur vorzuziehen: Der Lauf soll
-zeigen, was das Update von sich aus tut (Spec 4.3).
+The update itself is no reason to bring a repair forward: the run is meant to
+show what the update does on its own (spec 4.3).
 
-Schritt 2 von Hand braucht es nur, wenn man zusehen will: Der zweite Teil von
-`check-auth.sh` prueft genau das, ueber `scripts/traefik-guard.py`. Er geht
-ueber **jeden** Router mit dem Praefix `openapps-`, den die API nennt, nicht
-ueber eine Liste erwarteter Namen — und zusaetzlich ueber `forwardedHeaders` am
-Entrypoint, der jetzt Coolify gehoert. Dieselben Pruefungen macht der
-Startup-Check der Control Plane; `tests/traefik-guard-skript.spec.ts` haelt
-beide Fassungen auf demselben Urteil.
+Step 2 by hand is only needed if you want to watch: the second part of
+`check-auth.sh` checks exactly this, via `scripts/traefik-guard.py`. It goes
+over **every** router with the prefix `openapps-` that the API names, not over a
+list of expected names — and additionally over `forwardedHeaders` on the
+entrypoint, which now belongs to Coolify. The startup check of the control plane
+makes the same checks; `tests/traefik-guard-skript.spec.ts` keeps both versions
+on the same verdict.
 
-## Was auf dem Host noch gebraucht wird
+## What is still needed on the host
 
-Der fertige Stapel dafuer steht in [`betrieb/`](betrieb/README.md): Dienst-
-definition fuer Coolify, Dockerfiles und die Schritte fuer den ersten Start.
+The finished stack for it is in [`betrieb/`](betrieb/README.md): service
+definition for Coolify, Dockerfiles and the steps for the first start.
 
-- Die Control Plane laeuft auf **demselben** Server wie Coolifys Proxy, und
-  `/data/coolify/proxy/dynamic` ist in ihre Dienstdefinition gemountet (im
-  Container `/traefik/dynamic`). Fehlt der Mount, scheitert der erste Deploy
-  mit einem Fehler, der das Verzeichnis nennt — nicht still. Mehrere Server
-  deckt dieser Weg nicht ab (ADR 0008).
-- Das Deny-Backend aus `traefik/deny-backend/` laeuft im Netz des Proxys unter
-  dem Alias, den `GATEWAY_DENY_BACKEND_URL` nennt (Default
-  `http://openapps-deny-backend:8080`). Ohne es landet ein unbekannter Pfad in
-  Traefiks 404 statt in einem klaren Nein.
-- Ein Docker-Netz, in dem Proxy, Control Plane und Apps zusammen liegen
-  (`GATEWAY_DOCKER_NETWORK`, Default `coolify`). Die Dienste zeigen auf
-  **Netz-Aliase**, nicht auf Containernamen: Letztere tragen ein
-  Zeitstempel-Suffix und aendern sich bei jedem Deploy.
-- Env der Control Plane, die in die Konfiguration eingeht: `APPS_DOMAIN`,
+- The control plane runs on the **same** server as Coolify's proxy, and
+  `/data/coolify/proxy/dynamic` is mounted into its service definition (in the
+  container `/traefik/dynamic`). If the mount is missing, the first deploy fails
+  with an error that names the directory — not silently. This path does not
+  cover several servers (ADR 0008).
+- The deny backend from `traefik/deny-backend/` runs in the proxy's network
+  under the alias that `GATEWAY_DENY_BACKEND_URL` names (default
+  `http://openapps-deny-backend:8080`). Without it an unknown path lands in
+  Traefik's 404 instead of a clear no.
+- A Docker network in which proxy, control plane and apps live together
+  (`GATEWAY_DOCKER_NETWORK`, default `coolify`). The services point to **network
+  aliases**, not to container names: the latter carry a timestamp suffix and
+  change on every deploy.
+- Env of the control plane that goes into the configuration: `APPS_DOMAIN`,
   `CONTROL_PLANE_HOST`, `CONTROL_PLANE_SERVICE_URL`, `FORWARD_AUTH_ADDRESS`,
-  `GATEWAY_ENTRYPOINT` (Default `https`, Coolifys Name), `GATEWAY_CERT_RESOLVER`
-  (Default `letsencrypt`, aus Coolifys statischer Datei), `TRAEFIK_API_URL`.
-- Die Traefik-API (Port 8080) darf nicht ins Internet. Coolifys Proxy
-  veroeffentlicht den Port, das Dashboard laeuft mit `api.insecure=false` —
-  eine Firewall-Frage. Liegt die Control Plane im Proxy-Netz, erreicht sie die
-  API ohne Mapping.
+  `GATEWAY_ENTRYPOINT` (default `https`, Coolify's name), `GATEWAY_CERT_RESOLVER`
+  (default `letsencrypt`, from Coolify's static file), `TRAEFIK_API_URL`.
+- The Traefik API (port 8080) must not go onto the internet. Coolify's proxy
+  publishes the port, the dashboard runs with `api.insecure=false` — a firewall
+  question. If the control plane is in the proxy network, it reaches the API
+  without a mapping.

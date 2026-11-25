@@ -60,26 +60,26 @@ export function PageList({
       title="Wiki"
       description={
         truncated
-          ? 'Es gibt mehr Seiten, als hier Platz haben. Suche oder filtere nach Tag, um den Rest zu finden.'
-          : 'Wissensseiten für Menschen und Agents. Jede Änderung steht im Verlauf.'
+          ? 'There are more pages than fit here. Search or filter by tag to find the rest.'
+          : 'Knowledge pages for humans and agents. Every change is in the history.'
       }
       actions={
         <LinkButton href="/new" variant="primary">
-          Neue Seite
+          New page
         </LinkButton>
       }
       search={{
-        label: 'Suche',
+        label: 'Search',
         value: search,
         onChange: setSearch,
-        placeholder: 'Volltext, z. B. Urlaub beantragen',
+        placeholder: 'Full text, e.g. request leave',
       }}
       filters={[
         {
           id: 'tag',
           label: 'Tag',
           value: tag,
-          placeholder: 'Alle Tags',
+          placeholder: 'All tags',
           options: tagOptions.map((option) => ({ value: option, label: option })),
           onChange: (value) => router.replace(urlFor(pathname, q, value)),
         },
@@ -93,7 +93,7 @@ export function PageList({
       columns={[
         {
           key: 'title',
-          header: 'Titel',
+          header: 'Title',
           cell: (row) => (
             <div className={cn('min-w-0', INDENT[Math.min(row.depth, INDENT.length - 1)])}>
               {row.depth > 0 ? (
@@ -125,33 +125,33 @@ export function PageList({
               </span>
             ),
         },
-        { field: 'updatedAt', header: 'Geändert', hideBelow: 'md' },
+        { field: 'updatedAt', header: 'Updated', hideBelow: 'md' },
       ]}
       rows={rows}
       {...(failed
         ? {
             error: {
-              title: mode === 'search' ? 'Suche fehlgeschlagen' : 'Seiten konnten nicht geladen werden',
-              description: 'Die Datenbank hat nicht geantwortet. Versuche es gleich noch einmal.',
+              title: mode === 'search' ? 'Search failed' : 'Pages could not be loaded',
+              description: 'The database did not respond. Please try again in a moment.',
               retry: () => router.refresh(),
             },
           }
         : {})}
       empty={{
-        title: 'Noch keine Seiten',
-        description: 'Lege die erste Seite an. Agents können das auch mit dem Tool pages.create.',
+        title: 'No pages yet',
+        description: 'Create the first page. Agents can do the same with the pages.create tool.',
         action: (
           <LinkButton href="/new" variant="primary" size="sm">
-            Neue Seite
+            New page
           </LinkButton>
         ),
       }}
       emptyFiltered={{
-        title: mode === 'search' ? 'Keine Treffer' : 'Keine Seiten mit diesem Tag',
+        title: mode === 'search' ? 'No matches' : 'No pages with this tag',
         description:
           mode === 'search'
-            ? 'Versuche andere Wörter oder weniger davon. Gesucht wird in Titel und Inhalt.'
-            : 'Wähle einen anderen Tag oder setze den Filter zurück.',
+            ? 'Try different words or fewer of them. Search covers title and content.'
+            : 'Choose a different tag or reset the filter.',
       }}
     />
   );

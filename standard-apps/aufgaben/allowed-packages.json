@@ -1,4 +1,0 @@
-{
-  "_kommentar": "Nicht-UI-Pakete, die die Plattform freigegeben hat. UI-Bibliotheken gehoeren hier NICHT hinein: dafuer ist @openapps/ui da. Diese Liste pflegt die Control Plane; eine App traegt nichts selbst ein.",
-  "allow": ["zod"]
-}

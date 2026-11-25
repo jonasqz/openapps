@@ -43,8 +43,8 @@ function agentResource(name: string): ResourceRef {
 function assertAgentName(name: string): string {
   if (!AGENT_NAME.test(name)) {
     throw new ValidationError(
-      `"${name}" taugt nicht als Agent-Name: klein geschrieben, 2 bis 63 Zeichen, ` +
-        'Buchstaben, Ziffern und Bindestriche, mit einem Buchstaben vorn',
+      `"${name}" is not a valid agent name: lower case, 2 to 63 characters, ` +
+        'letters, digits and hyphens, starting with a letter',
     );
   }
   return name;
@@ -101,7 +101,7 @@ export async function createAgentIdentity(
       await requirePermission(ctx, input.actor, 'write', agentResource(ANY));
       if ((await ctx.agents.findByName(name)) !== null) {
         // Auch eine gesperrte Identitaet haelt ihren Namen (Dateikopf, Punkt 3).
-        throw new ConflictError(`Agent "${name}" gibt es schon`);
+        throw new ConflictError(`agent "${name}" already exists`);
       }
 
       const clientId = `oac_${randomBytes(12).toString('hex')}`;
@@ -172,7 +172,7 @@ export async function disableAgentIdentity(
     },
     async () => {
       const existing = await ctx.agents.findByName(assertAgentName(input.name));
-      if (existing === null) throw new NotFoundError(`Agent "${input.name}" gibt es nicht`);
+      if (existing === null) throw new NotFoundError(`agent "${input.name}" does not exist`);
       await requirePermission(ctx, input.actor, 'write', agentResource(existing.name));
 
       const disabled = existing.disabledAt === null;

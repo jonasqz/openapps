@@ -1,7 +1,7 @@
 /**
  * Alle festen Texte des Design Systems an einer Stelle.
  *
- * v1 ist einsprachig deutsch — es gibt kein i18n. Aber kein fester Text steht
+ * Die Texte sind einsprachig englisch (ADR 0016) — es gibt kein i18n. Aber kein fester Text steht
  * mehr in einer Komponente: Mehrsprachigkeit ist damit später der Austausch
  * dieses einen Moduls statt eines Umbaus jeder Komponente.
  *
@@ -9,7 +9,7 @@
  *
  * ```ts
  * import { overrideStrings } from '@openapps/ui';
- * overrideStrings({ form: { submit: 'Antrag einreichen' } });
+ * overrideStrings({ form: { submit: 'Submit request' } });
  * ```
  *
  * Komponenten lesen die Texte beim Rendern (nicht beim Importieren), deshalb
@@ -17,7 +17,7 @@
  * schon eine Text-Prop hat (`loadingLabel`, `emptyLabel`, …), gewinnt die Prop.
  *
  * `src/strings.test.ts` prüft, dass keine Komponenten-, Muster- oder
- * Shell-Datei einen sichtbaren deutschen Text mehr selbst enthält.
+ * Shell-Datei einen sichtbaren Text selbst enthält.
  */
 
 export interface UiStrings {
@@ -37,7 +37,7 @@ export interface UiStrings {
   };
   readonly table: {
     readonly emptyTitle: string;
-    /** „<Tabellenname> lädt …" */
+    /** „Loading <caption>…" */
     readonly loadingLabel: (caption: string) => string;
     /** Platzhalter für ein leeres Feld in einer Zelle. */
     readonly emptyValue: string;
@@ -55,7 +55,7 @@ export interface UiStrings {
     readonly previous: string;
     readonly next: string;
     readonly empty: string;
-    /** „1–20 von 1234 · Seite 1 von 62" */
+    /** „1–20 of 1234 · Page 1 of 62" */
     readonly range: (from: number, to: number, total: number, page: number, pages: number) => string;
   };
   readonly tabs: {
@@ -85,7 +85,7 @@ export interface UiStrings {
     readonly confirmRequired: string;
     readonly invalidEmail: string;
     readonly invalidNumber: string;
-    /** „3 Felder prüfen" */
+    /** „Check 3 fields" */
     readonly summary: (count: number) => string;
   };
   readonly detail: {
@@ -96,7 +96,7 @@ export interface UiStrings {
     readonly skipToContent: string;
     readonly openNavigation: string;
     readonly closeNavigation: string;
-    /** „Navigation von Urlaub" */
+    /** „Leave navigation" */
     readonly navigationLabel: (appName: string) => string;
   };
   readonly appSwitcher: {
@@ -110,7 +110,7 @@ export interface UiStrings {
     readonly signedOut: string;
     readonly profile: string;
     readonly signOut: string;
-    /** „Profil und Abmelden, angemeldet als Anna Beispiel" */
+    /** „Profile and sign out, signed in as Anna Example" */
     readonly label: (name: string) => string;
   };
   readonly notifications: {
@@ -129,102 +129,100 @@ export interface UiStrings {
   };
 }
 
-/** Die deutschen Texte von v1. */
-const de: UiStrings = {
+/** Die ausgelieferten Texte, englisch (ADR 0016). */
+const en: UiStrings = {
   common: {
-    loading: 'Lädt …',
-    retry: 'Erneut versuchen',
-    cancel: 'Abbrechen',
-    save: 'Speichern',
-    saving: 'Wird gespeichert …',
-    close: 'Schließen',
-    requiredSuffix: ' (Pflichtfeld)',
+    loading: 'Loading…',
+    retry: 'Try again',
+    cancel: 'Cancel',
+    save: 'Save',
+    saving: 'Saving…',
+    close: 'Close',
+    requiredSuffix: ' (required)',
   },
   select: {
-    empty: 'Keine Auswahl verfügbar',
+    empty: 'No options available',
   },
   table: {
-    emptyTitle: 'Noch keine Einträge',
-    loadingLabel: (caption) => `${caption} lädt …`,
+    emptyTitle: 'No entries yet',
+    loadingLabel: (caption) => `Loading ${caption}…`,
     emptyValue: '—',
-    yes: 'Ja',
-    no: 'Nein',
+    yes: 'Yes',
+    no: 'No',
+    // en-GB (TT/MM/JJJJ), fest gebaut statt Intl, aus dem Grund oben.
     date: (value) =>
-      `${String(value.getUTCDate()).padStart(2, '0')}.${String(value.getUTCMonth() + 1).padStart(2, '0')}.${value.getUTCFullYear()}`,
+      `${String(value.getUTCDate()).padStart(2, '0')}/${String(value.getUTCMonth() + 1).padStart(2, '0')}/${value.getUTCFullYear()}`,
   },
   pagination: {
-    label: 'Seitenweiterschaltung',
-    previous: 'Zurück',
-    next: 'Weiter',
-    empty: 'Keine Einträge',
-    range: (from, to, total, page, pages) =>
-      `${from}–${to} von ${total} · Seite ${page} von ${pages}`,
+    label: 'Pagination',
+    previous: 'Previous',
+    next: 'Next',
+    empty: 'No entries',
+    range: (from, to, total, page, pages) => `${from}–${to} of ${total} · Page ${page} of ${pages}`,
   },
   tabs: {
-    empty: 'Keine Reiter vorhanden',
+    empty: 'No tabs available',
   },
   dialog: {
-    close: 'Dialog schließen',
+    close: 'Close dialog',
   },
   toast: {
-    close: (title) => `Meldung „${title}“ schließen`,
+    close: (title) => `Close message “${title}”`,
   },
   errorState: {
-    correlationId: 'Kennung: ',
+    correlationId: 'Reference: ',
   },
   list: {
-    searchPlaceholder: 'Suchen …',
-    resetFilters: 'Filter zurücksetzen',
-    resetFiltersShort: 'Zurücksetzen',
-    reload: 'Erneut laden',
+    searchPlaceholder: 'Search…',
+    resetFilters: 'Reset filters',
+    resetFiltersShort: 'Reset',
+    reload: 'Reload',
   },
   form: {
-    submit: 'Speichern',
-    submitting: 'Wird gespeichert …',
-    cancel: 'Abbrechen',
-    required: 'Bitte ausfüllen.',
-    confirmRequired: 'Bitte bestätigen.',
-    invalidEmail: 'Bitte eine gültige E-Mail-Adresse angeben.',
-    invalidNumber: 'Bitte eine Zahl angeben.',
-    summary: (count) => `${count} ${count === 1 ? 'Feld' : 'Felder'} prüfen`,
+    submit: 'Save',
+    submitting: 'Saving…',
+    cancel: 'Cancel',
+    required: 'Please fill in this field.',
+    confirmRequired: 'Please confirm.',
+    invalidEmail: 'Please enter a valid email address.',
+    invalidNumber: 'Please enter a number.',
+    summary: (count) => `Check ${count} ${count === 1 ? 'field' : 'fields'}`,
   },
   detail: {
-    loading: 'Einzelheiten werden geladen …',
+    loading: 'Loading details…',
   },
   shell: {
     productName: 'openapps',
-    skipToContent: 'Zum Inhalt springen',
-    openNavigation: 'Navigation öffnen',
-    closeNavigation: 'Navigation schließen',
-    navigationLabel: (appName) => `Navigation von ${appName}`,
+    skipToContent: 'Skip to content',
+    openNavigation: 'Open navigation',
+    closeNavigation: 'Close navigation',
+    navigationLabel: (appName) => `${appName} navigation`,
   },
   appSwitcher: {
-    action: 'App wechseln',
-    placeholder: 'App wählen',
-    empty: 'Keine App freigegeben',
+    action: 'Switch app',
+    placeholder: 'Choose an app',
+    empty: 'No apps shared with you',
     defaultCategory: 'Apps',
   },
   userMenu: {
-    signedOut: 'Nicht angemeldet',
-    profile: 'Profil',
-    signOut: 'Abmelden',
-    label: (name) => `Profil und Abmelden, angemeldet als ${name}`,
+    signedOut: 'Not signed in',
+    profile: 'Profile',
+    signOut: 'Sign out',
+    label: (name) => `Profile and sign out, signed in as ${name}`,
   },
   notifications: {
-    title: 'Benachrichtigungen',
-    markAllRead: 'Alle gelesen',
-    unreadSuffix: '(ungelesen)',
-    emptyTitle: 'Nichts Neues',
-    emptyDescription: 'Hier erscheinen Hinweise aus Ihren Apps.',
-    errorTitle: 'Benachrichtigungen nicht geladen',
-    loading: 'Benachrichtigungen werden geladen …',
+    title: 'Notifications',
+    markAllRead: 'Mark all as read',
+    unreadSuffix: '(unread)',
+    emptyTitle: 'Nothing new',
+    emptyDescription: 'Updates from your apps appear here.',
+    errorTitle: 'Notifications not loaded',
+    loading: 'Loading notifications…',
     label: (unread) =>
-      unread === 0
-        ? 'Benachrichtigungen, keine ungelesenen'
-        : `Benachrichtigungen, ${unread} ungelesen`,
+      unread === 0 ? 'Notifications, none unread' : `Notifications, ${unread} unread`,
   },
   developer: {
-    toastProviderMissing: 'useToast braucht einen <ToastProvider> darüber.',
+    toastProviderMissing: 'useToast needs a <ToastProvider> above it.',
   },
 };
 
@@ -242,7 +240,7 @@ export type StringsOverride = {
  * einzelne Texte über `overrideStrings`, ohne jede Komponente neu zu verdrahten.
  */
 export const strings: UiStrings = Object.fromEntries(
-  (Object.keys(de) as Group[]).map((group) => [group, { ...de[group] }]),
+  (Object.keys(en) as Group[]).map((group) => [group, { ...en[group] }]),
 ) as unknown as UiStrings;
 
 /** Einzelne Texte ersetzen. Nicht genannte Texte bleiben, wie sie sind. */
@@ -254,11 +252,11 @@ export function overrideStrings(override: StringsOverride): void {
   }
 }
 
-/** Alles auf die ausgelieferten deutschen Texte zurücksetzen (für Tests). */
+/** Alles auf die ausgelieferten Texte zurücksetzen (für Tests). */
 export function resetStrings(): void {
-  for (const group of Object.keys(de) as Group[]) {
-    Object.assign(strings[group], de[group]);
+  for (const group of Object.keys(en) as Group[]) {
+    Object.assign(strings[group], en[group]);
   }
 }
 
-export { de as germanStrings };
+export { en as defaultStrings };

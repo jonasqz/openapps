@@ -1,6 +1,6 @@
 /**
- * Die Prompts des Plattform-MCP, ueber einen echten MCP-Client: `loslegen`
- * ist dieselbe Anleitung wie die Seite /loslegen der Verwaltung.
+ * Die Prompts des Plattform-MCP, ueber einen echten MCP-Client: `get_started`
+ * ist dieselbe Anleitung wie die Seite /get-started der Verwaltung.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -11,7 +11,7 @@ import { createPlatformServer } from '../src/server';
 import { createCountingInvoker, createHarness, seedBootstrapGrants } from './helpers';
 
 describe('Prompts des Plattform-MCP', () => {
-  it('bietet loslegen an, mit demselben Text wie die Verwaltung', async () => {
+  it('bietet get_started an, mit demselben Text wie die Verwaltung', async () => {
     const harness = createHarness();
     await seedBootstrapGrants(harness);
     const server = await createPlatformServer({
@@ -25,9 +25,9 @@ describe('Prompts des Plattform-MCP', () => {
     await client.connect(clientSide);
 
     const names = (await client.listPrompts()).prompts.map((p) => p.name);
-    expect(names).toEqual(expect.arrayContaining(['loslegen', 'how_to_build_app']));
+    expect(names).toEqual(expect.arrayContaining(['get_started', 'how_to_build_app']));
 
-    const prompt = await client.getPrompt({ name: 'loslegen' });
+    const prompt = await client.getPrompt({ name: 'get_started' });
     const content = prompt.messages[0]?.content;
     expect(content?.type === 'text' ? content.text : '').toBe(loslegenAlsText());
     await client.close();

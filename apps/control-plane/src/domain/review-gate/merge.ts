@@ -28,17 +28,15 @@ export function mergeReview(steps: readonly StepResult[], ranAt: string): Review
   const reasons: string[] = [];
   if (blockingFindings.length > 0) {
     reasons.push(
-      `${blockingFindings.length} blockierende Befund(e): ` +
+      `${blockingFindings.length} blocking finding(s): ` +
         blockingFindings.map((f) => f.code).join(', '),
     );
   }
   for (const s of brokenDeterministic) {
-    reasons.push(`Schritt ${s.step} ist gescheitert: ${s.error ?? 'unbekannt'}`);
+    reasons.push(`step ${s.step} failed: ${s.error ?? 'unknown'}`);
   }
   if (ranDeterministic.length === 0) {
-    reasons.push(
-      'kein deterministischer Schritt ist gelaufen — ein Claude-Report allein gibt nicht frei',
-    );
+    reasons.push('no deterministic step ran; a Claude report alone does not approve');
   }
 
   const decision = reasons.length === 0 ? 'pass' : 'blocked';
@@ -49,9 +47,9 @@ export function mergeReview(steps: readonly StepResult[], ranAt: string): Review
 
   const summary =
     decision === 'pass'
-      ? `freigegeben: ${ranDeterministic.length} deterministische Pruefung(en) ohne blockierenden Befund` +
-        (advisoryCount > 0 ? `, ${advisoryCount} Hinweis(e) aus dem Claude-Report` : '')
-      : `blockiert: ${reasons.join('; ')}`;
+      ? `approved: ${ranDeterministic.length} deterministic check(s) without a blocking finding` +
+        (advisoryCount > 0 ? `, ${advisoryCount} note(s) from the Claude report` : '')
+      : `blocked: ${reasons.join('; ')}`;
 
   return { decision, steps, findings, blockingFindings, summary, ranAt };
 }

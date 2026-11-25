@@ -1,7 +1,7 @@
 {
   "name": "@openapps/ui",
   "version": "0.1.0",
-  "description": "Design System von openapps: Tokens, Komponenten, Muster, App-Shell und UI-Linter.",
+  "description": "The openapps design system: tokens, components, patterns, app shell and UI linter.",
   "type": "module",
   "sideEffects": [
     "./src/tokens/tokens.css"

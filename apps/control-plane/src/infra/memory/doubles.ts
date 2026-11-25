@@ -75,7 +75,7 @@ export function createRecordingBackend(options?: RecordingBackendOptions): Recor
       note('readAppGatewayFacts', ref);
       const override = options?.appGatewayFacts;
       if (override === 'unreachable') {
-        return { state: 'unreachable', reason: 'Backend im Test absichtlich nicht erreichbar' };
+        return { state: 'unreachable', reason: 'backend deliberately unreachable in the test' };
       }
       return { state: 'read', facts: { ...NO_OWN_ROUTER, ...(override ?? {}) } };
     },
@@ -211,7 +211,7 @@ export function createCleanScanner(shape: 'gitleaks' | 'semgrep'): ScannerProces
 
 /** Ein Scanner, der scheitert — damit ein Test "faellt zu" belegen kann. */
 export function createBrokenScanner(): ScannerProcess {
-  return createFixedScanner({ exitCode: 2, stdout: '', stderr: 'Scanner nicht installiert' });
+  return createFixedScanner({ exitCode: 2, stdout: '', stderr: 'scanner not installed' });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -257,14 +257,14 @@ export function createRecordingGatewayConfigStore(
       if (options.verification !== undefined) return options.verification;
       const last = published[published.length - 1];
       if (last === undefined) {
-        return { state: 'mismatch', problems: ['es wurde nie eine Konfiguration veroeffentlicht'] };
+        return { state: 'mismatch', problems: ['no configuration was ever published'] };
       }
       // Strukturell und nicht als Referenz: `gatewayConfigFor` erzeugt die
       // Konfiguration vor und nach dem Deploy neu, und zwei gleiche
       // Konfigurationen sind zwei verschiedene Objekte.
       return JSON.stringify(last) === JSON.stringify(config)
         ? { state: 'match' }
-        : { state: 'mismatch', problems: ['die veroeffentlichte Fassung ist eine andere'] };
+        : { state: 'mismatch', problems: ['the published version is a different one'] };
     },
   };
 }

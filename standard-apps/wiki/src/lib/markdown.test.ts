@@ -7,11 +7,11 @@ import { parseInline, parseMarkdown, safeHref } from './markdown';
 
 const render = (source: string): string => renderToStaticMarkup(createElement(Markdown, { source }));
 
-describe('safeHref — nur http(s) wird ein Link', () => {
-  it('laesst http und https durch', () => {
-    expect(safeHref('https://nordlicht.example/a?b=1#c')).toBe('https://nordlicht.example/a?b=1#c');
-    expect(safeHref('http://nordlicht.example')).toBe('http://nordlicht.example/');
-    expect(safeHref('  HTTPS://Nordlicht.Example  ')).toBe('https://nordlicht.example/');
+describe('safeHref — only http(s) becomes a link', () => {
+  it('lets http and https through', () => {
+    expect(safeHref('https://northlight.example/a?b=1#c')).toBe('https://northlight.example/a?b=1#c');
+    expect(safeHref('http://northlight.example')).toBe('http://northlight.example/');
+    expect(safeHref('  HTTPS://Northlight.Example  ')).toBe('https://northlight.example/');
   });
 
   it.each([
@@ -27,27 +27,27 @@ describe('safeHref — nur http(s) wird ein Link', () => {
     'file:///etc/passwd',
     'mailto:a@b.example',
     '//evil.example/x',
-    '/relativ',
-    'relativ',
-    '#anker',
+    '/relative',
+    'relative',
+    '#anchor',
     'https:/evil.example',
     'https://',
     'http://exa mple.test',
     '',
-  ])('weist %j ab', (href) => {
+  ])('rejects %j', (href) => {
     expect(safeHref(href)).toBeUndefined();
   });
 });
 
-describe('Markdown-Renderer — gefaehrliche Eingaben', () => {
-  it('rendert einen javascript:-Link als Text ohne href', () => {
-    const html = render('[klick](javascript:alert(document.cookie))');
+describe('Markdown renderer — dangerous input', () => {
+  it('renders a javascript: link as text without href', () => {
+    const html = render('[click](javascript:alert(document.cookie))');
     expect(html).not.toContain('href');
     expect(html).not.toMatch(/javascript:/i);
-    expect(html).toContain('klick');
+    expect(html).toContain('click');
   });
 
-  it('rendert data:- und Protokoll-relative Links nicht als Link', () => {
+  it('does not render data: and protocol-relative links as links', () => {
     for (const source of [
       '[x](data:text/html,<script>alert(1)</script>)',
       '[x](//evil.example)',
@@ -58,7 +58,7 @@ describe('Markdown-Renderer — gefaehrliche Eingaben', () => {
     }
   });
 
-  it('escapet HTML im Text, in Code und in Ueberschriften', () => {
+  it('escapes HTML in text, code and headings', () => {
     const html = render(
       '# <img src=x onerror=alert(1)>\n\n<script>alert(1)</script>\n\n`<b>`\n\n```\n<iframe src="x"></iframe>\n```',
     );
@@ -70,25 +70,25 @@ describe('Markdown-Renderer — gefaehrliche Eingaben', () => {
     expect(html).toContain('&lt;iframe');
   });
 
-  it('kann den Link-Text nicht zum Attribut machen', () => {
+  it('cannot turn the link text into an attribute', () => {
     const html = render('[a" onmouseover="alert(1)](https://ok.example)');
     expect(html).toContain('href="https://ok.example/"');
     expect(html).not.toMatch(/<a[^>]* onmouseover=/);
   });
 
-  it('kann aus der URL nicht ausbrechen', () => {
+  it('cannot break out of the URL', () => {
     const html = render('[a](https://ok.example/"onmouseover="alert(1))');
     expect(html).not.toMatch(/<a[^>]* onmouseover=/);
     expect(html).toContain('%22onmouseover=%22');
   });
 
-  it('oeffnet externe Links ohne Zugriff auf das Fenster der App', () => {
-    const html = render('[Doku](https://docs.example)');
+  it('opens external links without access to the app window', () => {
+    const html = render('[Docs](https://docs.example)');
     expect(html).toContain('rel="noopener noreferrer nofollow"');
     expect(html).toContain('target="_blank"');
   });
 
-  it('bleibt bei boesartig vielen Markierungen schnell', () => {
+  it('stays fast with maliciously many markers', () => {
     const inputs = [
       '**'.repeat(20_000),
       '*a '.repeat(20_000),
@@ -103,43 +103,43 @@ describe('Markdown-Renderer — gefaehrliche Eingaben', () => {
     expect(Date.now() - started).toBeLessThan(2_000);
   });
 
-  it('begrenzt die Verschachtelungstiefe', () => {
+  it('limits the nesting depth', () => {
     const deep = `${'*_'.repeat(200)}x${'_*'.repeat(200)}`;
     expect(() => render(deep)).not.toThrow();
   });
 });
 
-describe('Markdown-Parser — Struktur', () => {
-  it('erkennt Ueberschriften, Absaetze und Listen', () => {
-    const blocks = parseMarkdown('# Titel\n\nErste Zeile\nzweite Zeile\n\n- a\n- b\n\n3. drei\n4. vier');
+describe('Markdown parser — structure', () => {
+  it('recognises headings, paragraphs and lists', () => {
+    const blocks = parseMarkdown('# Title\n\nFirst line\nsecond line\n\n- a\n- b\n\n3. three\n4. four');
     expect(blocks.map((block) => block.type)).toEqual(['heading', 'paragraph', 'list', 'list']);
     const [heading, paragraph, bullets, numbers] = blocks;
     expect(heading).toMatchObject({ type: 'heading', level: 1 });
     expect(paragraph).toEqual({
       type: 'paragraph',
-      children: [{ type: 'text', text: 'Erste Zeile zweite Zeile' }],
+      children: [{ type: 'text', text: 'First line second line' }],
     });
     expect(bullets).toMatchObject({ type: 'list', ordered: false });
     expect(numbers).toMatchObject({ type: 'list', ordered: true, start: 3 });
   });
 
-  it('nimmt Code-Bloecke woertlich', () => {
-    const blocks = parseMarkdown('```ts\nconst a = **b**;\n# kein Titel\n```\nnach');
-    expect(blocks[0]).toEqual({ type: 'code', lang: 'ts', text: 'const a = **b**;\n# kein Titel' });
+  it('takes code blocks literally', () => {
+    const blocks = parseMarkdown('```ts\nconst a = **b**;\n# no title\n```\nafter');
+    expect(blocks[0]).toEqual({ type: 'code', lang: 'ts', text: 'const a = **b**;\n# no title' });
     expect(blocks[1]).toMatchObject({ type: 'paragraph' });
   });
 
-  it('nimmt einen offenen Code-Block bis zum Ende', () => {
-    expect(parseMarkdown('```\nnie zu')).toEqual([{ type: 'code', lang: '', text: 'nie zu' }]);
+  it('takes an unclosed code block to the end', () => {
+    expect(parseMarkdown('```\nnever closed')).toEqual([{ type: 'code', lang: '', text: 'never closed' }]);
   });
 
-  it('erkennt Fett, Kursiv, Code und Links, auch verschachtelt', () => {
-    expect(parseInline('**fett *und kursiv*** `code` [Link](https://a.example)')).toEqual([
+  it('recognises bold, italic, code and links, nested too', () => {
+    expect(parseInline('**bold *and italic*** `code` [Link](https://a.example)')).toEqual([
       {
         type: 'strong',
         children: [
-          { type: 'text', text: 'fett ' },
-          { type: 'em', children: [{ type: 'text', text: 'und kursiv' }] },
+          { type: 'text', text: 'bold ' },
+          { type: 'em', children: [{ type: 'text', text: 'and italic' }] },
         ],
       },
       { type: 'text', text: ' ' },
@@ -149,18 +149,18 @@ describe('Markdown-Parser — Struktur', () => {
     ]);
   });
 
-  it('laesst snake_case und offene Markierungen als Text', () => {
-    expect(parseInline('max_page_size und 2 * 3 und **offen')).toEqual([
-      { type: 'text', text: 'max_page_size und 2 * 3 und **offen' },
+  it('leaves snake_case and unclosed markers as text', () => {
+    expect(parseInline('max_page_size and 2 * 3 and **open')).toEqual([
+      { type: 'text', text: 'max_page_size and 2 * 3 and **open' },
     ]);
   });
 
-  it('beachtet Backslash-Escapes', () => {
-    expect(parseInline('\\*kein kursiv\\*')).toEqual([{ type: 'text', text: '*kein kursiv*' }]);
+  it('honours backslash escapes', () => {
+    expect(parseInline('\\*not italic\\*')).toEqual([{ type: 'text', text: '*not italic*' }]);
   });
 
-  it('macht Markdown-Ueberschriften eine Ebene tiefer, weil der Seitentitel h1 ist', () => {
-    const html = render('# Eins\n\n## Zwei\n\n###### Sechs');
+  it('moves Markdown headings one level down because the page title is h1', () => {
+    const html = render('# One\n\n## Two\n\n###### Six');
     expect(html).toContain('<h2');
     expect(html).toContain('<h3');
     expect(html).toContain('<h6');
@@ -168,22 +168,22 @@ describe('Markdown-Parser — Struktur', () => {
   });
 });
 
-describe('Suchausschnitt', () => {
-  it('hebt Treffer in «…» hervor und liest kein Markdown', () => {
-    expect(splitSnippet('Alle haben **30 «Urlaubstage»** im Jahr')).toEqual([
-      { text: 'Alle haben **30 ', hit: false },
-      { text: 'Urlaubstage', hit: true },
-      { text: '** im Jahr', hit: false },
+describe('search snippet', () => {
+  it('highlights hits in «…» and does not read Markdown', () => {
+    expect(splitSnippet('Everyone gets **30 «days»** a year')).toEqual([
+      { text: 'Everyone gets **30 ', hit: false },
+      { text: 'days', hit: true },
+      { text: '** a year', hit: false },
     ]);
   });
 
-  it('escapet HTML im Ausschnitt', () => {
+  it('escapes HTML in the snippet', () => {
     const html = renderToStaticMarkup(createElement(Snippet, { source: '«<script>»alert(1)' }));
     expect(html).not.toContain('<script');
     expect(html).toContain('<strong');
   });
 
-  it('laesst offene Marken als Text stehen', () => {
+  it('leaves unclosed marks as text', () => {
     expect(splitSnippet('a « b')).toEqual([{ text: 'a « b', hit: false }]);
   });
 });

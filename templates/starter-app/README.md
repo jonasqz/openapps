@@ -1,47 +1,50 @@
 # Starter App
 
-Vorlage für eine App auf der openapps-Plattform. `create_app` kopiert dieses
-Verzeichnis in ein neues Repo.
+Template for an app on the openapps platform. `create_app` copies this
+directory into a new repo.
 
-## Was schon drin ist
+## What is already in it
 
-- `app.json` — Manifest, nach dem die Control Plane Schema, Rolle und Freigaben
-  anlegt
-- `openapi.yaml` — zwei Beispiel-Operationen, aus denen die MCP-Tools entstehen
-- `migrations/0001_items.sql` — eine Beispiel-Tabelle
-- `src/app/api/items/` — die Route-Handler zu den beiden Operationen
-- `src/app/page.tsx` — eine Liste mit leerem und Fehlerzustand
-- `AGENTS.md` — die Reihenfolge, in der ein Agent hier arbeitet
-- `next.config.js` — der `basePath` aus `OPENAPPS_APP_BASE_PATH`: die App liegt
-  unter `https://<domain>/<app-name>`, nicht auf einer eigenen Subdomain
+- `app.json` — the manifest the control plane uses to create schema, role and
+  grants
+- `openapi.yaml` — two example operations from which the MCP tools are
+  generated
+- `migrations/0001_items.sql` — an example table
+- `seeds/0001_sample.sql` — sample data, loaded locally only
+- `src/app/api/items/` — the route handlers for the two operations
+- `src/app/page.tsx` — a list with empty and error state
+- `AGENTS.md` — the order in which an agent works here
+- `next.config.js` — the `basePath` from `OPENAPPS_APP_BASE_PATH`: the app
+  lives under `https://<domain>/<app-name>`, not on its own subdomain
 
-## Umbenennen, bevor du baust
+## Rename before you build
 
 1. `name`, `title`, `description`, `category` in `app.json`
 2. `name` in `package.json`
-3. den Default von `basePath` unter `servers` in `openapi.yaml` auf `/<dein
-   app-name>` setzen — er ist der Pfad, unter dem die App liegt
-4. Beispiel-Tabelle `items` durch deine Tabellen ersetzen, in `app.json`,
-   `openapi.yaml` und einer **neuen** Migration
+3. set the default of `basePath` under `servers` in `openapi.yaml` to `/<your
+   app-name>` — it is the path the app lives under
+4. replace the example table `items` with your tables, in `app.json`,
+   `openapi.yaml` and a **new** migration
 
-## Lokal
+## Locally
 
 ```bash
 cp .env.example .env
 pnpm dev
 ```
 
-Lokal ist `OPENAPPS_APP_BASE_PATH` leer, die App laeuft also auf `/`. Im
-Deployment setzt die Control Plane den Pfad, und Next baut alle Verweise,
-Bilder und JavaScript-Dateien darunter. Deshalb: keine absoluten Pfade von Hand
-(`<img src="/logo.png">`, `fetch('/api/items')`) — nimm `next/link`,
-`next/image` und relative Aufrufe, sonst zeigt der Verweis auf die Plattform
-statt auf die App. Das Review-Gate prueft den `basePath`.
+Locally `OPENAPPS_APP_BASE_PATH` is empty, so the app runs on `/`. In a
+deployment the control plane sets the path, and Next builds all links, images
+and JavaScript files under it. Therefore: no hand-written absolute paths
+(`<img src="/logo.png">`, `fetch('/api/items')`) — use `next/link`,
+`next/image` and relative calls, otherwise the link points to the platform
+instead of the app. The review gate checks the `basePath`.
 
-Ohne Gateway gibt es lokal keinen Nutzer: `getUser` wirft, weil keine gültige
-Signatur anliegt. Zum lokalen Aufrufen erzeugst du die fünf `X-Auth-*`-Header
-mit `signatureFor` aus `@openapps/sdk` — dieselbe Funktion, die das Gateway
-benutzt — und setzt `OPENAPPS_AUTH_SECRET`, `OPENAPPS_APP_ID` und
-`OPENAPPS_APP_HOST` passend dazu. Der Host ist fuer alle Apps derselbe — die
-Trennung macht die App-Id mit dem App-eigenen Secret (ADR 0007). Baue keinen Umweg, der die Prüfung lokal
-abschaltet: er landet irgendwann in Produktion.
+Without the gateway there is no user locally: `getUser` throws, because no
+valid signature is present. To call the app locally, generate the five
+`X-Auth-*` headers with `signatureFor` from `@openapps/sdk` — the same function
+the gateway uses — and set `OPENAPPS_AUTH_SECRET`, `OPENAPPS_APP_ID` and
+`OPENAPPS_APP_HOST` to match. The host is the same for all apps — the app id
+together with the app's own secret separates them (ADR 0007). Do not build a
+shortcut that turns the check off locally: it ends up in production sooner or
+later.

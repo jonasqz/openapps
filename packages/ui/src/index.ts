@@ -29,7 +29,7 @@ export type {
 } from './patterns/DetailPattern.tsx';
 
 /* Texte. v1 ist deutsch; eine App kann einzelne Texte ersetzen. */
-export { germanStrings, overrideStrings, resetStrings, strings } from './strings.ts';
+export { defaultStrings, overrideStrings, resetStrings, strings } from './strings.ts';
 export type { StringsOverride, UiStrings } from './strings.ts';
 
 export { cn } from './lib/cn.ts';

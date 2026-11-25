@@ -1,21 +1,22 @@
 /**
  * Die festen Wertelisten des CRM. Dieselben Listen stehen als Check in
- * migrations/0001_crm.sql und als enum in openapi.yaml — aendert sich eine,
+ * migrations/0002_english_values.sql und als enum in openapi.yaml — aendert sich eine,
  * braucht es eine neue Migration und eine neue Spec, in dieser Reihenfolge.
  */
 
-export const STAGES = ['lead', 'qualifiziert', 'angebot', 'gewonnen', 'verloren'] as const;
+export const STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'] as const;
 export type Stage = (typeof STAGES)[number];
 
 /** Stages, in denen ein Deal noch offen ist. */
-export const OPEN_STAGES: readonly Stage[] = ['lead', 'qualifiziert', 'angebot'];
+export const OPEN_STAGES: readonly Stage[] = ['lead', 'qualified', 'proposal'];
 
+/** Beschriftungen fuer Menschen; die Werte oben sind API- und DB-Werte. */
 export const STAGE_LABELS: Readonly<Record<Stage, string>> = {
   lead: 'Lead',
-  qualifiziert: 'Qualifiziert',
-  angebot: 'Angebot',
-  gewonnen: 'Gewonnen',
-  verloren: 'Verloren',
+  qualified: 'Qualified',
+  proposal: 'Proposal',
+  won: 'Won',
+  lost: 'Lost',
 };
 
 /**
@@ -24,20 +25,20 @@ export const STAGE_LABELS: Readonly<Record<Stage, string>> = {
  */
 export const STAGE_PROBABILITY: Readonly<Record<Stage, number>> = {
   lead: 10,
-  qualifiziert: 25,
-  angebot: 60,
-  gewonnen: 100,
-  verloren: 0,
+  qualified: 25,
+  proposal: 60,
+  won: 100,
+  lost: 0,
 };
 
-export const ACTIVITY_KINDS = ['notiz', 'anruf', 'mail', 'termin'] as const;
+export const ACTIVITY_KINDS = ['note', 'call', 'email', 'meeting'] as const;
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 
 export const ACTIVITY_KIND_LABELS: Readonly<Record<ActivityKind, string>> = {
-  notiz: 'Notiz',
-  anruf: 'Anruf',
-  mail: 'Mail',
-  termin: 'Termin',
+  note: 'Note',
+  call: 'Call',
+  email: 'Email',
+  meeting: 'Meeting',
 };
 
 /** Hoechster Betrag in Cent: Number.MAX_SAFE_INTEGER, wie der Check in der DB. */

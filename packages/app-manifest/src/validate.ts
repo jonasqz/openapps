@@ -18,9 +18,9 @@ export class ManifestValidationError extends Error {
   constructor(issues: readonly ManifestIssue[], context?: string) {
     const where = context === undefined ? '' : ` in ${context}`;
     super(
-      `Ungültiges App-Manifest${where}:\n` +
+      `Invalid app manifest${where}:\n` +
         issues
-          .map((issue) => `  ${issue.path === '' ? '(Wurzel)' : issue.path}: ${issue.message}`)
+          .map((issue) => `  ${issue.path === '' ? '(root)' : issue.path}: ${issue.message}`)
           .join('\n'),
     );
     this.name = 'ManifestValidationError';
@@ -57,7 +57,7 @@ export function parseAppManifestJson(text: string, context?: string): AppManifes
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     throw new ManifestValidationError(
-      [{ path: '', message: `kein gültiges JSON: ${message}` }],
+      [{ path: '', message: `not valid JSON: ${message}` }],
       context,
     );
   }

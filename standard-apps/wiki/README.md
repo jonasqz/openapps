@@ -1,49 +1,70 @@
 # Wiki
 
-Standard-App von openapps: Wissensseiten wie in Notion, für Menschen und Agents.
-Seitenbaum, Markdown, Volltextsuche (deutsch) und ein Verlauf, der jede
-Änderung mit Autor festhält — auch die von Agents.
+Standard app of openapps: knowledge pages like in Notion, for humans and
+agents. Page tree, Markdown, full-text search and a history that records every
+change with its author — including changes made by agents.
 
 ## Tools
 
-Jede Funktion ist zuerst ein Tool (`POST <basePath>/api/tools/<name>`), die UI
-ruft dieselben Funktionen.
+Every function is a tool first (`POST <basePath>/api/tools/<name>`); the UI
+calls the same functions.
 
-| Tool | Verb | Was es tut |
+| Tool | Verb | What it does |
 | --- | --- | --- |
-| `pages.list` | read | Seiten ohne Inhalt, Filter `q` (Titel), `parentId`, `tag` |
-| `pages.get` | read | Seite mit Inhalt, Eltern und Unterseiten |
-| `pages.search` | read | Volltext mit Rang und Ausschnitt (`«Treffer»`) |
-| `pages.create` | write | Seite anlegen, optional als Unterseite |
-| `pages.update` | write | Titel/Inhalt/Tags ändern oder mit `appendMd` anhängen |
-| `pages.archive` | write | Archivieren; nicht, solange Unterseiten leben |
-| `pages.history` | read | Verlauf, neueste Änderung zuerst |
+| `pages.list` | read | Pages without content, filter `q` (title), `parentId`, `tag` |
+| `pages.get` | read | Page with content, parent and subpages |
+| `pages.search` | read | Full text with rank and snippet (`«hit»`) |
+| `pages.create` | write | Create a page, optionally as a subpage |
+| `pages.update` | write | Change title/content/tags or append with `appendMd` |
+| `pages.archive` | write | Archive; not while subpages are still live |
+| `pages.history` | read | History, newest change first |
 
-Die Beschreibungen für Agents stehen in `app.json`, die Schemas in
-`openapi.yaml` und `src/lib/schemas.ts`. Ein Test hält die drei deckungsgleich.
+The descriptions for agents are in `app.json`, the schemas in `openapi.yaml`
+and `src/lib/schemas.ts`. A test keeps the three in line.
 
-## Aufbau
+## Search
 
-- `migrations/0001_wiki.sql` — `pages` (mit generierter `tsvector`-Spalte und
-  GIN-Index) und `page_revisions`
-- `migrations/0002_beispielseiten.sql` — Beispielseiten der fiktiven Nordlicht GmbH
-- `src/instrumentation.ts` — führt die Migrationen beim Start aus
-- `src/lib/pages.ts` — Datenzugriff, eine Funktion je Tool
-- `src/lib/tools.ts`, `src/app/api/tools/[tool]/route.ts` — die Tool-Route
-- `src/app/actions.ts` — Server Actions der UI, prüfen `getUser` und rufen
-  dieselben Funktionen
-- `src/lib/markdown.ts`, `src/components/Markdown.tsx` — eigener, kleiner
-  Markdown-Renderer ohne `dangerouslySetInnerHTML`; Links nur http(s)
+The full-text index uses the Postgres English dictionary
+(`migrations/0002_english_search.sql`). Exact words always match; English
+word forms are matched by stemming (`request` finds `requests`). Words in
+other languages match only exactly, without their word forms. Common English
+stop words such as `the` or `and` are ignored.
 
-## Lokal
+## Pages
+
+| Path | What |
+| --- | --- |
+| `/` | Page tree, or search hits with `?q=`; filter with `?tag=` |
+| `/new` | New page, optionally with `?parent=<id>` |
+| `/pages/<id>` | A page |
+| `/pages/<id>/edit` | Edit a page |
+| `/pages/<id>/history` | History of a page |
+
+## Layout
+
+- `migrations/0001_wiki.sql` — `pages` (with a generated `tsvector` column and
+  a GIN index) and `page_revisions`
+- `migrations/0002_english_search.sql` — the search column with the English
+  dictionary
+- `seeds/0001_beispielseiten.sql` — sample pages of the fictional Northlight
+  Ltd (local only)
+- `src/instrumentation.ts` — runs the migrations on start
+- `src/lib/pages.ts` — data access, one function per tool
+- `src/lib/tools.ts`, `src/app/api/tools/[tool]/route.ts` — the tool route
+- `src/app/actions.ts` — server actions of the UI; they check `getUser` and
+  call the same functions
+- `src/lib/markdown.ts`, `src/components/Markdown.tsx` — a small Markdown
+  renderer of its own, without `dangerouslySetInnerHTML`; links only http(s)
+
+## Local
 
 ```bash
 cp .env.example .env
 pnpm dev
 ```
 
-Ohne `DATABASE_URL` startet die App, überspringt die Migrationen mit einer
-Warnung und zeigt auf jeder Seite den Fehlerzustand.
+Without `DATABASE_URL` the app starts, skips the migrations with a warning and
+shows the error state on every page.
 
 ## Tests
 
@@ -51,7 +72,6 @@ Warnung und zeigt auf jeder Seite den Fehlerzustand.
 pnpm test
 ```
 
-Die Datenbank-Tests (`src/lib/pages.db.test.ts`) laufen nur mit
-`WIKI_TEST_DATABASE_URL` und `WIKI_TEST_DATABASE_SCHEMA` — als App-Rolle (kein
-Owner, kein Superuser) mit eigenem, leerem Schema. Sonst werden sie
-übersprungen.
+The database tests (`src/lib/pages.db.test.ts`) only run with
+`WIKI_TEST_DATABASE_URL` and `WIKI_TEST_DATABASE_SCHEMA` — as the app role (no
+owner, no superuser) with its own empty schema. Otherwise they are skipped.

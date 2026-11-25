@@ -69,6 +69,6 @@ export function createPgProvisioner(
  */
 function assertIdentifier(value: string): void {
   if (!IDENTIFIER.test(value) || value.length > 63) {
-    throw new Error(`ungueltiger SQL-Bezeichner: "${value}"`);
+    throw new Error(`invalid SQL identifier: "${value}"`);
   }
 }

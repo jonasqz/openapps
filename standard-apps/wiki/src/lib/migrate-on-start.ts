@@ -12,17 +12,17 @@ import { appPool } from './db';
  */
 export async function migrateOnStart(): Promise<void> {
   if ((process.env.DATABASE_URL ?? '').trim() === '') {
-    console.warn('[wiki] DATABASE_URL ist nicht gesetzt — Migrationen übersprungen.');
+    console.warn('[wiki] DATABASE_URL is not set — skipping migrations.');
     return;
   }
   const result = await runMigrations(appPool(), join(process.cwd(), 'migrations'));
   if (result.applied.length > 0) {
-    console.info(`[wiki] Migrationen angewendet: ${result.applied.join(', ')}`);
+    console.info(`[wiki] migrations applied: ${result.applied.join(', ')}`);
   }
 
   // Beispielseiten nur, wenn die Plattform es verlangt (lokal ja, Server nein).
   const seeded = await runSeeds(appPool(), join(process.cwd(), 'seeds'));
   if (seeded !== null && seeded.applied.length > 0) {
-    console.info(`[wiki] Beispielseiten eingespielt: ${seeded.applied.join(', ')}`);
+    console.info(`[wiki] sample pages loaded: ${seeded.applied.join(', ')}`);
   }
 }

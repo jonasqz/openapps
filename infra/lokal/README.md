@@ -1,23 +1,24 @@
-# Lokaler Betrieb: die Plattform mit Standard-Apps auf dem eigenen Rechner
+# Local mode: the platform with standard apps on your own machine
 
-Die ganze Plattform läuft in Docker, ohne Coolify und ohne GitHub (ADR 0011).
-Dazu kommen drei Standard-Apps:
+The whole platform runs in Docker, without Coolify and without GitHub (ADR 0011).
+It comes with four standard apps:
 
-| App      | Pfad      | Wofür                                                                             |
-| -------- | --------- | --------------------------------------------------------------------------------- |
-| `wiki`   | `/wiki`   | Seiten wie in Notion: Markdown, Unterseiten, Verlauf, Volltextsuche               |
-| `crm`    | `/crm`    | Firmen, Kontakte, Deals mit Pipeline, Aktivitäten                                 |
-| `wissen` | `/wissen` | Dokumente ablegen und Passagen mit Quelle finden (die Retrieval-Hälfte eines RAG) |
+| App         | Path         | What for                                                                          |
+| ----------- | ------------ | --------------------------------------------------------------------------------- |
+| `wiki`      | `/wiki`      | Pages like in Notion: Markdown, subpages, history, full-text search               |
+| `crm`       | `/crm`       | Companies, contacts, deals with a pipeline, activities                            |
+| `knowledge` | `/knowledge` | Store documents and find passages with their source (the retrieval half of a RAG) |
+| `tasks`     | `/tasks`     | Team tasks with assignee, due date and completion status                          |
 
-Gleich wie auf dem Server:
+The same as on the server:
 
-- Die Control Plane legt Schema und Rolle je App an, setzt die Env und schreibt
-  die Gateway-Konfiguration.
-- Jede App läuft erst nach dem Review-Gate mit echtem gitleaks und semgrep.
-- Agents kommen nur über den Plattform-MCP an die Apps, mit Freigabe pro Tool
-  und Eintrag im Audit-Log.
+- The control plane creates a schema and a role per app, sets the env and
+  writes the gateway configuration.
+- Every app only runs after the review gate, with real gitleaks and semgrep.
+- Agents only reach the apps through the platform MCP, with a grant per tool
+  and an entry in the audit log.
 
-## Starten
+## Start
 
 ```bash
 ./infra/lokal/einrichten.sh
@@ -27,96 +28,97 @@ Gleich wie auf dem Server:
 ./infra/lokal/apps-ausrollen.sh
 ```
 
-- `einrichten.sh` legt `.env` mit Zufalls-Secrets und ein selbst signiertes
-  Zertifikat an. Beides bleibt auf dem Rechner und ist gitignoriert.
-- `lokal.sh` ist `docker compose` für diesen Stapel. Es legt für jede App in
-  `standard-apps/` einen eigenen Container an (ADR 0015).
-- `apps-ausrollen.sh` baut die Images nacheinander, startet den Stapel,
-  registriert und deployt die Apps aus `standard-apps/` und
-  legt den Agenten `betrieb` an. Der darf, was die Gruppe `platform-admins`
-  darf. Sein Token liegt danach in `infra/lokal/.agents/betrieb.token` (Modus 0600) und wird nie angezeigt.
-- Ein zweiter Lauf legt nichts doppelt an. Ein geänderter Stand einer App wird
-  neu deployt.
+- `einrichten.sh` creates `.env` with random secrets and a self-signed
+  certificate. Both stay on your machine and are gitignored.
+- `lokal.sh` is `docker compose` for this stack. It creates a container of its
+  own for every app in `standard-apps/` (ADR 0015).
+- `apps-ausrollen.sh` builds the images one after another, starts the stack,
+  registers and deploys the apps from `standard-apps/` and creates the agent
+  `operator`. It may do what the group `platform-admins` may do. Its token is
+  then stored in `infra/lokal/.agents/operator.token` (mode 0600) and is never
+  shown.
+- A second run creates nothing twice. A changed version of an app is deployed
+  again.
 
-## Einen Agenten anschließen
+## Connect an agent
 
-Der MCP liegt lokal auf `http://localhost:8080/mcp`, nur auf dem Loopback.
-
-```bash
-claude --mcp-config infra/lokal/.agents/mcp-betrieb.json
-```
-
-`betrieb` legt dann über MCP Arbeits-Agents an und vergibt Freigaben. Jedes
-App-Tool ist einzeln freizugeben (`execute` auf `<app>.<tool>`). Ein Agent sieht
-nur die Tools, die er darf. Ruft er ein anderes trotzdem auf, wird er blockiert,
-und beides steht im Protokoll. Im MCP heißen App-Tools `<app>__<tool>` mit `__`
-statt Punkt, weil Clients keine Punkte im Namen annehmen.
-
-## Eine App ändern oder neu bauen lassen
-
-Mit deinem Claude Code im Repo, verbunden mit dem Plattform-MCP:
+Locally, the MCP is at `http://localhost:8080/mcp`, on the loopback only.
 
 ```bash
-claude --mcp-config infra/lokal/.agents/mcp-betrieb.json
+claude --mcp-config infra/lokal/.agents/mcp-operator.json
 ```
 
-- **Neue App:** Zum Beispiel „Bau mir eine App für Urlaubsanträge“. Der
-  Assistent ruft dann `create_app` auf. Das legt `standard-apps/<name>` aus der
-  Vorlage an, mit Tool-Endpunkt, Migrationen und Beispieldaten. Dann schreibt
-  er den Code und rollt aus.
-- **App ändern:** Zum Beispiel „Füge im CRM ein Feld Lead-Quelle an Deals
-  hinzu“. Neue Spalten kommen als neue Migration. Danach erhöht der Assistent
-  `version` in `app.json` und rollt aus.
+`operator` then creates working agents over MCP and grants them rights. Every
+app tool has to be granted on its own (`execute` on `<app>.<tool>`). An agent
+only sees the tools it may use. If it calls another one anyway, it is blocked,
+and both end up in the log. In the MCP, app tools are named `<app>__<tool>`
+with `__` instead of a dot, because clients do not accept dots in names.
 
-Ausrollen, für eine App oder ohne Namen für alle:
+## Have an app changed or built
+
+With your own Claude Code in the repo, connected to the platform MCP:
+
+```bash
+claude --mcp-config infra/lokal/.agents/mcp-operator.json
+```
+
+- **New app:** for example "Build me an app for holiday requests". The
+  assistant then calls `create_app`. That creates `standard-apps/<name>` from
+  the template, with a tool endpoint, migrations and sample data. Then it
+  writes the code and rolls it out.
+- **Change an app:** for example "Add a lead source field to deals in the
+  CRM". New columns come as a new migration. Then the assistant bumps
+  `version` in `app.json` and rolls it out.
+
+Roll out one app, or all of them without a name:
 
 ```bash
 ./infra/lokal/apps-ausrollen.sh <name>
 ```
 
-Danach ist die App unter <http://127.0.0.1:8090/name> zu sehen. Agents
-erreichen ihre Tools, sobald sie über `grant` freigegeben sind.
+The app is then available at <http://127.0.0.1:8090/name>. Agents reach its
+tools as soon as they have been granted with `grant`.
 
-## Prüfen, dass Agents durchkommen
+## Check that agents get through
 
 ```bash
 pnpm --filter @openapps/platform-mcp test:lokal
 ```
 
-Der Test geht dieselben Wege wie ein Agent: `betrieb` legt zwei Agents an und
-gibt einzelne Tools frei. Danach ruft jeder Agent seine Tools mit Argumenten
-auf. Ein nicht freigegebenes Tool und eine Selbstfreigabe werden abgelehnt.
-Der Agent steht in der App als Urheber, und nach einer Sperre kommt er nicht
-mehr herein. Der Test braucht kein Sprachmodell und liefert bei jedem Lauf
-dasselbe Ergebnis.
+The test takes the same paths as an agent: `operator` creates two agents and
+grants individual tools. Then each agent calls its tools with arguments. A
+tool that has not been granted and a self-grant are rejected. The agent
+appears in the app as the author, and once it is disabled it can no longer
+get in. The test needs no language model and gives the same result on every
+run.
 
-## Die Oberflächen ansehen
+## Look at the user interfaces
 
-- **Apps:** <http://127.0.0.1:8090>, angemeldet als `ansicht@local.test`
+- **Apps:** <http://127.0.0.1:8090>, signed in as `viewer@local.test`
   (ADR 0013).
-- **Verwaltung (Control Plane):** <http://127.0.0.1:8091>. Dort verwaltest du
-  Apps, Agents und Freigaben (ADR 0014). Standard ist der lokale Admin. Als
-  Nutzer ohne Freigaben schaust du über
-  <http://127.0.0.1:8091/_lokal/als/nutzer>, zurück geht es über
-  <http://127.0.0.1:8091/_lokal/als/admin>.
+- **Admin (control plane):** <http://127.0.0.1:8091>. There you manage apps,
+  agents and grants (ADR 0014). The default is the local admin. To look around
+  as a user without grants, open <http://127.0.0.1:8091/_local/as/user>; go
+  back with <http://127.0.0.1:8091/_local/as/admin>.
 
-Beides umgeht den Google-Login und läuft deshalb nur lokal, nur am Loopback.
+Both bypass the Google sign-in and therefore only run locally, on the loopback
+only.
 
-## Was lokal fehlt
+## What is missing locally
 
-- **Login für Menschen.** Er geht über Google und braucht eigene
-  Zugangsdaten (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env`, Redirect
-  `https://cp.local.test:8443/api/auth/callback/google`) sowie in `/etc/hosts`
-  die Einträge `cp.local.test` und `apps.local.test` auf `127.0.0.1`. Ohne das
-  bleibt der Weg über `cp.local.test` und `apps.local.test` hinter dem
-  Login. Apps und Verwaltung zeigt der Ansehen-Proxy auch ohne ihn.
-- **Ein Inventar des Backends.** Ob ein App-Container Ports oder
-  Traefik-Labels hat, kann der lokale Adapter nicht messen. Er meldet „nicht
-  erreichbar“ statt „sauber“.
-- **Rollback auf einen alten Stand.** Lokal gibt es nur den Stand auf der
-  Platte.
+- **Sign-in for humans.** It goes through Google and needs your own
+  credentials (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env`, redirect
+  `https://cp.local.test:8443/api/auth/callback/google`) as well as the entries
+  `cp.local.test` and `apps.local.test` pointing to `127.0.0.1` in
+  `/etc/hosts`. Without that, the way through `cp.local.test` and
+  `apps.local.test` stays behind the sign-in. The viewing proxy shows apps and
+  the admin area without it as well.
+- **A backend inventory.** The local adapter cannot measure whether an app
+  container has ports or Traefik labels. It reports "unreachable" instead of
+  "clean".
+- **Rollback to an old version.** Locally, there is only the version on disk.
 
-## Aufräumen
+## Clean up
 
 ```bash
 ./infra/lokal/lokal.sh down -v

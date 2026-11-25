@@ -7,13 +7,13 @@ import type { JSX } from 'react';
  */
 const ITEMS = [
   { href: '/', label: 'Pipeline' },
-  { href: '/firmen', label: 'Firmen' },
-  { href: '/kontakte', label: 'Kontakte' },
+  { href: '/companies', label: 'Companies' },
+  { href: '/contacts', label: 'Contacts' },
 ] as const;
 
 export function AppNav(): JSX.Element {
   return (
-    <nav aria-label="Bereiche des CRM" className="border-b border-border bg-surface">
+    <nav aria-label="CRM sections" className="border-b border-border bg-surface">
       <div className="flex flex-wrap gap-1 px-4 py-2 sm:px-6">
         {ITEMS.map((item) => (
           <Link

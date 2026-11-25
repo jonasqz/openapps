@@ -46,7 +46,7 @@ export function ContactsList({
     const timer = setTimeout(() => {
       const params = new URLSearchParams();
       if (q.trim() !== '') params.set('q', q.trim());
-      if (firma !== '') params.set('firma', firma);
+      if (firma !== '') params.set('company', firma);
       const search = params.toString();
       router.replace(search === '' ? pathname : `${pathname}?${search}`);
     }, SEARCH_DELAY_MS);
@@ -57,18 +57,18 @@ export function ContactsList({
 
   return (
     <ListPattern<ContactListRow>
-      title="Kontakte"
-      description="Alle Ansprechpartner. Die Suche findet Name, E-Mail, Telefon und Rolle."
-      actions={<ButtonLink href="/kontakte/neu">Neuer Kontakt</ButtonLink>}
-      search={{ label: 'Suche', value: q, onChange: setQ, placeholder: 'Name, E-Mail, Rolle …' }}
+      title="Contacts"
+      description="All contacts. Search matches name, email, phone and role."
+      actions={<ButtonLink href="/contacts/new">New contact</ButtonLink>}
+      search={{ label: 'Search', value: q, onChange: setQ, placeholder: 'Name, email, role …' }}
       filters={[
         {
-          id: 'firma',
-          label: 'Firma',
+          id: 'company',
+          label: 'Company',
           options: companies,
           value: firma,
           onChange: setFirma,
-          placeholder: 'Alle Firmen',
+          placeholder: 'All companies',
         },
       ]}
       filtersActive={filtersActive}
@@ -80,39 +80,39 @@ export function ContactsList({
       columns={[
         { field: 'name', header: 'Name' },
         {
-          key: 'firma',
-          header: 'Firma',
+          key: 'company',
+          header: 'Company',
           hideBelow: 'sm',
           cell: (row) =>
             row.companyId === '' ? (
               '—'
             ) : (
               <Link
-                href={`/firmen/${row.companyId}`}
+                href={`/companies/${row.companyId}`}
                 className="font-medium text-primary underline-offset-2 hover:underline"
               >
                 {row.companyName}
               </Link>
             ),
         },
-        { field: 'role', header: 'Rolle', hideBelow: 'md' },
-        { field: 'email', header: 'E-Mail', hideBelow: 'lg' },
-        { field: 'phone', header: 'Telefon', hideBelow: 'lg' },
+        { field: 'role', header: 'Role', hideBelow: 'md' },
+        { field: 'email', header: 'Email', hideBelow: 'lg' },
+        { field: 'phone', header: 'Phone', hideBelow: 'lg' },
       ]}
       empty={{
-        title: 'Noch keine Kontakte',
-        description: 'Lege den ersten Kontakt an, dann erscheint er hier.',
-        action: <ButtonLink href="/kontakte/neu">Neuer Kontakt</ButtonLink>,
+        title: 'No contacts yet',
+        description: 'Create the first contact and it will show up here.',
+        action: <ButtonLink href="/contacts/new">New contact</ButtonLink>,
       }}
       emptyFiltered={{
-        title: 'Keine Treffer',
-        description: 'Kein Kontakt passt zu Suche oder Filter.',
+        title: 'No matches',
+        description: 'No contact matches the search or filter.',
       }}
       {...(failed
         ? {
             error: {
-              title: 'Kontakte konnten nicht geladen werden',
-              description: 'Die Datenbank hat nicht geantwortet.',
+              title: 'Contacts could not be loaded',
+              description: 'The database did not respond.',
               retry: () => router.refresh(),
             },
           }

@@ -1,5 +1,5 @@
 /**
- * Das Onboarding (Seite /loslegen und MCP-Prompt loslegen) aus einer Quelle.
+ * Das Onboarding (Seite /get-started und MCP-Prompt get_started) aus einer Quelle.
  * Geprueft wird, dass die Adresse aus der Konfiguration kommt und nie aus dem
  * Request, und dass im Text nie ein Token stehen kann.
  */
@@ -25,8 +25,11 @@ describe('Loslegen', () => {
     const text = loslegenAlsText({ CONTROL_PLANE_HOST: 'cp.example.com' });
     expect(text).toContain('/plugin install openapps@openapps');
     expect(text).toContain('export OPENAPPS_MCP_URL="https://cp.example.com/mcp"');
-    expect(text).toContain('<dein Token>');
-    expect(text).toContain('/openapps:neue-app');
+    expect(text).toContain('<your token>');
+    expect(text).toContain('/openapps:new-app');
+    expect(text).toContain('/openapps:change-app');
+    expect(text).toContain('prompt get_started');
+    expect(text).toMatch(/^# Get started/);
     expect(text).not.toMatch(/oa_[A-Za-z0-9_]{10,}/);
   });
 

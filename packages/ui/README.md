@@ -1,15 +1,15 @@
 # @openapps/ui
 
-Das Design System von openapps: Tokens, Komponenten, Muster, App-Shell und der
-UI-Linter. Entscheidung dahinter: [ADR 0002 — Weg A](../../docs/decisions/0002-ui-weg-a.md).
+The openapps design system: tokens, components, patterns, app shell and the
+UI linter. The decision behind it: [ADR 0002 — Weg A](../../docs/decisions/0002-ui-weg-a.md).
 
-Eine App importiert **nur** aus diesem Paket. Keine zweite UI-Bibliothek, kein
-eigener Farbwert. Der Linter blockiert beides.
+An app imports **only** from this package. No second UI library, no custom
+colour values. The linter blocks both.
 
-## Einbinden
+## Setup
 
-Das Paket wird **als Quellcode** ausgeliefert (`exports` zeigen auf `src/`) —
-wie bei shadcn/ui. Next-Apps brauchen deshalb:
+The package ships **as source code** (`exports` point to `src/`) — like
+shadcn/ui. Next apps therefore need:
 
 ```js
 // next.config.js
@@ -38,221 +38,222 @@ export default [...openappsUi];
 import { AppShell, ListPattern, Button } from '@openapps/ui';
 ```
 
-## Was drin ist
+## What is in it
 
-| Teil | Export | Inhalt |
+| Part | Export | Content |
 | --- | --- | --- |
-| Tokens | `@openapps/ui/tokens`, `@openapps/ui/tokens.css` | Farben, Abstände, Größen, Schrift, Radien, Schatten, Z-Ebenen |
-| Tailwind-Preset | `@openapps/ui/tailwind-preset` | ersetzt Tailwinds Paletten durch die Tokens |
-| Komponenten | `@openapps/ui` | Button, Input, Select, Checkbox, Table, Dialog, Toast, Badge, Card, Tabs, Pagination, EmptyState, ErrorState, Spinner |
-| Muster | `@openapps/ui` | ListPattern, FormPattern, DetailPattern, EmptyState, ErrorState |
-| App-Shell | `@openapps/ui` | AppShell, AppSwitcher, UserMenu, NotificationBell |
-| Texte | `@openapps/ui` | `strings`, `overrideStrings`, `germanStrings` |
-| Linter | `@openapps/ui/eslint-config`, `@openapps/ui/lint/rules` | `no-raw-color`, `no-foreign-ui`, `require-list-states`, `require-form-states` |
+| Tokens | `@openapps/ui/tokens`, `@openapps/ui/tokens.css` | colours, spacing, sizes, type, radii, shadows, z-layers |
+| Tailwind preset | `@openapps/ui/tailwind-preset` | replaces Tailwind's palettes with the tokens |
+| Components | `@openapps/ui` | Button, Input, Select, Checkbox, Table, Dialog, Toast, Badge, Card, Tabs, Pagination, EmptyState, ErrorState, Spinner |
+| Patterns | `@openapps/ui` | ListPattern, FormPattern, DetailPattern, EmptyState, ErrorState |
+| App shell | `@openapps/ui` | AppShell, AppSwitcher, UserMenu, NotificationBell |
+| Strings | `@openapps/ui` | `strings`, `overrideStrings`, `defaultStrings` |
+| Linter | `@openapps/ui/eslint-config`, `@openapps/ui/lint/rules` | `no-raw-color`, `no-foreign-ui`, `require-list-states`, `require-form-states`, `no-server-function-props` |
 
-## Tokens: eine Quelle
+## Tokens: one source
 
-`src/tokens/tokens.ts` ist die **einzige** Quelle. Daraus werden erzeugt:
+`src/tokens/tokens.ts` is the **only** source. Generated from it:
 
-- `src/tokens/tokens.css` — CSS-Variablen auf `:root`, dunkel unter
-  `@media (prefers-color-scheme: dark)` **und** `[data-theme="dark"]`, hell
-  erzwingbar über `[data-theme="light"]`.
-- `tailwind/preset.js` — dieselben Tokens als Tailwind-Theme.
+- `src/tokens/tokens.css` — CSS variables on `:root`, dark under
+  `@media (prefers-color-scheme: dark)` **and** `[data-theme="dark"]`, light
+  forceable via `[data-theme="light"]`.
+- `tailwind/preset.js` — the same tokens as a Tailwind theme.
 
 ```bash
 pnpm --filter @openapps/ui tokens
 ```
 
-Beide Dateien sind eingecheckt; `tokens.generated.test.ts` erzeugt sie im Test
-neu und vergleicht — sie können also nicht auseinanderlaufen.
+Both files are checked in; `tokens.generated.test.ts` regenerates them in the
+test and compares — so they cannot drift apart.
 
-Weil das Preset Tailwinds Paletten **ersetzt**, gibt es `bg-blue-500` gar nicht.
-Ebenso wenig `w-60`: die Abstandsskala endet bei `6rem`. Layout-Breiten heißen
-`w-nav`, `w-drawer`, `w-menu`, `w-panel`, `max-h-scroll`, `max-w-field`.
+Because the preset **replaces** Tailwind's palettes, `bg-blue-500` does not
+exist at all. Neither does `w-60`: the spacing scale ends at `6rem`. Layout
+widths are called `w-nav`, `w-drawer`, `w-menu`, `w-panel`, `max-h-scroll`,
+`max-w-field`.
 
-**Schrift:** nur System-Stacks. Keine selbst gehostete und keine von Google
-geladene Schrift — das wäre Betrieb, den v1 nicht tragen muss, und ein
-Google-Fonts-Abruf wäre Netzwerkverkehr am Gateway vorbei (Regel 7). Drei
-Rollen: `font-sans` (Grotesk, alles Lesbare), `font-mono` (Kennungen, Zahlen,
-Labels in Versalien) und `font-display` (Serife, nur Seitentitel und große
-Zahlen).
+**Type:** system stacks only. No self-hosted font and none loaded from Google
+— that would be operations v1 does not need to carry, and a Google Fonts
+request would be network traffic past the gateway (rule 7). Three roles:
+`font-sans` (grotesque, everything readable), `font-mono` (ids, numbers,
+uppercase labels) and `font-display` (serif, page titles and large numbers
+only).
 
-**Richtung** ([ADR 0010](../../docs/decisions/0010-design-schwarz-weiss-blaugrau.md)):
-Schwarz/Weiß mit genau einer Akzentfarbe Blaugrau (`primary`). Flächen sind
-fast eckig und durch Haarlinien (`border`) getrennt, nicht durch Schatten.
-Knöpfe sind Pillen. Mono-Labels: `font-mono text-2xs uppercase tracking-label`.
+**Direction** ([ADR 0010](../../docs/decisions/0010-design-schwarz-weiss-blaugrau.md)):
+black and white with exactly one accent colour, blue-grey (`primary`).
+Surfaces are nearly square and separated by hairlines (`border`), not by
+shadows. Buttons are pills. Mono labels: `font-mono text-2xs uppercase tracking-label`.
 
-## Kontrast (nachgerechnet, nicht behauptet)
+## Contrast (calculated, not claimed)
 
-WCAG 2.1 AA verlangt 4,5:1 für Text und 3:1 für Ränder von Bedienelementen.
-Gerechnet mit `contrastRatio()` aus diesem Paket, festgehalten in
-`src/tokens/tokens.contrast.test.ts` (59 Prüfungen, hell und dunkel).
+WCAG 2.1 AA requires 4.5:1 for text and 3:1 for borders of controls.
+Calculated with `contrastRatio()` from this package, recorded in
+`src/tokens/tokens.contrast.test.ts` (59 checks, light and dark).
 
-| Paar | hell | dunkel |
+| Pair | light | dark |
 | --- | --- | --- |
-| `fg` auf `bg` | 19,67:1 | 17,55:1 |
-| `fg` auf `surface` | 18,85:1 | 16,57:1 |
-| `fg-muted` auf `bg` | 7,33:1 | 8,10:1 |
-| `fg-muted` auf `surface` | 7,02:1 | 7,64:1 |
-| `fg-subtle` auf `bg` | 5,32:1 | 6,03:1 |
-| `fg-subtle` auf `surface` | 5,10:1 | 5,69:1 |
-| `primary` auf `bg` | 6,74:1 | 8,59:1 |
-| `primary-fg` auf `primary` | 6,74:1 | 8,44:1 |
-| `primary-subtle-fg` auf `primary-subtle` | 8,38:1 | 10,72:1 |
-| `success-fg` auf `success` | 6,91:1 | 9,02:1 |
-| `success-subtle-fg` auf `success-subtle` | 8,16:1 | 11,03:1 |
-| `warning-fg` auf `warning` | 6,36:1 | 8,76:1 |
-| `warning-subtle-fg` auf `warning-subtle` | 7,89:1 | 11,46:1 |
-| `danger` auf `bg` | 6,93:1 | 8,36:1 |
-| `danger-fg` auf `danger` | 6,93:1 | 7,85:1 |
-| `danger-subtle-fg` auf `danger-subtle` | 8,02:1 | 10,97:1 |
-| `border-strong` auf `bg` (3:1 genügt) | 3,46:1 | 3,99:1 |
-| `border-strong` auf `surface` (3:1 genügt) | 3,31:1 | 3,77:1 |
-| `focus` auf `bg` (3:1 genügt) | 6,74:1 | 8,59:1 |
-| `focus` auf `surface` (3:1 genügt) | 6,46:1 | 8,11:1 |
+| `fg` on `bg` | 19.67:1 | 17.55:1 |
+| `fg` on `surface` | 18.85:1 | 16.57:1 |
+| `fg-muted` on `bg` | 7.33:1 | 8.10:1 |
+| `fg-muted` on `surface` | 7.02:1 | 7.64:1 |
+| `fg-subtle` on `bg` | 5.32:1 | 6.03:1 |
+| `fg-subtle` on `surface` | 5.10:1 | 5.69:1 |
+| `primary` on `bg` | 6.74:1 | 8.59:1 |
+| `primary-fg` on `primary` | 6.74:1 | 8.44:1 |
+| `primary-subtle-fg` on `primary-subtle` | 8.38:1 | 10.72:1 |
+| `success-fg` on `success` | 6.91:1 | 9.02:1 |
+| `success-subtle-fg` on `success-subtle` | 8.16:1 | 11.03:1 |
+| `warning-fg` on `warning` | 6.36:1 | 8.76:1 |
+| `warning-subtle-fg` on `warning-subtle` | 7.89:1 | 11.46:1 |
+| `danger` on `bg` | 6.93:1 | 8.36:1 |
+| `danger-fg` on `danger` | 6.93:1 | 7.85:1 |
+| `danger-subtle-fg` on `danger-subtle` | 8.02:1 | 10.97:1 |
+| `border-strong` on `bg` (3:1 suffices) | 3.46:1 | 3.99:1 |
+| `border-strong` on `surface` (3:1 suffices) | 3.31:1 | 3.77:1 |
+| `focus` on `bg` (3:1 suffices) | 6.74:1 | 8.59:1 |
+| `focus` on `surface` (3:1 suffices) | 6.46:1 | 8.11:1 |
 
-`border` (die ruhige Trennlinie) ist bewusst kontrastarm und trägt nie
-Information — Bedienelemente benutzen `border-strong`.
+`border` (the quiet separator) is deliberately low-contrast and never carries
+information — controls use `border-strong`.
 
-## Texte
+## Strings
 
-v1 ist einsprachig deutsch — **aber kein fester Text steht in einer
-Komponente.** Alle Texte liegen in `src/strings.ts` als ein typisiertes Objekt
-(`UiStrings`). Mehrsprachigkeit ist später der Austausch dieses Moduls, nicht
-ein Umbau jeder Komponente.
+The product language is English, with no second language
+([ADR 0016](../../docs/decisions/0016-produktsprache-englisch.md)) — **but no
+fixed text lives in a component.** All strings are in `src/strings.ts` as one
+typed object (`UiStrings`). Adding languages later means swapping that module,
+not rebuilding every component.
 
 ```ts
 import { overrideStrings } from '@openapps/ui';
 
 overrideStrings({
-  form: { submit: 'Antrag einreichen' },
-  shell: { productName: 'Beispiel GmbH' },
+  form: { submit: 'Submit request' },
+  shell: { productName: 'Example Ltd' },
 });
 ```
 
-Nicht genannte Texte bleiben unverändert. Wo eine Komponente schon eine
-Text-Prop hat (`loadingLabel`, `emptyLabel`, `signedOutLabel`, …), gewinnt die
-Prop. `germanStrings` sind die ausgelieferten Texte, `resetStrings()` stellt sie
-wieder her.
+Strings not mentioned stay unchanged. Where a component already has a text
+prop (`loadingLabel`, `emptyLabel`, `signedOutLabel`, …), the prop wins.
+`defaultStrings` are the shipped strings, `resetStrings()` restores them.
 
-`src/strings.test.ts` prüft über die Quellen von `components/`, `patterns/` und
-`shell/`, dass dort kein sichtbarer deutscher Text mehr steht — mit fünf Netzen
-(Text im JSX, Zeichenketten an Text-Props, Vorgabewerte hinter `??`, alles mit
-Umlaut oder typografischem Zeichen, Fehlertexte). Jedes Netz hat einen Test,
-der zeigt, dass es greift, und einen, der korrekten Code durchlässt.
+`src/strings.test.ts` scans the sources of `components/`, `patterns/` and
+`shell/` to make sure no visible text is hard-coded there — with five nets
+(text in JSX, strings on text props, defaults after `??`, anything with an
+umlaut or typographic character, error texts). Each net has a test that shows
+it catches, and one that lets correct code through.
 
-## Der Linter
+## The linter
 
-| Regel | Blockiert |
+| Rule | Blocks |
 | --- | --- |
-| `no-raw-color` | Hex, `rgb()`/`hsl()`/`oklch()`, `bg-[#fff]`, Tailwind-Farbklassen außerhalb der Tokens |
-| `no-foreign-ui` | Importe außerhalb der Allowlist (`@openapps/ui`, `@openapps/sdk`, `@openapps/app-manifest`, `react`, `react-dom`, `next`, Tailwind) |
-| `require-list-states` | eine Liste (`Table`, `ListPattern`, `.map` in `ul`/`ol`/`tbody`) ohne importierten `EmptyState` **und** `ErrorState` — `ListPattern` zählt als beides |
-| `require-form-states` | ein Formular ohne importiertes `FormPattern` |
-| `no-server-function-props` | eine Funktion an `Table`, `ListPattern`, `DetailPattern` oder `FormPattern` aus einer Datei, die sicher auf dem Server rendert |
+| `no-raw-color` | hex, `rgb()`/`hsl()`/`oklch()`, `bg-[#fff]`, Tailwind colour classes outside the tokens |
+| `no-foreign-ui` | imports outside the allowlist (`@openapps/ui`, `@openapps/sdk`, `@openapps/app-manifest`, `react`, `react-dom`, `next`, Tailwind) |
+| `require-list-states` | a list (`Table`, `ListPattern`, `.map` in `ul`/`ol`/`tbody`) without an imported `EmptyState` **and** `ErrorState` — `ListPattern` counts as both |
+| `require-form-states` | a form without an imported `FormPattern` |
+| `no-server-function-props` | a function passed to `Table`, `ListPattern`, `DetailPattern` or `FormPattern` from a file that definitely renders on the server |
 
-Jede Regel hat in `lint/test/` einen Fall, der greift, und einen, der korrekten
-Code durchlässt.
+Each rule has a case in `lint/test/` that catches, and one that lets correct
+code through.
 
-### Tabellen rendern serverseitig
+### Tables render on the server
 
-Eine Seite im App-Router holt ihre Daten in der Server-Komponente, `Table` ist
-eine Client-Komponente — und React reicht **keine Funktion** über diese Grenze.
-Deshalb ist die serverfähige Form die Vorgabe:
+A page in the App Router fetches its data in the server component, `Table` is
+a client component — and React passes **no function** across that boundary.
+That is why the server-capable form is the default:
 
 ```tsx
 <Table
-  caption="Einträge"
+  caption="Entries"
   rows={items.map(toRow)}
   columns={[
-    { field: 'title', header: 'Titel' },
-    { field: 'angelegt', header: 'Angelegt', hideBelow: 'sm' },
+    { field: 'title', header: 'Title' },
+    { field: 'created', header: 'Created', hideBelow: 'sm' },
   ]}
-  empty={{ title: 'Noch keine Einträge' }}
-  error={failed ? { title: 'Nicht geladen' } : undefined}
+  empty={{ title: 'No entries yet' }}
+  error={failed ? { title: 'Not loaded' } : undefined}
 />
 ```
 
-- Eine Spalte nennt ihr `field`; der Spaltenschlüssel ist dann der Feldname.
-- `rowKey` entfällt, solange die Zeile ein Feld `id` hat; sonst der Feldname.
-- Abgeleitete Werte (zusammengesetzt, formatiert) rechnet die Server-Komponente
-  vorher in die Zeile, statt sie in eine `cell`-Funktion zu legen.
-- `null`, `''`, `Date`, `bigint` und `boolean` formatiert die Tabelle selbst
-  (`—`, `09.11.2026`, `Ja`/`Nein`) — ohne Zeitzone und Spracheinstellung des
-  Browsers, sonst stünde nach dem Hydrieren etwas anderes da.
+- A column names its `field`; the column key is then the field name.
+- `rowKey` can be omitted as long as the row has an `id` field; otherwise the
+  field name.
+- Derived values (combined, formatted) are computed into the row by the server
+  component beforehand instead of being put into a `cell` function.
+- The table formats `null`, `''`, `Date`, `bigint` and `boolean` itself
+  (`—`, `09/11/2026`, `Yes`/`No`) — without the browser's time zone and
+  locale, otherwise something different would show after hydration.
 
-`cell`, `rowKey` als Funktion, `onRowActivate`, `onSubmit` und `back.onClick`
-bleiben erlaubt — aber nur in einer Datei mit `'use client'`. `DetailPattern`
-hat dafür `back: { label, href }`. Was die Regel `no-server-function-props`
-nicht sieht: eine ausgelagerte Komponente ohne `'use client'`, die eine
-Server-Seite benutzt, und Funktionen, die erst ein Aufruf zurückgibt
-(`columns={spalten()}`).
+`cell`, `rowKey` as a function, `onRowActivate`, `onSubmit` and `back.onClick`
+remain allowed — but only in a file with `'use client'`. `DetailPattern` has
+`back: { label, href }` for this. What the `no-server-function-props` rule
+does not see: an extracted component without `'use client'` that a server page
+uses, and functions that only a call returns (`columns={columns()}`).
 
-### Was als Formular gilt
+### What counts as a form
 
-`require-form-states` meldet eine Datei, wenn sie
+`require-form-states` reports a file if it
 
-- ein `<form>` mit mindestens einem Feld enthält, **oder**
-- zwei oder mehr Felder (`Input`, `Select`, `Checkbox`, `input`, `textarea`)
-  zusammen mit einem Absende-Pfad (`onSubmit`/`onSave`/`onCreate`/`onUpdate`
-  oder ein Knopf mit `type="submit"`) enthält,
+- contains a `<form>` with at least one field, **or**
+- contains two or more fields (`Input`, `Select`, `Checkbox`, `input`,
+  `textarea`) together with a submit path (`onSubmit`/`onSave`/`onCreate`/
+  `onUpdate` or a button with `type="submit"`),
 
-und `FormPattern` nicht aus `@openapps/ui` importiert. Ein einzelnes Suchfeld
-und eine Filterleiste sind damit kein Formular.
+and does not import `FormPattern` from `@openapps/ui`. A single search field
+and a filter bar are therefore not a form.
 
-Warum der Muster-Import und nicht „hat eine Fehlermeldung": eine Regel, die nur
-das Vorhandensein einer `error`-Prop prüft, lässt sich mit einem leeren String
-austricksen. `FormPattern` bringt Validierung, `aria-invalid`,
-`aria-describedby`, `role="alert"` und die Fehlerzusammenfassung mit.
+Why the pattern import and not "has an error message": a rule that only checks
+for an `error` prop can be tricked with an empty string. `FormPattern` brings
+validation, `aria-invalid`, `aria-describedby`, `role="alert"` and the error
+summary.
 
-### Weitere erlaubte Pakete (`allowed-packages.json`)
+### Additional allowed packages (`allowed-packages.json`)
 
-`no-foreign-ui` bleibt eine Allowlist. Pakete, die kein UI sind und die eine App
-trotzdem braucht (`zod`, `date-fns`, …), trägt **die Control Plane** in eine
-JSON-Datei im Wurzelverzeichnis des App-Repos ein:
+`no-foreign-ui` stays an allowlist. Packages that are not UI and that an app
+still needs (`zod`, `date-fns`, …) are added by **the control plane** to a
+JSON file in the root of the app repo:
 
 ```json
 ["zod", "date-fns", "@tanstack/react-query"]
 ```
 
-oder, mit Platz für einen Kommentar:
+or, with room for a comment:
 
 ```json
-{ "_kommentar": "Gepflegt von der Control Plane.", "allow": ["zod"] }
+{ "_comment": "Maintained by the control plane.", "allow": ["zod"] }
 ```
 
-- Vorgabe-Pfad: `allowed-packages.json`, relativ zum ESLint-Wurzelverzeichnis.
-  Über die Option `allowExtraFile` änderbar, `useAllowlistFile: false` schaltet
-  das Lesen ganz ab.
-- **Fehlt die Datei, gilt nur die eingebaute Allowlist — nie „dann alles
-  erlauben".** Dasselbe bei kaputtem JSON oder falschem Format: die Regel meldet
-  den Dateifehler einmal und bleibt streng.
-- UI-Bibliotheken gehören dort nicht hinein. Oberfläche kommt aus
-  `@openapps/ui`, sonst zerfällt das Produktgefühl.
+- Default path: `allowed-packages.json`, relative to the ESLint root. It can
+  be changed with the `allowExtraFile` option; `useAllowlistFile: false`
+  disables reading it altogether.
+- **If the file is missing, only the built-in allowlist applies — never "then
+  allow everything".** The same goes for broken JSON or a wrong format: the
+  rule reports the file error once and stays strict.
+- UI libraries do not belong there. The interface comes from `@openapps/ui`,
+  otherwise the product falls apart.
 
-Eine leere Beispieldatei mit Erklärung liegt unter
+An empty example file with explanation is at
 `lint/allowed-packages.example.json`.
 
-## Entwickeln
+## Development
 
 ```bash
 pnpm --filter @openapps/ui test        # vitest + @testing-library/react
 pnpm --filter @openapps/ui typecheck
-pnpm --filter @openapps/ui lint        # das Paket prüft sich mit seinen eigenen Regeln
-pnpm --filter @openapps/ui showcase    # Schaufenster auf http://localhost:4321
+pnpm --filter @openapps/ui lint        # the package checks itself with its own rules
+pnpm --filter @openapps/ui showcase    # showcase at http://localhost:4321
 ```
 
-Das Schaufenster (`showcase/`) zeigt alle Komponenten, alle fünf Muster und die
-Shell — mit Umschalter für System / Hell / Dunkel.
+The showcase (`showcase/`) shows all components, all five patterns and the
+shell — with a switch for system / light / dark.
 
-## Regeln für App-Agents
+## Rules for app agents
 
-1. Keine Farbe außerhalb der Tokens. Auch nicht „nur hier kurz“.
-2. Jede Liste hat leeren und Fehlerzustand — am einfachsten über `ListPattern`.
-3. Jedes Formular nutzt `FormPattern` — der Linter verlangt den Import.
-4. Die Shell kommt von der Plattform. Apps bauen nur ihren Inhalt und reichen
-   den Nutzer aus `@openapps/sdk` als `user`-Prop herein. Kein eigener Login.
-5. Phone-Breite ohne waagerechtes Scrollen: Container `min-w-0`, lange Texte
-   `truncate` oder `[overflow-wrap:anywhere]`.
-6. Keinen festen Text in eine Komponente schreiben, die ins Design System
-   gehört — er kommt aus `strings`.
+1. No colour outside the tokens. Not even "just here, quickly".
+2. Every list has an empty and an error state — easiest via `ListPattern`.
+3. Every form uses `FormPattern` — the linter requires the import.
+4. The shell comes from the platform. Apps build only their content and pass
+   the user from `@openapps/sdk` in as the `user` prop. No login of their own.
+5. Phone width without horizontal scrolling: containers `min-w-0`, long texts
+   `truncate` or `[overflow-wrap:anywhere]`.
+6. Do not write fixed text into a component that belongs in the design system
+   — it comes from `strings`.

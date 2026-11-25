@@ -12,13 +12,13 @@ export class DomainError extends Error {
 
 /** Default-Deny hat zugeschlagen: keine passende, offene Freigabe. */
 export class PermissionDeniedError extends DomainError {
-  constructor(message = 'nicht freigegeben') {
+  constructor(message = 'not granted') {
     super(message, 'permission_denied');
   }
 }
 
 export class NotFoundError extends DomainError {
-  constructor(message = 'nicht gefunden') {
+  constructor(message = 'not found') {
     super(message, 'not_found');
   }
 }

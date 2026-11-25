@@ -18,10 +18,10 @@ const blankToNull = (value: unknown): unknown =>
 
 const requiredText = (max: number) =>
   z
-    .string({ required_error: 'fehlt', invalid_type_error: 'erwartet Text' })
+    .string({ required_error: 'is required', invalid_type_error: 'expected text' })
     .trim()
-    .min(1, 'darf nicht leer sein')
-    .max(max, `höchstens ${max} Zeichen`);
+    .min(1, 'must not be empty')
+    .max(max, `at most ${max} characters`);
 
 const optionalText = (max: number) => z.preprocess(blankToUndefined, requiredText(max).optional());
 
@@ -30,46 +30,46 @@ const clearableText = (max: number) =>
   z.preprocess(blankToNull, requiredText(max).nullable().optional());
 
 export const uuid = z
-  .string({ required_error: 'fehlt', invalid_type_error: 'erwartet eine UUID als Text' })
+  .string({ required_error: 'is required', invalid_type_error: 'expected a UUID as text' })
   .trim()
-  .uuid('erwartet eine UUID, z. B. aus companies.list');
+  .uuid('expected a UUID, e.g. from companies.list');
 
 const optionalUuid = z.preprocess(blankToUndefined, uuid.optional());
 const clearableUuid = z.preprocess(blankToNull, uuid.nullable().optional());
 
 const limit = z
-  .number({ invalid_type_error: 'erwartet eine ganze Zahl' })
-  .int('erwartet eine ganze Zahl')
-  .min(1, 'mindestens 1')
-  .max(200, 'höchstens 200')
+  .number({ invalid_type_error: 'expected a whole number' })
+  .int('expected a whole number')
+  .min(1, 'at least 1')
+  .max(200, 'at most 200')
   .default(50);
 
 const query = z.preprocess(
   blankToUndefined,
-  z.string({ invalid_type_error: 'erwartet Text' }).trim().max(200, 'höchstens 200 Zeichen').optional(),
+  z.string({ invalid_type_error: 'expected text' }).trim().max(200, 'at most 200 characters').optional(),
 );
 
 export const email = z
-  .string({ invalid_type_error: 'erwartet Text' })
+  .string({ invalid_type_error: 'expected text' })
   .trim()
-  .max(254, 'höchstens 254 Zeichen')
-  .email('erwartet eine E-Mail-Adresse wie name@example.com');
+  .max(254, 'at most 254 characters')
+  .email('expected an email address like name@example.com');
 
 export const phone = z
-  .string({ invalid_type_error: 'erwartet Text' })
+  .string({ invalid_type_error: 'expected text' })
   .trim()
-  .min(1, 'darf nicht leer sein')
-  .max(50, 'höchstens 50 Zeichen')
-  .regex(/^\+?(?=[^0-9]*[0-9])[0-9 ()/.-]+$/, 'erwartet eine Telefonnummer aus Ziffern, +, Leerzeichen, (, ), /, - und .');
+  .min(1, 'must not be empty')
+  .max(50, 'at most 50 characters')
+  .regex(/^\+?(?=[^0-9]*[0-9])[0-9 ()/.-]+$/, 'expected a phone number made of digits, +, spaces, (, ), /, - and .');
 
 /**
  * Website: ohne Schema wird `https://` ergaenzt. Nur http und https — eine
  * `javascript:`-URL landet sonst als Verweis in der Oberflaeche.
  */
 export const website = z
-  .string({ invalid_type_error: 'erwartet Text' })
+  .string({ invalid_type_error: 'expected text' })
   .trim()
-  .max(500, 'höchstens 500 Zeichen')
+  .max(500, 'at most 500 characters')
   .transform((value) => (/^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`))
   .refine((value) => {
     try {
@@ -78,13 +78,13 @@ export const website = z
     } catch {
       return false;
     }
-  }, 'erwartet eine Web-Adresse wie https://example.com');
+  }, 'expected a web address like https://example.com');
 
 /** Kalenderdatum JJJJ-MM-TT, das es wirklich gibt (kein 2025-02-30). */
 export const isoDate = z
-  .string({ invalid_type_error: 'erwartet ein Datum als Text' })
+  .string({ invalid_type_error: 'expected a date as text' })
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'erwartet ein Datum im Format JJJJ-MM-TT')
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'expected a date in the format YYYY-MM-DD')
   .refine((value) => {
     const [y, m, d] = value.split('-').map(Number) as [number, number, number];
     const date = new Date(Date.UTC(y, m - 1, d));
@@ -95,20 +95,20 @@ export const isoDate = z
       y >= 1900 &&
       y <= 2200
     );
-  }, 'kein gültiges Datum');
+  }, 'not a valid date');
 
 export const valueCents = z
-  .number({ required_error: 'fehlt', invalid_type_error: 'erwartet eine ganze Zahl in Cent' })
-  .int('erwartet ganze Cent, z. B. 1250000 für 12.500 €')
-  .min(0, 'darf nicht negativ sein')
-  .max(MAX_VALUE_CENTS, 'zu groß');
+  .number({ required_error: 'is required', invalid_type_error: 'expected a whole number of cents' })
+  .int('expected whole cents, e.g. 1250000 for €12,500')
+  .min(0, 'must not be negative')
+  .max(MAX_VALUE_CENTS, 'too large');
 
 export const stage = z.enum(STAGES, {
-  errorMap: () => ({ message: `erwartet eine von: ${STAGES.join(', ')}` }),
+  errorMap: () => ({ message: `expected one of: ${STAGES.join(', ')}` }),
 });
 
 export const activityKind = z.enum(ACTIVITY_KINDS, {
-  errorMap: () => ({ message: `erwartet eine von: ${ACTIVITY_KINDS.join(', ')}` }),
+  errorMap: () => ({ message: `expected one of: ${ACTIVITY_KINDS.join(', ')}` }),
 });
 
 // --- Firmen ---------------------------------------------------------------
@@ -123,7 +123,7 @@ export const CompanyCreateArgs = z
   .object({
     name: requiredText(200),
     website: z.preprocess(blankToUndefined, website.optional()),
-    branche: optionalText(100),
+    industry: optionalText(100),
     notes: optionalText(5000),
   })
   .strict();
@@ -158,7 +158,7 @@ export const ContactUpdateArgs = z
   })
   .strict()
   .refine((value) => CONTACT_UPDATE_FIELDS.some((field) => value[field] !== undefined), {
-    message: `mindestens eines von ${CONTACT_UPDATE_FIELDS.join(', ')} angeben`,
+    message: `provide at least one of ${CONTACT_UPDATE_FIELDS.join(', ')}`,
   });
 export type ContactUpdateArgs = z.infer<typeof ContactUpdateArgs>;
 
@@ -200,8 +200,8 @@ export const ActivityLogArgs = z
     happenedAt: z.preprocess(
       blankToUndefined,
       z
-        .string({ invalid_type_error: 'erwartet einen Zeitpunkt als Text' })
-        .datetime({ offset: true, message: 'erwartet einen ISO-Zeitpunkt wie 2025-03-01T09:30:00Z' })
+        .string({ invalid_type_error: 'expected a timestamp as text' })
+        .datetime({ offset: true, message: 'expected an ISO timestamp like 2025-03-01T09:30:00Z' })
         .optional(),
     ),
   })
@@ -209,7 +209,7 @@ export const ActivityLogArgs = z
   .refine(
     (value) =>
       value.contactId !== undefined || value.companyId !== undefined || value.dealId !== undefined,
-    { message: 'mindestens eines von contactId, companyId, dealId angeben' },
+    { message: 'provide at least one of contactId, companyId, dealId' },
   );
 export type ActivityLogArgs = z.infer<typeof ActivityLogArgs>;
 

@@ -59,7 +59,7 @@ async function forward(request: Request): Promise<Response> {
     });
   } catch {
     // Nicht erreichbar heisst „nein", nicht „offen" — und sagt nicht, warum.
-    return new Response('Plattform-MCP nicht erreichbar', {
+    return new Response('platform MCP not reachable', {
       status: 503,
       headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
     });

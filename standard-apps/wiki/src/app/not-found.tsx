@@ -5,11 +5,11 @@ export default function NotFound() {
   return (
     <main className="p-6">
       <EmptyState
-        title="Diese Seite gibt es nicht"
-        description="Vielleicht wurde sie archiviert oder der Verweis ist falsch."
+        title="This page does not exist"
+        description="It may have been archived, or the link is wrong."
         action={
           <LinkButton href="/" variant="primary" size="sm">
-            Zu allen Seiten
+            All pages
           </LinkButton>
         }
       />

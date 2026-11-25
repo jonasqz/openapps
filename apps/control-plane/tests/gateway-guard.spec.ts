@@ -216,7 +216,7 @@ describe('Startup-Check gegen die Traefik-API', () => {
     const result = await check({ routers: routers({ appChain: [...HEALTHY_CHAIN].reverse() }) });
 
     expect(result.state).toBe('alarm');
-    expect(problems(result)).toMatch(/Reihenfolge/);
+    expect(problems(result)).toMatch(/in exactly this order/);
   });
 
   it('schlaegt Alarm, wenn eine fremde Middleware in der Kette steht', async () => {
@@ -226,7 +226,7 @@ describe('Startup-Check gegen die Traefik-API', () => {
       }),
     });
 
-    expect(problems(result)).toMatch(/Reihenfolge|erwartet/);
+    expect(problems(result)).toMatch(/in exactly this order|expected/);
   });
 
   it('prueft auch einen Router, den dieser Test noch nicht kennt', async () => {
@@ -250,12 +250,12 @@ describe('Startup-Check gegen die Traefik-API', () => {
     });
 
     expect(result.state).toBe('alarm');
-    expect(problems(result)).toMatch(/nicht geladen/);
+    expect(problems(result)).toMatch(/not loaded/);
   });
 
   it('schlaegt Alarm, wenn der Catch-all fehlt oder abgeschaltet ist', async () => {
     expect(problems(await check({ routers: routers({ catchAll: 'missing' }) }))).toMatch(
-      /Catch-all/,
+      /catch-all/,
     );
     expect(problems(await check({ routers: routers({ catchAll: 'disabled' }) }))).toMatch(
       /status "disabled"/,
@@ -279,7 +279,7 @@ describe('Startup-Check gegen die Traefik-API', () => {
   it('schlaegt Alarm, wenn den Entrypoint unserer Router gar nicht gibt', async () => {
     const result = await check({ entrypoints: entrypoints({ withoutHttps: true }) });
     expect(result.state).toBe('alarm');
-    expect(problems(result)).toMatch(/Entrypoint "https"/);
+    expect(problems(result)).toMatch(/entrypoint "https"/);
   });
 
   it('meldet eine nicht erreichbare API als unreachable, nicht als Alarm', async () => {

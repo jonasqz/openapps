@@ -30,12 +30,12 @@ const enabled = url !== '' && schema !== '';
 const MIGRATIONS = fileURLToPath(new URL('../../migrations', import.meta.url));
 const SEEDS = fileURLToPath(new URL('../../seeds', import.meta.url));
 const HUMAN = 'usr_test';
-const AGENT = 'agent:redaktion';
+const AGENT = 'agent:editor';
 
 const create = (input: unknown, actor = HUMAN) => createPage(PagesCreateArgs.parse(input), actor);
 const update = (input: unknown, actor = AGENT) => updatePage(PagesUpdateArgs.parse(input), actor);
 
-describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
+describe.skipIf(!enabled)('Wiki against Postgres', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = url;
     process.env.DATABASE_SCHEMA = schema;
@@ -47,56 +47,64 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
     await appPool().end();
   });
 
-  it('Migrationen laufen ein zweites Mal ohne Wirkung', async () => {
+  it('runs migrations a second time without effect', async () => {
     const result = await runMigrations(appPool(), join(MIGRATIONS));
     expect(result.applied).toEqual([]);
-    expect(result.skipped).toEqual(['0001_wiki.sql']);
+    expect(result.skipped).toEqual(['0001_wiki.sql', '0002_english_search.sql']);
   });
 
-  it('die Beispielseiten stehen als Baum da, mit erstem Verlaufseintrag', async () => {
+  it('shows the sample pages as a tree, each with a first history entry', async () => {
     const { pages } = await listPages({});
-    const handbuch = pages.find((page) => page.title === 'Nordlicht Handbuch');
+    const handbuch = pages.find((page) => page.title === 'Northlight Handbook');
     expect(handbuch).toBeDefined();
     const children = await listPages({ parentId: handbuch?.id });
     expect(children.pages.map((page) => page.title)).toEqual([
+      'Leave policy',
       'Onboarding',
-      'Tools & Zugänge',
-      'Urlaubsregel',
+      'Tools & access',
     ]);
     const history = await pageHistory({ id: handbuch?.id ?? '', limit: 50 });
     expect(history.revisions.map((revision) => revision.change)).toEqual(['create']);
   });
 
-  it('Volltextsuche findet Wortformen und liefert Rang und Ausschnitt', async () => {
-    const { hits } = await searchPages({ query: 'Urlaubstagen beantragen', limit: 5 });
-    expect(hits[0]?.title).toBe('Urlaubsregel');
+  it('full-text search finds word forms and returns rank and snippet', async () => {
+    // "requests" in der Suche, "request" im Text.
+    const { hits } = await searchPages({ query: 'annual leave requests', limit: 5 });
+    expect(hits[0]?.title).toBe('Leave policy');
     expect(hits[0]?.rank).toBeGreaterThan(0);
-    expect(hits[0]?.snippet).toContain('«Urlaubstage»');
+    expect(hits[0]?.snippet).toContain('«request»');
     expect(hits[0]?.snippet).not.toContain('\n');
   });
 
-  it('Suche uebersteht Stoppwoerter und kaputte Syntax', async () => {
-    expect((await searchPages({ query: 'und', limit: 5 })).hits).toEqual([]);
-    await expect(searchPages({ query: '"offen -or ) ( \\', limit: 5 })).resolves.toBeDefined();
+  it('search uses English stemming', async () => {
+    // "policies" und "policy" haben nur im englischen Woerterbuch denselben Stamm.
+    const { hits } = await searchPages({ query: 'policies', limit: 5 });
+    expect(hits.map((hit) => hit.title)).toContain('Leave policy');
   });
 
-  it('Titel-Filter nimmt % und _ woertlich', async () => {
+  it('search survives stop words and broken syntax', async () => {
+    // Der Suchindex nutzt das englische Woerterbuch (0002_english_search.sql).
+    expect((await searchPages({ query: 'the', limit: 5 })).hits).toEqual([]);
+    await expect(searchPages({ query: '"open -or ) ( \\', limit: 5 })).resolves.toBeDefined();
+  });
+
+  it('title filter takes % and _ literally', async () => {
     expect((await listPages({ q: '%' })).pages).toEqual([]);
   });
 
-  it('jede Aenderung schreibt eine Revision mit Autor, keine Aenderung keine', async () => {
-    const page = await create({ title: 'Testseite Verlauf', contentMd: 'Start', tags: ['Test'] });
+  it('writes a revision with author for every change, and none without a change', async () => {
+    const page = await create({ title: 'Test page history', contentMd: 'Start', tags: ['Test'] });
     expect(page.createdBy).toBe(HUMAN);
     expect(page.tags).toEqual(['test']);
 
-    const appended = await update({ id: page.id, appendMd: '- vom Agent ergänzt' });
-    expect(appended.contentMd).toBe('Start\n\n- vom Agent ergänzt');
+    const appended = await update({ id: page.id, appendMd: '- added by the agent' });
+    expect(appended.contentMd).toBe('Start\n\n- added by the agent');
     expect(appended.updatedBy).toBe(AGENT);
 
-    await update({ id: page.id, title: 'Testseite Verlauf' });
+    await update({ id: page.id, title: 'Test page history' });
 
-    const replaced = await update({ id: page.id, contentMd: 'Neu', tags: [] }, HUMAN);
-    expect(replaced.contentMd).toBe('Neu');
+    const replaced = await update({ id: page.id, contentMd: 'New', tags: [] }, HUMAN);
+    expect(replaced.contentMd).toBe('New');
     expect(replaced.tags).toEqual([]);
 
     const history = await pageHistory({ id: page.id, limit: 50 });
@@ -105,11 +113,11 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
       ['update', AGENT],
       ['create', HUMAN],
     ]);
-    expect(history.revisions[1]?.contentMd).toBe('Start\n\n- vom Agent ergänzt');
+    expect(history.revisions[1]?.contentMd).toBe('Start\n\n- added by the agent');
   });
 
-  it('Anhaengen ueber die Grenze wird abgewiesen, ohne etwas zu schreiben', async () => {
-    const page = await create({ title: 'Testseite Grenze', contentMd: 'x'.repeat(199_990) });
+  it('rejects appending past the limit without writing anything', async () => {
+    const page = await create({ title: 'Test page limit', contentMd: 'x'.repeat(199_990) });
     await expect(update({ id: page.id, appendMd: 'y'.repeat(20) })).rejects.toBeInstanceOf(
       ToolInputError,
     );
@@ -117,14 +125,14 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
     expect((await pageHistory({ id: page.id, limit: 50 })).revisions).toHaveLength(1);
   });
 
-  it('Archivieren: nicht mit lebenden Unterseiten, danach unsichtbar in Liste und Suche', async () => {
-    const parent = await create({ title: 'Testseite Eltern', contentMd: 'Zebrastreifen' });
-    const child = await create({ title: 'Testseite Kind', contentMd: '', parentId: parent.id });
+  it('archive: not with live subpages, afterwards hidden from list and search', async () => {
+    const parent = await create({ title: 'Test page parent', contentMd: 'Zebracrossing' });
+    const child = await create({ title: 'Test page child', contentMd: '', parentId: parent.id });
     expect((await getPage({ id: parent.id })).children).toEqual([
-      { id: child.id, title: 'Testseite Kind' },
+      { id: child.id, title: 'Test page child' },
     ]);
 
-    await expect(archivePage({ id: parent.id }, AGENT)).rejects.toThrow(/Unterseiten/);
+    await expect(archivePage({ id: parent.id }, AGENT)).rejects.toThrow(/subpages/);
 
     const archivedChild = await archivePage({ id: child.id }, AGENT);
     const again = await archivePage({ id: child.id }, AGENT);
@@ -132,7 +140,7 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
 
     await archivePage({ id: parent.id }, AGENT);
     expect((await listPages({})).pages.some((page) => page.id === parent.id)).toBe(false);
-    expect((await searchPages({ query: 'Zebrastreifen', limit: 5 })).hits).toEqual([]);
+    expect((await searchPages({ query: 'Zebracrossing', limit: 5 })).hits).toEqual([]);
 
     const archived = await getPage({ id: parent.id });
     expect(archived.archivedAt).not.toBeNull();
@@ -144,23 +152,23 @@ describe.skipIf(!enabled)('Wiki gegen Postgres', () => {
 
     await expect(update({ id: parent.id, title: 'x' })).rejects.toBeInstanceOf(ToolInputError);
     await expect(
-      create({ title: 'Waise', contentMd: '', parentId: parent.id }),
+      create({ title: 'Orphan', contentMd: '', parentId: parent.id }),
     ).rejects.toBeInstanceOf(ToolInputError);
   });
 
-  it('unbekannte Seiten ergeben ToolNotFoundError, nie einen Datenbankfehler', async () => {
+  it('unknown pages yield ToolNotFoundError, never a database error', async () => {
     const missing = '00000000-0000-4000-8000-000000000000';
     await expect(getPage({ id: missing })).rejects.toBeInstanceOf(ToolNotFoundError);
     await expect(update({ id: missing, title: 'x' })).rejects.toBeInstanceOf(ToolNotFoundError);
     await expect(archivePage({ id: missing }, AGENT)).rejects.toBeInstanceOf(ToolNotFoundError);
     await expect(pageHistory({ id: missing, limit: 5 })).rejects.toBeInstanceOf(ToolNotFoundError);
     await expect(
-      create({ title: 'Waise', contentMd: '', parentId: missing }),
+      create({ title: 'Orphan', contentMd: '', parentId: missing }),
     ).rejects.toBeInstanceOf(ToolNotFoundError);
   });
 
-  it('die Revisionen bleiben, auch wenn jemand am Code vorbei loeschen will', async () => {
-    const page = await create({ title: 'Testseite Loeschen', contentMd: '' });
+  it('keeps the revisions even if someone tries to delete around the code', async () => {
+    const page = await create({ title: 'Test page delete', contentMd: '' });
     await expect(query('delete from pages where id = $1', [page.id])).rejects.toThrow();
   });
 });

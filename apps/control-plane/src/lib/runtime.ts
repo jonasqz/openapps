@@ -62,7 +62,7 @@ export function domainContext(): DomainContext {
   // ausdruecklichen Wunsch; jeder andere Wert ist ein Fehler, kein Default.
   const backendKind = process.env.OPENAPPS_BACKEND ?? 'coolify';
   if (backendKind !== 'coolify' && backendKind !== 'lokal') {
-    throw new Error(`OPENAPPS_BACKEND="${backendKind}" — erlaubt sind coolify und lokal`);
+    throw new Error(`OPENAPPS_BACKEND="${backendKind}": allowed values are coolify and lokal`);
   }
   const lokal = backendKind === 'lokal' ? lokalConfigFromEnv() : null;
 

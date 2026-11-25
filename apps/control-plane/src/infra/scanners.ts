@@ -70,7 +70,7 @@ function runCommand(
     let stderr = '';
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
-      stderr += `\nAbbruch nach ${timeoutMs} ms`;
+      stderr += `\naborted after ${timeoutMs} ms`;
     }, timeoutMs);
 
     child.stdout.on('data', (chunk: Buffer) => {

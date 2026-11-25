@@ -90,7 +90,7 @@ export async function callAppTool(
     },
     async () => {
       if (appName === '' || toolName === '') {
-        throw new PermissionDeniedError(`unbekanntes Tool "${input.toolResourceId}"`);
+        throw new PermissionDeniedError(`unknown tool "${input.toolResourceId}"`);
       }
 
       const allowed = await can(ctx, input.actor, 'execute', {
@@ -99,21 +99,21 @@ export async function callAppTool(
       });
       if (!allowed) {
         throw new PermissionDeniedError(
-          `${input.actor.kind}:${input.actor.id} darf "${input.toolResourceId}" nicht aufrufen`,
+          `${input.actor.kind}:${input.actor.id} may not call "${input.toolResourceId}"`,
         );
       }
 
       const app = await ctx.apps.findByName(appName);
       if (app === null) {
         // Eine Freigabe auf eine App, die es nicht gibt, oeffnet nichts.
-        throw new PermissionDeniedError(`App "${appName}" gibt es nicht`);
+        throw new PermissionDeniedError(`app "${appName}" does not exist`);
       }
 
       // Das Tool muss auch im Manifest stehen. Sonst waere eine alte Freigabe
       // ein Zugang zu etwas, das die App nicht mehr anbietet.
       const declared = app.manifest.offeredTools.some((t) => t.name === toolName);
       if (!declared) {
-        throw new PermissionDeniedError(`App "${appName}" bietet kein Tool "${toolName}"`);
+        throw new PermissionDeniedError(`app "${appName}" offers no tool "${toolName}"`);
       }
 
       const value = await input.invoker.invoke({

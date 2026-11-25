@@ -181,7 +181,7 @@ describe('Konfigurations-Lint vor dem Deploy: der Schritt im Review-Gate', () =>
     const result = await pipeline.run(withoutTarget);
 
     expect(result.decision).toBe('blocked');
-    expect(result.steps[0]?.error).toContain('kein Gateway-Ziel');
+    expect(result.steps[0]?.error).toContain('no gateway target');
     expect(result.steps[0]?.skipped).toBeUndefined();
   });
 
@@ -316,7 +316,7 @@ describe('Konfigurations-Lint nach dem Deploy: gemessen, nicht abgeleitet', () =
 
     expect(outcome.gateway.state).toBe('finding');
     if (outcome.gateway.state === 'finding') {
-      expect(outcome.gateway.problems.join(' ')).toContain('eigene Traefik-Labels');
+      expect(outcome.gateway.problems.join(' ')).toContain('its own Traefik labels');
     }
     expect(outcome.deployment.status).toBe('degraded');
     expect(harness.alarms.open()).toHaveLength(1);
@@ -332,8 +332,8 @@ describe('Konfigurations-Lint nach dem Deploy: gemessen, nicht abgeleitet', () =
     expect(outcome.gateway.state).toBe('finding');
     if (outcome.gateway.state === 'finding') {
       expect(outcome.gateway.problems).toHaveLength(2);
-      expect(outcome.gateway.problems.join(' ')).toContain('Host-Port');
-      expect(outcome.gateway.problems.join(' ')).toContain('Domain');
+      expect(outcome.gateway.problems.join(' ')).toContain('host port');
+      expect(outcome.gateway.problems.join(' ')).toContain('the domain');
     }
   });
 

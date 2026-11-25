@@ -30,8 +30,8 @@ function basePath() {
   if (raw === '') return '';
   if (!/^\/[a-z0-9][a-z0-9-]*$/.test(raw)) {
     throw new Error(
-      `OPENAPPS_APP_BASE_PATH ist "${raw}" — erwartet wird /<app-name> ` +
-        '(Kleinbuchstaben, Ziffern, Bindestrich) oder ein leerer Wert für den lokalen Lauf.',
+      `OPENAPPS_APP_BASE_PATH is "${raw}" — expected /<app-name> ` +
+        '(lowercase letters, digits, hyphen) or an empty value for a local run.',
     );
   }
   return raw;

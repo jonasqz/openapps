@@ -143,7 +143,7 @@ export async function listPages(args: PagesListArgs): Promise<PageList> {
 async function readPage(run: Tx['query'], id: string): Promise<Page> {
   const rows = await run<PageRow>(`select ${PAGE_COLUMNS} from pages where id = $1`, [id]);
   const row = rows[0];
-  if (row === undefined) throw new ToolNotFoundError(`Seite ${id} gibt es nicht`);
+  if (row === undefined) throw new ToolNotFoundError(`Page ${id} does not exist`);
 
   const [parentRows, childRows] = await Promise.all([
     row.parent_id === null
@@ -185,7 +185,9 @@ interface SearchRow extends Record<string, unknown> {
 }
 
 /**
- * pages.search — Volltext ueber Titel und Inhalt, deutsche Stammformen.
+ * pages.search — Volltext ueber Titel und Inhalt, englische Stammformen.
+ * Die Konfiguration 'english' muss zur Spalte `search` passen
+ * (migrations/0002_english_search.sql).
  *
  * Treffer im Ausschnitt stehen in `«…»`, nicht in `**`: Der Inhalt ist selbst
  * Markdown, und `**` darin waere von einer Treffermarke nicht zu unterscheiden.
@@ -194,9 +196,9 @@ export async function searchPages(args: PagesSearchArgs): Promise<{ hits: Search
   const rows = await query<SearchRow>(
     `select p.id, p.parent_id, p.title, p.tags, p.updated_at,
             ts_rank(p.search, q)::float8 as rank,
-            ts_headline('german', p.title || ' ' || p.content_md, q,
+            ts_headline('english', p.title || ' ' || p.content_md, q,
               'StartSel=«, StopSel=», MaxWords=35, MinWords=12, MaxFragments=2, FragmentDelimiter=" … "') as snippet
-       from pages p, websearch_to_tsquery('german', $1) q
+       from pages p, websearch_to_tsquery('english', $1) q
       where p.archived_at is null
         and p.search @@ q
       order by rank desc, p.updated_at desc
@@ -235,7 +237,7 @@ async function lockPage(tx: Tx, id: string): Promise<PageRow> {
     id,
   ]);
   const row = rows[0];
-  if (row === undefined) throw new ToolNotFoundError(`Seite ${id} gibt es nicht`);
+  if (row === undefined) throw new ToolNotFoundError(`Page ${id} does not exist`);
   return row;
 }
 
@@ -248,12 +250,12 @@ export async function createPage(args: PagesCreateArgs, actor: string): Promise<
       // eine lebende Unterseite.
       const parent = await lockPage(tx, args.parentId).catch((error: unknown) => {
         if (error instanceof ToolNotFoundError) {
-          throw new ToolNotFoundError(`Elternseite ${args.parentId} gibt es nicht`);
+          throw new ToolNotFoundError(`Parent page ${args.parentId} does not exist`);
         }
         throw error;
       });
       if (parent.archived_at !== null) {
-        throw new ToolInputError(`Elternseite ${args.parentId} ist archiviert`);
+        throw new ToolInputError(`Parent page ${args.parentId} is archived`);
       }
     }
     const rows = await tx.query<{ id: string }>(
@@ -278,7 +280,7 @@ export async function updatePage(args: PagesUpdateArgs, actor: string): Promise<
   await transaction(async (tx) => {
     const current = await lockPage(tx, args.id);
     if (current.archived_at !== null) {
-      throw new ToolInputError(`Seite ${args.id} ist archiviert und kann nicht bearbeitet werden`);
+      throw new ToolInputError(`Page ${args.id} is archived and cannot be edited`);
     }
 
     const title = args.title ?? current.title;
@@ -290,7 +292,7 @@ export async function updatePage(args: PagesUpdateArgs, actor: string): Promise<
 
     if (contentMd.length > LIMITS.contentMax) {
       throw new ToolInputError(
-        `Inhalt waere nach der Aenderung ${contentMd.length} Zeichen lang, erlaubt sind ${LIMITS.contentMax}`,
+        `Content would be ${contentMd.length} characters long after the change; the limit is ${LIMITS.contentMax}`,
       );
     }
 
@@ -340,7 +342,7 @@ export async function archivePage(args: PagesArchiveArgs, actor: string): Promis
         .map((child) => `"${child.title}" (${child.id})`)
         .join(', ');
       throw new ToolInputError(
-        `Seite hat noch Unterseiten: ${names}${children.length > 5 ? ', …' : ''}. Archiviere zuerst die Unterseiten.`,
+        `Page still has subpages: ${names}${children.length > 5 ? ', …' : ''}. Archive the subpages first.`,
       );
     }
 
@@ -374,7 +376,7 @@ export async function pageHistory(
 ): Promise<{ pageId: string; title: string; revisions: Revision[] }> {
   const pages = await query<RefRow>('select id, title from pages where id = $1', [args.id]);
   const page = pages[0];
-  if (page === undefined) throw new ToolNotFoundError(`Seite ${args.id} gibt es nicht`);
+  if (page === undefined) throw new ToolNotFoundError(`Page ${args.id} does not exist`);
 
   const rows = await query<RevisionRow>(
     `select id::text as id, change, title, content_md, tags, edited_by, edited_at

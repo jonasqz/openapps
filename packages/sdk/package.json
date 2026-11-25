@@ -2,7 +2,7 @@
   "name": "@openapps/sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "Client für Apps auf der Plattform: Nutzer aus den Gateway-Headern und ein Postgres-Client, der auf das eigene Schema festgelegt ist.",
+  "description": "Client for apps on the platform: the user from the gateway headers and a Postgres client pinned to the app's own schema.",
   "type": "module",
   "exports": {
     ".": {

@@ -25,8 +25,8 @@ export const BOOTSTRAP_GRANTED_BY = 'system:bootstrap';
 export class EmailDomainRejectedError extends Error {
   constructor(readonly email: string) {
     super(
-      `Anmeldung abgelehnt: "${email}" liegt nicht in AUTH_ALLOWED_EMAIL_DOMAINS. ` +
-        'Ist die Variable leer, ist keine Anmeldung zugelassen.',
+      `sign-in rejected: "${email}" is not in AUTH_ALLOWED_EMAIL_DOMAINS. ` +
+        'If the variable is empty, no sign-in is allowed.',
     );
     this.name = 'EmailDomainRejectedError';
   }

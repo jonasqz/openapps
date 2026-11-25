@@ -83,7 +83,7 @@ export function createFileGatewayConfigStore(
     // Proxy-Start neu, und alle Router sind weg. Das ist kein Laufzeitfehler,
     // den man melden kann — es ist einer, der den Start verhindern muss.
     throw new Error(
-      `"${filename}" ist ein von Coolify reservierter Dateiname (ADR 0008) und wuerde ueberschrieben`,
+      `"${filename}" is a file name reserved by Coolify (ADR 0008) and would be overwritten`,
     );
   }
   const path = join(options.directory, filename);
@@ -106,7 +106,7 @@ export function createFileGatewayConfigStore(
         // Nicht lesbar ist **kein** Befund ueber die Konfiguration.
         return {
           state: 'unreachable',
-          reason: `${path} nicht lesbar: ${cause instanceof Error ? cause.message : String(cause)}`,
+          reason: `${path} not readable: ${cause instanceof Error ? cause.message : String(cause)}`,
         };
       }
       return compareGatewayConfig(actual, config, path);
@@ -132,8 +132,8 @@ export function compareGatewayConfig(
   for (let index = 0; index < Math.max(actualLines.length, wantLines.length); index += 1) {
     if (actualLines[index] === wantLines[index]) continue;
     problems.push(
-      `${path} weicht in Zeile ${String(index + 1)} ab: steht "${actualLines[index] ?? '—'}", ` +
-        `erwartet "${wantLines[index] ?? '—'}"`,
+      `${path} differs at line ${String(index + 1)}: found "${actualLines[index] ?? '—'}", ` +
+        `expected "${wantLines[index] ?? '—'}"`,
     );
     // Drei Abweichungen reichen fuer den Bericht; der Rest ist Rauschen aus
     // derselben Ursache.

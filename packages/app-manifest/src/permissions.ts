@@ -27,7 +27,7 @@ const slug = z
   .string()
   .min(1)
   .max(64)
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'erwartet einen Slug aus [a-z0-9-]');
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'expected a slug of [a-z0-9-]');
 
 /**
  * Qualifizierter Ressourcen-Name. `app` ist der App-Slug, in dessen Namensraum
@@ -43,7 +43,7 @@ export const resourceRefSchema = z
       .string()
       .min(1)
       .max(128)
-      .regex(/^[a-z0-9_.]+$/, 'erwartet [a-z0-9_.]')
+      .regex(/^[a-z0-9_.]+$/, 'expected [a-z0-9_.]')
       .optional(),
   })
   .strict()
@@ -52,14 +52,14 @@ export const resourceRefSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['name'],
-        message: "bei kind 'app' darf 'name' nicht gesetzt sein",
+        message: "kind 'app' must not set 'name'",
       });
     }
     if (value.kind !== 'app' && value.name === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['name'],
-        message: `bei kind '${value.kind}' ist 'name' nötig`,
+        message: `kind '${value.kind}' requires 'name'`,
       });
     }
   });

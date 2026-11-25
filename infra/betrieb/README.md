@@ -1,157 +1,158 @@
-# Inbetriebnahme auf einem Server mit Coolify
+# Going live on a server with Coolify
 
-Für genau einen Server: Coolifys Proxy, die Control Plane und alle Apps auf
-derselben Maschine (ADR 0008). Getestet ist die Annahme gegen Coolify
-**v4.7.1**. Ein frischer Lauf auf einem echten Server steht noch aus. Was dabei
-zu prüfen ist, steht unten unter „Erster Start“.
+For exactly one server: Coolify's proxy, the control plane and all apps on the
+same machine (ADR 0008). The assumption is tested against Coolify **v4.7.1**. A
+fresh run on a real server is still outstanding. What has to be checked there is
+listed below under "First start".
 
-Der Stapel ist [`docker-compose.yml`](docker-compose.yml): Control Plane,
-Deny-Backend und Postgres, als **eine** Ressource in Coolify.
+The stack is [`docker-compose.yml`](docker-compose.yml): control plane, deny
+backend and Postgres, as **one** resource in Coolify.
 
-## Größe des Servers
+## Server size
 
-Coolify selbst will mindestens 2 vCPU und 2 GB RAM. Der Bau des Images
-(`next build` und die Installation von semgrep) braucht kurzzeitig mehr. Unter
-4 GB RAM vor dem ersten Deploy Swap anlegen, sonst bricht der Build mit „Killed“
-ab:
+Coolify itself wants at least 2 vCPU and 2 GB RAM. Building the image
+(`next build` and the installation of semgrep) briefly needs more. Below 4 GB
+RAM, create swap before the first deploy, otherwise the build aborts with
+"Killed":
 
 ```bash
 fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
-## 1. Vorher auf dem Server
+## 1. Beforehand on the server
 
 ```bash
 stat -c '%u %a' /data/coolify/proxy/dynamic
 ```
 
-Erwartet: `9999 700`. Die Control Plane läuft im Container als UID 9999 und
-darf nur deshalb in dieses Verzeichnis schreiben. Steht dort eine andere UID,
-in Coolify beim Build das Argument `RUNTIME_UID` auf diesen Wert setzen. Die
-Rechte auf dem Host **nicht** aufweichen. Das nächste Coolify-Update setzt sie
-zurück, und dann scheitert das Schreiben (laut, aber erst dann).
+Expected: `9999 700`. The control plane runs in the container as UID 9999 and may
+write into this directory only for that reason. If a different UID is shown
+there, set the build argument `RUNTIME_UID` to that value in Coolify. Do **not**
+loosen the permissions on the host. The next Coolify update resets them, and
+then writing fails (loudly, but only then).
 
-## 2. Was du außerhalb anlegst
+## 2. What you create outside
 
-| Was                                                                                                     | Wo                                         | Wert für die Env                                       |
-| ------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
-| DNS: zwei A-Records auf die IP des Servers                                                              | dein DNS-Anbieter                          | `CONTROL_PLANE_HOST`, `APPS_DOMAIN`                    |
-| E-Mail für Let's Encrypt                                                                                | Coolify → Server → Proxy                   | —                                                      |
-| OAuth-Client (Typ „Webanwendung“), Redirect-URI `https://<CONTROL_PLANE_HOST>/api/auth/callback/google` | Google Cloud Console → APIs → Anmeldedaten | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`             |
-| API-Token mit `root` bzw. `read:sensitive` + `write` + `deploy`                                         | Coolify → Keys & Tokens                    | `COOLIFY_API_TOKEN`                                    |
-| UUID des Projekts und des Servers, in denen die Apps landen                                             | Coolify, steht in der URL der Seite        | `COOLIFY_PROJECT_UUID`, `COOLIFY_SERVER_UUID`          |
-| Token mit Zugriff auf die App-Repos und das Starter-Template                                            | GitHub → Settings → Developer settings     | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_TEMPLATE_REPO` |
+| What                                                                                                        | Where                                     | Value for the env                                      |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------ |
+| DNS: two A records pointing to the server's IP                                                              | your DNS provider                         | `CONTROL_PLANE_HOST`, `APPS_DOMAIN`                    |
+| Email for Let's Encrypt                                                                                     | Coolify → Server → Proxy                  | —                                                      |
+| OAuth client (type "Web application"), redirect URI `https://<CONTROL_PLANE_HOST>/api/auth/callback/google` | Google Cloud Console → APIs → Credentials | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`             |
+| API token with `root` or `read:sensitive` + `write` + `deploy`                                              | Coolify → Keys & Tokens                   | `COOLIFY_API_TOKEN`                                    |
+| UUID of the project and the server in which the apps land                                                   | Coolify, shown in the URL of the page     | `COOLIFY_PROJECT_UUID`, `COOLIFY_SERVER_UUID`          |
+| Token with access to the app repos and the starter template                                                 | GitHub → Settings → Developer settings    | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_TEMPLATE_REPO` |
 
-Secrets trägst du **nur** in Coolify ein, nicht in einen Chat und nicht ins
-Repo. Zufallswerte erzeugst du auf dem Server:
+You enter secrets **only** in Coolify, not in a chat and not in the repo. You
+generate random values on the server:
 
 ```bash
 openssl rand -base64 48 | tr -d '\n=+/' ; echo
 ```
 
-Je einmal für `OPENAPPS_AUTH_MASTER_SECRET`, `BETTER_AUTH_SECRET`,
-`OPENAPPS_OWNER_PASSWORD` und `POSTGRES_SUPERUSER_PASSWORD`.
+One each for `OPENAPPS_AUTH_MASTER_SECRET`, `BETTER_AUTH_SECRET`,
+`OPENAPPS_OWNER_PASSWORD` and `POSTGRES_SUPERUSER_PASSWORD`.
 
-## 3. Die Ressource in Coolify
+## 3. The resource in Coolify
 
-1. Projekt → **New Resource** → Repository (privat über die GitHub-App oder
-   per Deploy-Key) → dieses Repo, Branch `main`.
-2. Build Pack: **Docker Compose**. Compose-Datei:
+1. Project → **New Resource** → Repository (private via the GitHub app or via
+   deploy key) → this repo, branch `main`.
+2. Build pack: **Docker Compose**. Compose file:
    `/infra/betrieb/docker-compose.yml`.
-3. **Keinem** der drei Dienste eine Domain geben. Den Router schreibt die
-   Control Plane selbst. Ein Router von Coolify hätte unsere Middlewares nicht.
-4. Environment: alle Variablen, die Coolify als Pflicht anzeigt.
-   `AUTH_ALLOWED_EMAIL_DOMAINS` ist die Domain deiner Firmenadressen,
-   `AUTH_BOOTSTRAP_ADMINS` deine eigene Adresse.
+3. Give **none** of the three services a domain. The control plane writes the
+   router itself. A router from Coolify would not carry our middlewares.
+4. Environment: all variables that Coolify shows as required.
+   `AUTH_ALLOWED_EMAIL_DOMAINS` is the domain of your company addresses,
+   `AUTH_BOOTSTRAP_ADMINS` is your own address.
 5. Deploy.
 
-## 4. Erster Start: was zu prüfen ist
+## 4. First start: what to check
 
-Auf dem Server, in dieser Reihenfolge. Jeder Schritt hat eine erwartete
-Ausgabe. Weicht sie ab, nicht weitermachen.
+On the server, in this order. Every step has an expected output. If it
+deviates, do not continue.
 
 ```bash
-# Container-Name der Control Plane finden
+# Find the container name of the control plane
 CP=$(docker ps --format '{{.Names}}' | grep control-plane | head -1)
 
-# a) Migrationen gelaufen, Datei geschrieben
-docker logs "$CP" 2>&1 | grep -E 'angewendet|keine neue Migration|Gateway-Konfiguration|ALARM|WARN'
-#    erwartet: "angewendet: 0001_… 0015_…" und "Gateway-Konfiguration geschrieben: 2 Router."
-#    (Control Plane und Catch-all; jede App bringt einen weiteren)
+# a) Migrations ran, file written
+docker logs "$CP" 2>&1 | grep -E 'applied|no new migration|gateway configuration|ALARM|WARN'
+#    expected: "applied: 0001_… 0015_…" and "gateway configuration written: 2 router(s)."
+#    (control plane and catch-all; every app adds one more)
 
-# b) Die Datei liegt beim Proxy
+# b) The file lies next to the proxy
 ls -l /data/coolify/proxy/dynamic/openapps.yaml
 
-# c) Traefik erreicht die Control Plane über den Alias
+# c) Traefik reaches the control plane via the alias
 docker exec coolify-proxy wget -qO- http://openapps-control-plane:3000/healthz
-#    erwartet: "ok"
+#    expected: "ok"
 
-# d) Von außen: ohne Session kein Durchkommen
-curl -sI https://<CONTROL_PLANE_HOST>/            # erwartet: 302 auf /login
-curl -sI https://<CONTROL_PLANE_HOST>/login       # erwartet: 200
-curl -skI https://<APPS_DOMAIN>/irgendwas         # erwartet: 403 oder 302, nie 200
+# d) From outside: no way through without a session
+curl -sI https://<CONTROL_PLANE_HOST>/            # expected: 302 to /login
+curl -sI https://<CONTROL_PLANE_HOST>/login       # expected: 200
+curl -skI https://<APPS_DOMAIN>/irgendwas         # expected: 403 or 302, never 200
 
-# e) Kann die Control Plane die Traefik-API lesen? (Startup-Check)
-docker logs "$CP" 2>&1 | grep -E 'Gateway-Schutz'
+# e) Can the control plane read the Traefik API? (startup check)
+docker logs "$CP" 2>&1 | grep -E 'gateway protection'
 ```
 
-Zu **d)**: Für `APPS_DOMAIN` gibt es erst ein Let's-Encrypt-Zertifikat, wenn
-die erste App einen Router hat. Der Catch-all beantragt absichtlich keines.
-Bis dahin liefert Traefik sein Standard-Zertifikat, daher `-k`.
+On **d)**: for `APPS_DOMAIN` there is no Let's Encrypt certificate until the
+first app has a router. The catch-all deliberately requests none. Until then
+Traefik serves its default certificate, hence `-k`.
 
-Zu **e)**: Coolify startet Traefik mit `api.insecure=false`. Ob die API unter
-`http://coolify-proxy:8080` dann überhaupt antwortet, ist **nicht belegt**.
-Antwortet sie nicht, meldet der Startup-Check „nicht prüfbar“ (eine Warnung,
-kein Alarm). Dann trägt der Schutz trotzdem, aber die laufende Messung fehlt,
-und `check-auth.sh` prüft nur den ersten Teil. Das ist der erste Befund, den
-dieser Lauf liefern soll.
+On **e)**: Coolify starts Traefik with `api.insecure=false`. Whether the API
+answers at `http://coolify-proxy:8080` at all then is **not proven**. If it does
+not answer, the startup check reports "cannot be checked" (a warning, not an
+alarm). The protection then still holds, but the ongoing measurement is missing,
+and `check-auth.sh` only checks the first part. That is the first finding this
+run is meant to deliver.
 
-Danach meldest du dich unter `https://<CONTROL_PLANE_HOST>` mit Google an.
-Steht deine Adresse in `AUTH_BOOTSTRAP_ADMINS`, landest du in
-`platform-admins`.
+Afterwards you sign in at `https://<CONTROL_PLANE_HOST>` with Google. If your
+address is in `AUTH_BOOTSTRAP_ADMINS`, you land in `platform-admins`.
 
-## 5. Einen Agenten anschließen
+## 5. Connecting an agent
 
-1. In der Control Plane unter **Agents** eine Identität anlegen (oder per API:
-   `POST /api/agents`). Das Token steht genau einmal da.
-2. Dem Agenten Freigaben geben. Ohne Freigabe sieht er nichts und darf nichts.
-3. Verbinden, hier mit Claude Code:
+1. In the control plane under **Agents**, create an identity (or via API:
+   `POST /api/agents`). The token is shown exactly once.
+2. Give the agent grants. Without a grant it sees nothing and may do nothing.
+3. Connect, here with Claude Code:
 
 ```bash
 claude mcp add --transport http openapps https://<CONTROL_PLANE_HOST>/mcp --header "Authorization: Bearer <token>"
 ```
 
-Jeder andere MCP-Client geht genauso, solange er einen festen Header setzt.
-Prüfen ohne Client:
+Every other MCP client works the same way, as long as it sets a fixed header.
+Checking without a client:
 
 ```bash
 curl -si https://<CONTROL_PLANE_HOST>/mcp -X POST -H 'content-type: application/json' -d '{}' | head -1
-#    erwartet: 401
+#    expected: 401
 ```
 
-Sperren wirkt beim nächsten Aufruf (`disable_agent` oder der Knopf auf der
-Seite).
+Disabling takes effect on the next call (`disable_agent` or the button on the
+page).
 
-## 6. Die erste App
+## 6. The first app
 
-Über MCP: `create_app`, pushen, `request_deploy` mit Version und Commit. Die
-Control Plane holt den Commit selbst vom Repo-Backend, prüft ihn und deployt.
-Ein Pfad auf dem Rechner des Aufrufers ist nicht nötig.
+Via MCP: `create_app`, push, `request_deploy` with version and commit. The
+control plane fetches the commit itself from the repo backend, checks it and
+deploys. A path on the caller's machine is not needed.
 
-- Der `GITHUB_TOKEN` braucht dafür Leserecht auf den Inhalt der App-Repos.
-- Private App-Repos kann Coolify nur klonen, wenn unter **Sources** eine
-  GitHub-App verbunden ist. Deren UUID gehört in `COOLIFY_GITHUB_APP_UUID`.
-  Leer heißt: nur öffentliche Repos.
-- `COOLIFY_GIT_BRANCH` ist der Zweig, den Coolify klont (Default `main`).
-  Gebaut wird immer genau der geprüfte Commit.
+- The `GITHUB_TOKEN` needs read permission on the contents of the app repos for
+  this.
+- Coolify can only clone private app repos if a GitHub app is connected under
+  **Sources**. Its UUID belongs in `COOLIFY_GITHUB_APP_UUID`. Empty means: only
+  public repos.
+- `COOLIFY_GIT_BRANCH` is the branch that Coolify clones (default `main`). What
+  gets built is always exactly the checked commit.
 
-## Was hier bewusst noch fehlt
+## What is deliberately still missing here
 
-- **Ein Lauf gegen ein echtes Coolify.** Der Adapter ist gegen den Quelltext
-  von Coolify v4.7.1 geschrieben und gegen Doubles getestet. Der erste echte
-  Deploy einer App ist der Beleg, der fehlt.
-- **Backups.** Das Volume `openapps-postgres` hält Rechte, Audit-Log, Gruppen
-  und Agent-Identitäten. Coolify sichert es nicht von selbst.
-- **OAuth für MCP.** Heute nur Bearer-Token im Header
-  ([ADR 0009](../../docs/decisions/0009-plattform-mcp-im-selben-container.md)).
+- **A run against a real Coolify.** The adapter is written against the source
+  code of Coolify v4.7.1 and tested against doubles. The first real deploy of an
+  app is the proof that is missing.
+- **Backups.** The volume `openapps-postgres` holds grants, audit log, groups
+  and agent identities. Coolify does not back it up by itself.
+- **OAuth for MCP.** Today only a bearer token in the header
+  ([ADR 0009](../../docs/decisions/0009-plattform-mcp-im-selben-container.md),
+  German).

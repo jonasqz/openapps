@@ -109,7 +109,7 @@ export function createAuth(options: CreateAuthOptions) {
             const email = await emailOfUser(pool, session.userId);
             if (email === null) {
               throw new APIError('FORBIDDEN', {
-                message: 'Anmeldung abgelehnt: kein Nutzer zu dieser Session',
+                message: 'sign-in rejected: no user for this session',
               });
             }
             guardEmail(email);

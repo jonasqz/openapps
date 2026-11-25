@@ -12,7 +12,7 @@ const APP_NAME = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
 export function assertAppName(name: string): void {
   if (!APP_NAME.test(name)) {
     throw new ValidationError(
-      `ungueltiger App-Name "${name}": Kleinbuchstaben, Ziffern und Bindestrich, 3 bis 40 Zeichen`,
+      `invalid app name "${name}": lower case letters, digits and hyphens, 3 to 40 characters`,
     );
   }
 }
@@ -72,7 +72,7 @@ export function gatewayAliasFor(appName: string): string {
 export function appsDomainFor(appsDomain: string): string {
   const domain = appsDomain.trim().toLowerCase();
   if (domain === '') {
-    throw new ValidationError('die gemeinsame App-Domain ist leer');
+    throw new ValidationError('the shared app domain is empty');
   }
   return domain;
 }
@@ -116,9 +116,7 @@ export function parseObjectResourceId(
   const objectName = separator === -1 ? '' : resourceId.slice(separator + 1);
   const objectPattern = options.allowDotInObject === true ? OBJECT_WITH_DOTS : OBJECT_PLAIN;
   if (!APP_SEGMENT.test(appName) || !objectPattern.test(objectName)) {
-    throw new ValidationError(
-      `ungueltige Ressourcen-Id "${resourceId}": erwartet <app-name>.<objekt>`,
-    );
+    throw new ValidationError(`invalid resource id "${resourceId}": expected <app-name>.<object>`);
   }
   return { appName, objectName };
 }

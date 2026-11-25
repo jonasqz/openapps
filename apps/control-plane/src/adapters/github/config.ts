@@ -45,7 +45,7 @@ export function gitHubConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GitHu
 function required(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key];
   if (value === undefined || value === '') {
-    throw new Error(`Env-Variable ${key} fehlt`);
+    throw new Error(`env variable ${key} is missing`);
   }
   return value;
 }

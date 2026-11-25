@@ -165,7 +165,7 @@ describe('jeder Aufruf wird protokolliert, auch der abgelehnte', () => {
 
     expect(eintraege[1]?.actor).toEqual({ kind: 'agent', id: 'neugierig' });
     expect(eintraege[1]?.outcome).toBe('denied');
-    expect(eintraege[1]?.reason).toContain('darf "projects.list" nicht aufrufen');
+    expect(eintraege[1]?.reason).toContain('may not call "projects.list"');
     expect(eintraege[1]?.correlationId).toBe('sitzung-2');
   });
 

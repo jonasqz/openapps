@@ -1,0 +1,250 @@
+# The source of truth for what this app can do.
+# The platform generates the MCP tools from this file. A UI action without a
+# matching operation here blocks the review gate.
+#
+# Every operation is a tool: POST /tools/<toolname> with the arguments as the
+# JSON body (`createToolRoute` from @openapps/sdk). The tool name is listed in
+# app.json under offeredTools, with the same operationId.
+openapi: 3.1.0
+info:
+  title: Knowledge
+  version: 0.1.1
+  description: >-
+    The retrieval half of a RAG. Store documents, split them into sections and
+    find relevant passages with their source. The calling agent writes the
+    answer itself, from the returned passages and citing their sources.
+servers:
+  # Every app lives under a path on the shared domain (ADR 0007).
+  # `basePath` is the path the control plane sets per deployment in
+  # OPENAPPS_APP_BASE_PATH and that next.config.js uses as basePath.
+  - url: '{basePath}/api'
+    description: This app behind the gateway.
+    variables:
+      basePath:
+        default: /knowledge
+        description: Path of the app, byte-for-byte equal to OPENAPPS_APP_BASE_PATH.
+paths:
+  /tools/search:
+    post:
+      operationId: search
+      summary: Find passages for a question
+      description: >-
+        Searches the internal documents for passages on a question or keyword.
+        English full-text search: word forms are matched ("trips" finds
+        "trip"). Quotes search for a phrase, a leading minus excludes a word.
+        If the exact query finds too little, the search adds matches that
+        contain only some of the words. Every passage comes back with chunkId,
+        documentId, documentTitle and source; excerpt marks the matches with «
+        and ». Answer only from these passages and cite the source for every
+        statement (documentTitle, source and documentId/chunkId). An empty list
+        means the documents say nothing about it — do not guess.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SearchInput' }
+      responses:
+        '200':
+          description: Passages found, best match first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [passages]
+                properties:
+                  passages:
+                    type: array
+                    items: { $ref: '#/components/schemas/Passage' }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
+  /tools/documents.add:
+    post:
+      operationId: addDocument
+      summary: Store a document
+      description: >-
+        Stores a document and, in one transaction, splits it into sections of
+        about 800 characters with about 150 characters of overlap. It can be
+        found through search right away. content is plain text; separate
+        paragraphs with blank lines so the split happens at paragraph breaks.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentInput' }
+      responses:
+        '200':
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, chunkCount]
+                properties:
+                  id: { type: string, format: uuid }
+                  chunkCount: { type: integer, minimum: 1 }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
+  /tools/documents.list:
+    post:
+      operationId: listDocuments
+      summary: List documents
+      description: >-
+        Lists the stored documents without full text, newest first, at most
+        200. q filters by title or source (substring, case-insensitive). For
+        questions about content use search.
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                q: { type: string, maxLength: 200, description: Filter on title or source }
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documents]
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: '#/components/schemas/DocumentSummary' }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
+  /tools/documents.get:
+    post:
+      operationId: getDocument
+      summary: Read a document
+      description: >-
+        Reads a document with full text. With includeChunks true the sections
+        are included in order. A deleted or unknown document returns 404.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              additionalProperties: false
+              properties:
+                id: { type: string, format: uuid }
+                includeChunks: { type: boolean, default: false }
+      responses:
+        '200':
+          description: The document
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document]
+                properties:
+                  document: { $ref: '#/components/schemas/Document' }
+                  chunks:
+                    type: array
+                    items: { $ref: '#/components/schemas/Chunk' }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
+        '404': { description: The document does not exist or has been deleted }
+  /tools/documents.delete:
+    post:
+      operationId: deleteDocument
+      summary: Delete a document
+      description: >-
+        Soft-deletes a document. It and its sections no longer appear in
+        search, documents.list or documents.get.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              additionalProperties: false
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, deleted]
+                properties:
+                  id: { type: string, format: uuid }
+                  deleted: { type: boolean, const: true }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
+        '404': { description: The document does not exist or has already been deleted }
+components:
+  schemas:
+    SearchInput:
+      type: object
+      required: [query]
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Question or keywords
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: Maximum number of passages
+    Passage:
+      type: object
+      required: [chunkId, documentId, documentTitle, source, ord, score, excerpt, text]
+      properties:
+        chunkId: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        documentTitle: { type: string }
+        source: { type: [string, 'null'], description: Origin of the document, e.g. a URL }
+        ord: { type: integer, minimum: 0, description: Position of the section in the document }
+        score: { type: number, description: Rank, only comparable within one response }
+        excerpt: { type: string, description: Excerpt, matches marked with « and » }
+        text: { type: string, description: Full text of the section }
+    DocumentInput:
+      type: object
+      required: [title, content]
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        content: { type: string, minLength: 1, maxLength: 200000 }
+        source: { type: string, maxLength: 500 }
+    DocumentSummary:
+      type: object
+      required: [id, title, source, charCount, chunkCount, createdBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        source: { type: [string, 'null'] }
+        charCount: { type: integer }
+        chunkCount: { type: integer }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+    Document:
+      allOf:
+        - $ref: '#/components/schemas/DocumentSummary'
+        - type: object
+          required: [content]
+          properties:
+            content: { type: string }
+    Chunk:
+      type: object
+      required: [id, ord, text]
+      properties:
+        id: { type: string, format: uuid }
+        ord: { type: integer, minimum: 0 }
+        text: { type: string }

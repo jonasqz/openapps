@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Plattform-MCP: die sechs Tools der Control Plane, der Prompt how_to_build_app und die Weiterleitung der App-Tools.",
+  "description": "Platform MCP: the control plane tools, the prompts how_to_build_app and get_started, and forwarding of app tools.",
   "exports": {
     ".": "./src/server.ts",
     "./tools": "./src/tools.ts",
@@ -13,7 +13,7 @@
     "dev": "tsx watch src/http.ts",
     "start": "tsx src/index.ts",
     "start:http": "tsx src/http.ts",
-    "build": "echo \"kein Build-Schritt: laeuft ueber tsx aus der TypeScript-Quelle\"",
+    "build": "echo \"no build step: runs from the TypeScript source via tsx\"",
     "typecheck": "tsc --noEmit",
     "lint": "prettier --check \"**/*.{ts,json,md}\"",
     "test": "vitest run",

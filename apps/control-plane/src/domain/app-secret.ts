@@ -40,10 +40,10 @@ export interface AppSecretInput {
  */
 export function appAuthSecret(input: AppSecretInput): string {
   if (input.masterSecret.trim() === '') {
-    throw new Error('Master-Secret fehlt: ohne es kann kein App-Secret abgeleitet werden');
+    throw new Error('master secret missing: without it no app secret can be derived');
   }
   if (!Number.isInteger(input.generation) || input.generation < 1) {
-    throw new Error(`ungueltige Generation: ${String(input.generation)}`);
+    throw new Error(`invalid generation: ${String(input.generation)}`);
   }
 
   const info = `${INFO_PREFIX}\n${input.appId}\n${String(input.generation)}`;

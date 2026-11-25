@@ -35,7 +35,7 @@ const COLUMNS: readonly TableColumn<AppRow>[] = [
   { field: 'displayName', header: 'Name' },
   { field: 'primaryDomain', header: 'Domain' },
   { field: 'schemaName', header: 'Schema', hideBelow: 'md' },
-  { field: 'deployment', header: 'Aktuelles Deployment', hideBelow: 'sm' },
+  { field: 'deployment', header: 'Current deployment', hideBelow: 'sm' },
 ];
 
 const toRow = (app: App): AppRow => ({
@@ -43,7 +43,7 @@ const toRow = (app: App): AppRow => ({
   displayName: app.displayName,
   primaryDomain: app.primaryDomain,
   schemaName: app.schemaName,
-  deployment: app.currentDeploymentId ?? 'noch nicht deployt',
+  deployment: app.currentDeploymentId ?? 'not deployed yet',
 });
 
 export default async function AppsPage() {
@@ -60,30 +60,30 @@ export default async function AppsPage() {
   try {
     apps = await listApps(domainContext(), { actor });
   } catch (error) {
-    failure = error instanceof Error ? error.message : 'unbekannter Fehler';
+    failure = error instanceof Error ? error.message : 'unknown error';
   }
 
   return (
     <section>
       <PageHeader
         title="Apps"
-        description="Jede App hat ihr eigenes Schema und ihre eigene Rolle. Du siehst nur Apps, auf die du eine Lese-Freigabe hast."
+        description="Each app has its own schema and its own role. You only see apps you have a read grant on."
       />
       <Table
-        caption="Apps dieser Instanz"
+        caption="Apps on this instance"
         columns={COLUMNS}
         rows={apps.map(toRow)}
         {...(failure === undefined
           ? {}
-          : { error: { title: 'Apps konnten nicht geladen werden', description: failure } })}
+          : { error: { title: 'Apps could not be loaded', description: failure } })}
         empty={{
-          title: 'Noch keine App',
-          description: 'Apps entstehen über das MCP-Tool create_app, nicht hier.',
+          title: 'No apps yet',
+          description: 'Apps are created with the MCP tool create_app, not here.',
         }}
       />
       <p className="mt-6 text-sm text-fg-muted">
-        Anlegen, Deployen und Zurücksetzen laufen über den Plattform-MCP. Dort existiert jede Aktion
-        zuerst.
+        Creating, deploying and rolling back go through the platform MCP. Every action exists there
+        first.
       </p>
     </section>
   );

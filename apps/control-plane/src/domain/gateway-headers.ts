@@ -118,7 +118,7 @@ export function identityHeadersForApp(params: {
   const { app } = params;
   if (app.primaryDomain === null) {
     throw new ConflictError(
-      `App "${app.name}" hat keine Domain; ohne sie kann keine Signatur gebildet werden`,
+      `App "${app.name}" has no domain; without it no signature can be computed`,
     );
   }
   const appId = appIdOf(app);

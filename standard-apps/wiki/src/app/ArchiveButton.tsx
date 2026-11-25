@@ -28,9 +28,9 @@ export function ArchiveButton({ id, title }: { id: string; title: string }): JSX
         router.refresh();
         return;
       }
-      setMessage(result.formError ?? 'Archivieren ist fehlgeschlagen.');
+      setMessage(result.formError ?? 'Archiving failed.');
     } catch {
-      setMessage('Archivieren ist fehlgeschlagen. Versuche es gleich noch einmal.');
+      setMessage('Archiving failed. Please try again in a moment.');
     } finally {
       setBusy(false);
     }
@@ -39,22 +39,22 @@ export function ArchiveButton({ id, title }: { id: string; title: string }): JSX
   return (
     <>
       <Button variant="danger" onClick={() => setOpen(true)}>
-        Archivieren
+        Archive
       </Button>
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
         role="alertdialog"
         size="sm"
-        title="Seite archivieren?"
-        description={`„${title}“ verschwindet aus Liste und Suche. Inhalt und Verlauf bleiben erhalten.`}
+        title="Archive page?"
+        description={`“${title}” disappears from the list and search. Content and history are kept.`}
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>
-              Abbrechen
+              Cancel
             </Button>
             <Button variant="danger" loading={busy} onClick={() => void confirm()}>
-              Archivieren
+              Archive
             </Button>
           </>
         }

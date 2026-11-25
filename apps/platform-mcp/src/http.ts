@@ -28,7 +28,7 @@ const HOST = process.env.PLATFORM_MCP_HOST ?? '127.0.0.1';
 
 const masterSecret = process.env.OPENAPPS_AUTH_MASTER_SECRET;
 if (masterSecret === undefined) {
-  throw new Error('OPENAPPS_AUTH_MASTER_SECRET fehlt');
+  throw new Error('OPENAPPS_AUTH_MASTER_SECRET is missing');
 }
 const invoker = createHttpInvoker({ authMasterSecret: masterSecret });
 
@@ -62,10 +62,10 @@ const httpServer = createServer(async (request, response) => {
     const status = error instanceof UnauthenticatedError ? 401 : 500;
     response
       .writeHead(status, { 'content-type': 'text/plain' })
-      .end(status === 401 ? 'nicht angemeldet' : 'interner Fehler');
+      .end(status === 401 ? 'not authenticated' : 'internal error');
   }
 });
 
 httpServer.listen(PORT, HOST, () => {
-  process.stderr.write(`platform-mcp hoert auf ${HOST}:${PORT}\n`);
+  process.stderr.write(`platform-mcp listening on ${HOST}:${PORT}\n`);
 });

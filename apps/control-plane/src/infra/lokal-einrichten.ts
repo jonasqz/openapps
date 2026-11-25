@@ -14,12 +14,12 @@
  *    durch die Domaene und steht im Audit-Log als `user:lokal-betreiber`.
  * 2. Es registriert die Standard-Apps aus `LOKAL_SOURCE_DIR` und deployt sie —
  *    durch dasselbe Review-Gate wie auf dem Server.
- * 3. Es legt den Agenten `betrieb` an und gibt ihm die Rechte, die die Gruppe
+ * 3. Es legt den Agenten `operator` an und gibt ihm die Rechte, die die Gruppe
  *    `platform-admins` hat. Alles Weitere — Arbeits-Agents, Freigaben — macht
- *    `betrieb` dann ueber den Plattform-MCP, wie jeder andere Agent.
+ *    `operator` dann ueber den Plattform-MCP, wie jeder andere Agent.
  *
- * Das Token von `betrieb` erscheint genau einmal, auf stdout, als letzte
- * Zeile `BETRIEB_TOKEN=…`. Das Host-Skript schreibt es in eine Datei mit
+ * Das Token von `operator` erscheint genau einmal, auf stdout, als letzte
+ * Zeile `OPERATOR_TOKEN=…`. Das Host-Skript schreibt es in eine Datei mit
  * Modus 0600 und zeigt es nicht an. Ein zweiter Lauf legt nichts doppelt an
  * und gibt kein neues Token aus.
  */
@@ -41,7 +41,7 @@ import { domainContext } from '../lib/runtime';
 
 const OPERATOR: Actor = { kind: 'user', id: 'lokal-betreiber', groups: ['platform-admins'] };
 
-const BETRIEB_RIGHTS: ReadonlyArray<{ verb: Verb; kind: 'app' | 'agent' | 'group' }> = [
+const OPERATOR_RIGHTS: ReadonlyArray<{ verb: Verb; kind: 'app' | 'agent' | 'group' }> = [
   { verb: 'read', kind: 'app' },
   { verb: 'write', kind: 'app' },
   { verb: 'execute', kind: 'app' },
@@ -71,7 +71,7 @@ async function treeSha(dir: string): Promise<string> {
 
 async function main(): Promise<void> {
   if (process.env.OPENAPPS_BACKEND !== 'lokal') {
-    throw new Error('lokal-einrichten laeuft nur mit OPENAPPS_BACKEND=lokal');
+    throw new Error('lokal-einrichten only runs with OPENAPPS_BACKEND=lokal');
   }
   const sourceDir = process.env.LOKAL_SOURCE_DIR ?? '/lokal/quellen';
   const ctx = domainContext();
@@ -87,14 +87,14 @@ async function main(): Promise<void> {
     const manifest = parseAppManifest(JSON.parse(await readFile(join(dir, 'app.json'), 'utf8')));
     if ((await ctx.apps.findByName(name)) === null) {
       await createApp(ctx, { actor: OPERATOR, name, manifest });
-      console.log(`App ${name}: angelegt`);
+      console.log(`App ${name}: created`);
     }
 
     const gitSha = await treeSha(dir);
     const deployments = await listDeployments(ctx, { actor: OPERATOR, appIdOrName: name });
     const live = deployments.find((d) => d.status === 'live');
     if (live?.gitSha === gitSha) {
-      console.log(`App ${name}: Stand ${gitSha.slice(0, 8)} ist schon live`);
+      console.log(`App ${name}: state ${gitSha.slice(0, 8)} is already live`);
       continue;
     }
     if (live?.version === manifest.version) {
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
       // eine Version ist nur einmal live. Ein neuer Stand braucht also eine
       // neue Version in app.json — genau wie auf dem Server.
       console.log(
-        `App ${name}: Stand geaendert, aber Version ${manifest.version} ist schon live — erhoehe "version" in app.json`,
+        `App ${name}: source changed, but version ${manifest.version} is already live; bump "version" in app.json`,
       );
       continue;
     }
@@ -115,31 +115,31 @@ async function main(): Promise<void> {
     // `unreachable` heisst lokal nur: Der Adapter kann das Gateway nicht
     // messen (kein Backend-Inventar). Als Fehler gelesen, fuehrt es in die Irre.
     const gateway =
-      outcome.gateway.state === 'unreachable' ? 'lokal nicht messbar' : outcome.gateway.state;
+      outcome.gateway.state === 'unreachable' ? 'not measurable locally' : outcome.gateway.state;
     console.log(
       `App ${name}: ${outcome.deployment.status} (Review ${outcome.review.decision}, Gateway ${gateway})`,
     );
   }
 
   // 2. Der Betriebs-Agent.
-  if ((await ctx.agents.findByName('betrieb')) === null) {
+  if ((await ctx.agents.findByName('operator')) === null) {
     const created = await createAgentIdentity(ctx, {
       actor: OPERATOR,
-      name: 'betrieb',
-      displayName: 'Betrieb (lokal)',
+      name: 'operator',
+      displayName: 'Operations (local)',
     });
-    for (const right of BETRIEB_RIGHTS) {
+    for (const right of OPERATOR_RIGHTS) {
       await grant(ctx, {
         actor: OPERATOR,
-        subject: { kind: 'agent', id: 'betrieb' },
+        subject: { kind: 'agent', id: 'operator' },
         verb: right.verb,
         resource: { kind: right.kind, id: '*' },
       });
     }
-    console.log('Agent betrieb: angelegt, Rechte wie platform-admins');
-    console.log(`BETRIEB_TOKEN=${created.token}`);
+    console.log('Agent operator: created, same rights as platform-admins');
+    console.log(`OPERATOR_TOKEN=${created.token}`);
   } else {
-    console.log('Agent betrieb: gibt es schon (Token wird nicht neu ausgegeben)');
+    console.log('Agent operator: already exists (token is not issued again)');
   }
 }
 

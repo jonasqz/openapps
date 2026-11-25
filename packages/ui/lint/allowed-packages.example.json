@@ -1,15 +1,15 @@
 {
-  "_hinweis": [
-    "Zusätzlich erlaubte Pakete, über die eingebaute Allowlist von",
-    "@openapps/ui hinaus (@openapps/ui, @openapps/sdk, @openapps/app-manifest,",
+  "_note": [
+    "Packages allowed in addition to the built-in allowlist of",
+    "@openapps/ui (@openapps/ui, @openapps/sdk, @openapps/app-manifest,",
     "react, react-dom, next, tailwindcss).",
     "",
-    "Diese Datei pflegt die Control Plane, nicht der App-Agent. Sie gehört als",
-    "'allowed-packages.json' in das Wurzelverzeichnis des App-Repos.",
+    "The control plane maintains this file, not the app agent. It belongs",
+    "in the root of the app repo as 'allowed-packages.json'.",
     "",
-    "Fehlt die Datei, gilt nur die eingebaute Allowlist — nie 'alles erlaubt'.",
-    "UI-Bibliotheken gehören hier NICHT hinein: Oberfläche kommt aus",
-    "@openapps/ui, sonst zerfällt das Produktgefühl."
+    "Without the file only the built-in allowlist applies — never 'everything allowed'.",
+    "UI libraries do NOT belong here: the interface comes from",
+    "@openapps/ui, otherwise the product falls apart."
   ],
   "allow": []
 }

@@ -59,7 +59,7 @@ export function createGroupRepository(db: Queryable): GroupRepository {
         [input.name, input.description],
       );
       const row = rows[0];
-      if (row === undefined) throw new ConflictError(`Gruppe "${input.name}" gibt es schon`);
+      if (row === undefined) throw new ConflictError(`group "${input.name}" already exists`);
       return toGroup(row);
     },
 

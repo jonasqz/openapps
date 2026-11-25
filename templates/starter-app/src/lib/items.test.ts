@@ -10,8 +10,8 @@ import { ItemInput } from './items';
  */
 describe('ItemInput', () => {
   it('nimmt einen Titel an und entfernt umgebende Leerzeichen', () => {
-    const parsed = ItemInput.parse({ title: '  Angebot prüfen  ' });
-    expect(parsed.title).toBe('Angebot prüfen');
+    const parsed = ItemInput.parse({ title: '  Review quote  ' });
+    expect(parsed.title).toBe('Review quote');
   });
 
   it('weist einen leeren Titel ab, auch wenn er nur aus Leerzeichen besteht', () => {
@@ -26,7 +26,7 @@ describe('ItemInput', () => {
   });
 
   it('weist ab, was gar kein Titel ist', () => {
-    for (const input of [{}, { title: 42 }, { title: null }, null, 'Angebot']) {
+    for (const input of [{}, { title: 42 }, { title: null }, null, 'Quote']) {
       expect(ItemInput.safeParse(input).success).toBe(false);
     }
   });

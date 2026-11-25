@@ -2,63 +2,63 @@
   "manifestVersion": 1,
   "name": "wiki",
   "displayName": "Wiki",
-  "description": "Wissensseiten wie in Notion: Seitenbaum, Markdown, Volltextsuche und Verlauf jeder Änderung. Für Menschen und Agents gleichermaßen.",
+  "description": "Knowledge pages like in Notion: a page tree, Markdown, full-text search and a history of every change. For humans and agents alike.",
   "category": "knowledge",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "wiki-v0.1.0"
+    "tag": "wiki-v0.1.2"
   },
   "requiredTables": [
     {
       "name": "pages",
-      "description": "Wiki-Seiten: Titel, Markdown-Inhalt, Tags, Elternseite, Archiv-Zeitpunkt und ein Volltext-Index (deutsch)."
+      "description": "Wiki pages: title, Markdown content, tags, parent page, archive timestamp and a full-text index (Postgres English dictionary)."
     },
     {
       "name": "page_revisions",
-      "description": "Verlauf: der Stand jeder Seite nach jeder Änderung, mit Autor (Mensch oder Agent) und Zeitpunkt. Wird nie geändert."
+      "description": "History: the state of every page after every change, with author (human or agent) and timestamp. Never modified."
     }
   ],
   "offeredTools": [
     {
       "name": "pages.list",
-      "description": "Listet Wiki-Seiten ohne Inhalt, nach Titel sortiert, archivierte nie. Argumente, alle optional: q = Text, der im Titel vorkommen muss; parentId = UUID, nur direkte Unterseiten dieser Seite; tag = nur Seiten mit diesem Tag. Liefert {pages: [{id, parentId, title, tags, updatedAt, updatedBy}], truncated}. truncated=true heißt: mehr als 500 Seiten, Filter enger stellen. Für Suche im Inhalt pages.search nehmen, für den Text pages.get.",
+      "description": "Lists wiki pages without content, sorted by title, never archived ones. Arguments, all optional: q = text that must appear in the title; parentId = UUID, only direct subpages of that page; tag = only pages with this tag. Returns {pages: [{id, parentId, title, tags, updatedAt, updatedBy}], truncated}. truncated=true means more than 500 pages; narrow the filter. To search the content use pages.search, for the text use pages.get.",
       "operationId": "listPages",
       "verb": "read"
     },
     {
       "name": "pages.get",
-      "description": "Liest eine Seite vollständig. Argument: id (UUID aus pages.list oder pages.search). Liefert {id, parentId, title, contentMd (Markdown), tags, createdAt, createdBy, updatedAt, updatedBy, archivedAt (null oder Zeitpunkt), parent ({id, title} oder null), children ([{id, title}], nicht archivierte Unterseiten)}. Unbekannte id: Fehler 404.",
+      "description": "Reads a page in full. Argument: id (UUID from pages.list or pages.search). Returns {id, parentId, title, contentMd (Markdown), tags, createdAt, createdBy, updatedAt, updatedBy, archivedAt (null or timestamp), parent ({id, title} or null), children ([{id, title}], non-archived subpages)}. Unknown id: error 404.",
       "operationId": "getPage",
       "verb": "read"
     },
     {
       "name": "pages.search",
-      "description": "Volltextsuche (deutsch, findet auch Wortformen) in Titel und Inhalt nicht archivierter Seiten. Argumente: query (Suchtext; \"genaue Phrase\", -wort schließt aus, or verknüpft), limit (optional, 1 bis 50, Standard 10). Liefert {hits: [{id, parentId, title, tags, updatedAt, rank, snippet}]}, bester Treffer zuerst; snippet ist ein einzeiliger Ausschnitt, Treffer in «…». Den ganzen Text danach mit pages.get holen.",
+      "description": "Full-text search in title and content of non-archived pages, Postgres English dictionary: English word forms match (request finds requests), other languages only exactly, stop words like the are ignored. Arguments: query (search text; \"exact phrase\", -word excludes, or combines), limit (optional, 1 to 50, default 10). Returns {hits: [{id, parentId, title, tags, updatedAt, rank, snippet}]}, best hit first; snippet is a one-line excerpt with hits in «…». Fetch the full text with pages.get.",
       "operationId": "searchPages",
       "verb": "read"
     },
     {
       "name": "pages.create",
-      "description": "Legt eine neue Seite an und schreibt den ersten Verlaufseintrag. Argumente: title (1 bis 200 Zeichen), contentMd (Markdown, darf leer sein), parentId (optional, UUID einer nicht archivierten Seite; die neue Seite wird ihre Unterseite), tags (optional, Liste kurzer Wörter, höchstens 20). Liefert die neue Seite wie pages.get. Vorher mit pages.search prüfen, ob es die Seite schon gibt.",
+      "description": "Creates a new page and writes the first history entry. Arguments: title (1 to 200 characters), contentMd (Markdown, may be empty), parentId (optional, UUID of a non-archived page; the new page becomes its subpage), tags (optional, list of short words, at most 20). Returns the new page like pages.get. Check with pages.search first whether the page already exists.",
       "operationId": "createPage",
       "verb": "write"
     },
     {
       "name": "pages.update",
-      "description": "Ändert eine Seite und schreibt einen Verlaufseintrag mit dir als Autor. Argumente: id, dazu mindestens eins von: title; contentMd (ersetzt den ganzen Inhalt); appendMd (hängt Markdown nach einer Leerzeile ans Ende, Rest bleibt; nicht mit contentMd zusammen); tags (ersetzt alle Tags). Zum Ergänzen appendMd nehmen, nicht den Inhalt neu schreiben. Liefert die Seite wie pages.get. Archivierte Seiten: Fehler 400.",
+      "description": "Changes a page and writes a history entry with you as the author. Arguments: id, plus at least one of: title; contentMd (replaces the whole content); appendMd (appends Markdown at the end after a blank line, the rest stays; not together with contentMd); tags (replaces all tags). To add to a page use appendMd instead of rewriting the content. Returns the page like pages.get. Archived pages: error 400.",
       "operationId": "updatePage",
       "verb": "write"
     },
     {
       "name": "pages.archive",
-      "description": "Archiviert eine Seite: Sie verschwindet aus pages.list und pages.search, bleibt mit pages.get und pages.history lesbar. Über die Tools nicht umkehrbar. Argument: id. Hat die Seite nicht archivierte Unterseiten, kommt Fehler 400 mit deren Namen; dann erst die Unterseiten archivieren. Liefert {id, archivedAt}. Nochmal archivieren ändert nichts.",
+      "description": "Archives a page: it disappears from pages.list and pages.search and stays readable with pages.get and pages.history. Cannot be undone through the tools. Argument: id. If the page has non-archived subpages, you get error 400 with their names; archive the subpages first. Returns {id, archivedAt}. Archiving again changes nothing.",
       "operationId": "archivePage",
       "verb": "write"
     },
     {
       "name": "pages.history",
-      "description": "Verlauf einer Seite, neueste Änderung zuerst, auch für archivierte Seiten. Argumente: id, limit (optional, 1 bis 200, Standard 50). Liefert {pageId, title, revisions: [{id, change (create, update oder archive), title, contentMd, tags, editedBy, editedAt}]}. Jede Revision ist der Stand nach der Änderung; editedBy ist eine Personen-Id oder agent:<name>.",
+      "description": "History of a page, newest change first, also for archived pages. Arguments: id, limit (optional, 1 to 200, default 50). Returns {pageId, title, revisions: [{id, change (create, update or archive), title, contentMd, tags, editedBy, editedAt}]}. Each revision is the state after the change; editedBy is a person id or agent:<name>.",
       "operationId": "getPageHistory",
       "verb": "read"
     }
@@ -71,39 +71,39 @@
         "kind": "app",
         "app": "wiki"
       },
-      "reason": "Wer das Wiki öffnen darf. Welche Gruppe, entscheidet die Freigabe in der Control Plane — ein gewünschtes Recht ist ein Antrag, keine Vergabe."
+      "reason": "Who may open the wiki. Which group is decided by the grant in the control plane; a requested right is a request, not an assignment."
     }
   ],
   "env": [
     {
       "name": "DATABASE_URL",
       "secret": true,
-      "description": "Verbindung auf das eigene Schema, mit der App-Rolle. Setzt die Control Plane."
+      "description": "Connection to the app's own schema, using the app role. Set by the control plane."
     },
     {
       "name": "DATABASE_SCHEMA",
       "secret": false,
-      "description": "Eigenes Schema der App. Das SDK setzt daraus den search_path; eine DSN mit options= wird abgewiesen."
+      "description": "The app's own schema. The SDK derives the search_path from it; a DSN with options= is rejected."
     },
     {
       "name": "OPENAPPS_AUTH_SECRET",
       "secret": true,
-      "description": "App-eigenes Secret, mit dem das SDK die Gateway-Signatur prüft. Setzt die Control Plane pro Deployment."
+      "description": "App-specific secret the SDK uses to verify the gateway signature. Set by the control plane per deployment."
     },
     {
       "name": "OPENAPPS_APP_ID",
       "secret": false,
-      "description": "Id dieser App im Signatur-Material. Muss byte-gleich dem sein, was das Gateway schreibt."
+      "description": "Id of this app in the signed material. Must be byte-identical to what the gateway writes."
     },
     {
       "name": "OPENAPPS_APP_HOST",
       "secret": false,
-      "description": "Gemeinsame Domain im Signatur-Material, getrimmt und kleingeschrieben."
+      "description": "Shared domain in the signed material, trimmed and lowercased."
     },
     {
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
-      "description": "Pfad, unter dem die App liegt (/wiki). Muss beim Build gesetzt sein, sonst zeigen Verweise und Bilder ins Leere."
+      "description": "Path the app lives under (/wiki). Must be set at build time, otherwise links and images point nowhere."
     }
   ],
   "egress": []

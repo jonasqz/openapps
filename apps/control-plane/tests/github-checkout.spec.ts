@@ -85,7 +85,7 @@ describe('Checkout eines Commits', () => {
     for (const gitSha of ['main', '../../orgs/acme', 'abc1234/../..', '', 'abc 1234']) {
       await expect(
         backend.checkout({ gitUrl: 'https://github.com/acme/crm.git', gitSha }),
-      ).rejects.toThrow(/kein Commit-Hash/);
+      ).rejects.toThrow(/not a commit hash/);
     }
     expect(urls).toEqual([]);
   });
@@ -98,7 +98,7 @@ describe('Checkout eines Commits', () => {
         gitUrl: 'https://github.com/acme/crm.git',
         gitSha: 'abc1234',
       }),
-    ).rejects.toThrow(/gepusht/);
+    ).rejects.toThrow(/is the commit pushed/);
   });
 
   it('weist ein zu grosses Archiv ab', async () => {
@@ -128,7 +128,7 @@ describe('Repo-URL zu owner/name', () => {
       'acme/crm',
       'https://github.com/acme/crm?x=1',
     ]) {
-      expect(() => repositorySlug(url)).toThrow(/keine Repo-URL/);
+      expect(() => repositorySlug(url)).toThrow(/not a repo URL/);
     }
   });
 });

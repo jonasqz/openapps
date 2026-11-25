@@ -131,8 +131,8 @@ export function getUser(headers: HeaderBag, options: GetUserOptions = {}): Platf
   const presentedSignature = readHeader(headers, SIGNATURE_HEADER);
   if (presentedSignature === undefined) {
     throw new UntrustedRequestError(
-      `Header ${SIGNATURE_HEADER} fehlt oder ist mehrfach gesetzt. Der Aufruf kam nicht ` +
-        'nachweisbar durch das Gateway.',
+      `Header ${SIGNATURE_HEADER} is missing or set more than once. The request did not ` +
+        'demonstrably come through the gateway.',
     );
   }
 
@@ -155,8 +155,8 @@ export function getUser(headers: HeaderBag, options: GetUserOptions = {}): Platf
 
   if (!signatureEquals(presentedSignature, expected)) {
     throw new UntrustedRequestError(
-      `Header ${SIGNATURE_HEADER} passt nicht zu den Identitäts-Headern, zur App-Id oder zur ` +
-        'App-Domain. Der Aufruf wird nicht bedient.',
+      `Header ${SIGNATURE_HEADER} does not match the identity headers, the app id or the ` +
+        'app domain. The request is not served.',
     );
   }
 
@@ -167,14 +167,14 @@ export function getUser(headers: HeaderBag, options: GetUserOptions = {}): Platf
   const id = readHeader(headers, USER_ID_HEADER);
   if (id === undefined) {
     throw new UntrustedRequestError(
-      `Header ${USER_ID_HEADER} ist leer, obwohl die Signatur stimmt. Das Gateway hat keinen ` +
-        'Nutzer weitergegeben.',
+      `Header ${USER_ID_HEADER} is empty although the signature is valid. The gateway passed ` +
+        'on no user.',
     );
   }
 
   const email = readHeader(headers, USER_EMAIL_HEADER);
   if (email === undefined) {
-    throw new UntrustedRequestError(`Header ${USER_EMAIL_HEADER} ist leer.`);
+    throw new UntrustedRequestError(`Header ${USER_EMAIL_HEADER} is empty.`);
   }
 
   return {
@@ -269,35 +269,35 @@ function resolveConfig(options: GetUserOptions): ResolvedConfig {
   const secret = (options.secret ?? process.env[AUTH_SECRET_ENV] ?? '').trim();
   if (secret === '') {
     throw new SdkConfigurationError(
-      `${AUTH_SECRET_ENV} ist nicht gesetzt. Ohne das Secret kann die App die Identitäts-Header ` +
-        'nicht prüfen und bedient deshalb keinen Aufruf.',
+      `${AUTH_SECRET_ENV} is not set. Without the secret the app cannot verify the identity ` +
+        'headers and therefore serves no request.',
     );
   }
   if (secret.length < MIN_SECRET_LENGTH) {
     throw new SdkConfigurationError(
-      `${AUTH_SECRET_ENV} ist kürzer als ${MIN_SECRET_LENGTH} Zeichen und damit zu schwach.`,
+      `${AUTH_SECRET_ENV} is shorter than ${MIN_SECRET_LENGTH} characters and therefore too weak.`,
     );
   }
 
   const appId = (options.appId ?? process.env[APP_ID_ENV] ?? '').trim();
   if (appId === '') {
     throw new SdkConfigurationError(
-      `${APP_ID_ENV} ist nicht gesetzt. Die App-Id geht in die Signatur ein, damit eine ` +
-        'Signatur für eine andere App hier nicht gilt.',
+      `${APP_ID_ENV} is not set. The app id is part of the signature, so that a ` +
+        'signature for another app is not valid here.',
     );
   }
 
   const appHost = (options.appHost ?? process.env[APP_HOST_ENV] ?? '').trim().toLowerCase();
   if (appHost === '') {
     throw new SdkConfigurationError(
-      `${APP_HOST_ENV} ist nicht gesetzt. Ohne die eigene Domain kann die App nicht prüfen, ob ` +
-        'eine Signatur für sie gilt (Spec 3.2 Punkt 3).',
+      `${APP_HOST_ENV} is not set. Without its own domain the app cannot check whether ` +
+        'a signature is meant for it (spec 3.2 item 3).',
     );
   }
 
   const maxAgeSeconds = options.maxAgeSeconds ?? DEFAULT_MAX_AGE_SECONDS;
   if (!Number.isFinite(maxAgeSeconds) || maxAgeSeconds <= 0) {
-    throw new SdkConfigurationError('maxAgeSeconds muss eine positive Zahl sein.');
+    throw new SdkConfigurationError('maxAgeSeconds must be a positive number.');
   }
 
   // Default 2 s Vorlauf, nicht 0: geht die Uhr des Gateways eine Sekunde vor,
@@ -306,7 +306,7 @@ function resolveConfig(options: GetUserOptions): ResolvedConfig {
   // abgefangenen Signatur kaum (ADR 0004).
   const futureToleranceSeconds = options.futureToleranceSeconds ?? 2;
   if (!Number.isFinite(futureToleranceSeconds) || futureToleranceSeconds < 0) {
-    throw new SdkConfigurationError('futureToleranceSeconds darf nicht negativ sein.');
+    throw new SdkConfigurationError('futureToleranceSeconds must not be negative.');
   }
 
   return {
@@ -333,8 +333,8 @@ function assertRequestHost(headers: HeaderBag, appHost: string): void {
   }
   if (hostOnly(presented) !== hostOnly(appHost)) {
     throw new UntrustedRequestError(
-      `Der Aufruf richtet sich an '${presented}', diese App ist '${appHost}'. Eine Signatur für ` +
-        'eine andere Domain gilt hier nicht.',
+      `The request is addressed to '${presented}', this app is '${appHost}'. A signature for ` +
+        'another domain is not valid here.',
     );
   }
 }
@@ -354,7 +354,7 @@ function hostOnly(value: string): string {
 function parseIssuedAt(raw: string): number {
   if (!/^\d{1,15}$/.test(raw)) {
     throw new UntrustedRequestError(
-      `Header ${ISSUED_AT_HEADER} ist keine Unix-Zeit in Sekunden: '${raw}'.`,
+      `Header ${ISSUED_AT_HEADER} is not a Unix time in seconds: '${raw}'.`,
     );
   }
   return Number.parseInt(raw, 10);
@@ -366,14 +366,14 @@ function assertWithinWindow(issuedAtSeconds: number, config: ResolvedConfig): vo
 
   if (ageSeconds > config.maxAgeSeconds) {
     throw new UntrustedRequestError(
-      `Header ${ISSUED_AT_HEADER} ist ${Math.floor(ageSeconds)} s alt, erlaubt sind ` +
-        `${config.maxAgeSeconds} s. Der Aufruf wird nicht bedient.`,
+      `Header ${ISSUED_AT_HEADER} is ${Math.floor(ageSeconds)} s old, allowed are ` +
+        `${config.maxAgeSeconds} s. The request is not served.`,
     );
   }
   if (ageSeconds < -config.futureToleranceSeconds) {
     throw new UntrustedRequestError(
-      `Header ${ISSUED_AT_HEADER} liegt in der Zukunft. Entweder driftet eine Uhr oder der Wert ` +
-        'ist gefälscht.',
+      `Header ${ISSUED_AT_HEADER} lies in the future. Either a clock is drifting or the value ` +
+        'is forged.',
     );
   }
 }

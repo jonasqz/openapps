@@ -127,7 +127,7 @@ describe('createHttpInvoker', () => {
         actor: { kind: 'agent', id: 'vertrieb' },
         args: {},
       }),
-    ).rejects.toThrow(/nicht deployt/);
+    ).rejects.toThrow(/not deployed/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
