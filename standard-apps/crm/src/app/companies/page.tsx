@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Table } from '@openapps/ui';
+import { PageHeader, Table } from '@openapps/ui';
 import { ButtonLink, TextLink } from '@/components/links';
 import { listCompanies, type CompanyListItem } from '@/lib/crm';
 
@@ -39,15 +39,15 @@ export default async function CompaniesPage() {
 
   return (
     <>
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-fg">Companies</h1>
-          <p className="mt-1 text-sm text-fg-muted">All companies, alphabetical.</p>
-        </div>
-        <ButtonLink href="/companies/new">New company</ButtonLink>
-      </header>
+      <PageHeader
+        eyebrow="CRM"
+        title="Companies"
+        description="All companies, alphabetical."
+        actions={<ButtonLink href="/companies/new">New company</ButtonLink>}
+      />
       <Table<CompanyRow>
         caption="Companies"
+        searchable
         rows={failed ? [] : companies.map(toRow)}
         columns={[
           { field: 'name', header: 'Name' },

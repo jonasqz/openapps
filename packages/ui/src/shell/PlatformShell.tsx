@@ -21,6 +21,10 @@ import {
   storeTheme,
 } from './platform.ts';
 import { SidebarUserMenu } from './SidebarUserMenu.tsx';
+import { CommandPalette } from './CommandPalette.tsx';
+import type { CommandItem } from './CommandPalette.tsx';
+import { Icon } from '../components/Icon.tsx';
+import { Kbd } from '../components/Kbd.tsx';
 import type { ShellNavGroup, ShellNavItem, ShellPlatform, ShellTheme, ShellUser } from './types.ts';
 
 export interface PlatformShellProps {
@@ -184,6 +188,7 @@ export function PlatformShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [theme, setThemeState] = useState<ShellTheme>('system');
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -263,6 +268,62 @@ export function PlatformShell({
 
   const currentApp = model.groups.flatMap((group) => group.apps).find((app) => app.current);
 
+  // Befehlspalette (ADR 0018): Bereiche dieser App, die anderen Apps und die
+  // Wege zur Plattform. Nur Anzeige und Navigation, kein eigener Rechte-Code.
+  const commands = useMemo<CommandItem[]>(() => {
+    const list: CommandItem[] = [];
+    for (const group of model.sections) {
+      for (const item of group.items) {
+        list.push({
+          id: `section:${item.id}`,
+          label: item.label,
+          href: item.href,
+          group: appTitle,
+          ...(item.icon === undefined ? {} : { icon: item.icon }),
+        });
+      }
+    }
+    for (const group of model.groups) {
+      for (const app of group.apps) {
+        if (app.current || app.href === null) continue;
+        list.push({ id: `app:${app.name}`, label: app.title, href: app.href, group: strings.platformShell.appsLabel, icon: <AppTile name={app.name} title={app.title} /> });
+      }
+    }
+    const platformGroup = strings.commandPalette.navigationGroup;
+    if (model.canCreateApps) list.push({ id: 'platform:new-app', label: strings.platformShell.newApp, href: '#', group: platformGroup, icon: <Icon name="plus" /> });
+    if (model.newAgent !== null) list.push({ id: 'platform:new-agent', label: strings.platformShell.newAgent, href: model.newAgent, group: platformGroup, icon: <Icon name="agents" /> });
+    if (model.admin !== null) list.push({ id: 'platform:admin', label: strings.platformShell.admin, href: model.admin, group: platformGroup, icon: <Icon name="grants" /> });
+    if (model.settings !== null) list.push({ id: 'platform:settings', label: strings.platformShell.settings, href: model.settings, group: platformGroup, icon: <Icon name="settings" /> });
+    return list;
+  }, [model, appTitle]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setDrawerOpen(false);
+        setPaletteOpen((value) => !value);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const openPalette = useCallback(() => {
+    setDrawerOpen(false);
+    setPaletteOpen(true);
+  }, []);
+
+  const runCommand = (item: CommandItem): void => {
+    if (item.id === 'platform:new-app') {
+      openNewApp();
+    } else if (item.id.startsWith('section:') && onNavigate !== undefined) {
+      onNavigate(item.href);
+    } else {
+      window.location.assign(item.href);
+    }
+  };
+
   const sidebar = (rail: boolean, inDrawer: boolean): JSX.Element => (
     <Sidebar
       model={model}
@@ -272,6 +333,7 @@ export function PlatformShell({
       theme={theme}
       onThemeChange={changeTheme}
       onNewApp={openNewApp}
+      onSearch={openPalette}
       onNavigateInApp={navigateInApp}
       headerAction={
         inDrawer ? (
@@ -310,7 +372,7 @@ export function PlatformShell({
           aria-label={strings.platformShell.sidebarLabel}
           data-collapsed={collapsed ? 'true' : 'false'}
           className={cn(
-            'sticky top-0 z-shell hidden h-screen shrink-0 flex-col border-r border-border bg-bg-subtle md:flex',
+            'sticky top-0 z-shell hidden h-screen shrink-0 flex-col border-r border-border bg-bg md:flex',
             collapsed ? 'w-16' : 'w-nav',
           )}
         >
@@ -318,14 +380,14 @@ export function PlatformShell({
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-shell flex h-12 min-w-0 items-center gap-2 border-b border-border bg-bg-subtle px-2 md:hidden">
+          <header className="sticky top-0 z-shell flex h-12 min-w-0 items-center gap-2 border-b border-border bg-bg px-2 md:hidden">
             <button
               ref={menuButtonRef}
               type="button"
               aria-expanded={drawerOpen}
               aria-controls={`${baseId}-drawer`}
               onClick={() => setDrawerOpen(true)}
-              className={cn('rounded-lg p-2 text-fg-muted hover:bg-surface-muted hover:text-fg', focusRing)}
+              className={cn('rounded-full p-2 text-fg-muted hover:bg-surface-hover hover:text-fg', focusRing)}
             >
               <MenuIcon />
               <span className="sr-only">{strings.shell.openNavigation}</span>
@@ -352,12 +414,14 @@ export function PlatformShell({
               role="dialog"
               aria-modal="true"
               aria-label={strings.shell.navigationLabel(appTitle)}
-              className="relative flex h-full w-drawer max-w-[85vw] animate-oa-fade-in flex-col border-r border-border bg-bg-subtle shadow-lg"
+              className="relative flex h-full w-drawer max-w-[85vw] animate-oa-slide-in flex-col border-r border-border bg-bg shadow-lg"
             >
               {sidebar(false, true)}
             </div>
           </div>
         ) : null}
+
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} onSelect={runCommand} />
 
         {model.canCreateApps ? (
           <NewAppDialog open={dialogOpen} onClose={closeNewApp} getStartedHref={model.getStarted} />
@@ -375,14 +439,15 @@ interface SidebarProps {
   theme: ShellTheme;
   onThemeChange: (theme: ShellTheme) => void;
   onNewApp: () => void;
+  onSearch: () => void;
   onNavigateInApp: (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => void;
   headerAction: ReactNode;
 }
 
 /** Zeile in der Leiste: Grundform fuer Apps, Bereiche und Aktionen. */
-const ROW = 'group flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors duration-150';
-const ROW_IDLE = 'text-fg-muted hover:bg-surface-muted hover:text-fg';
-const RAIL_ROW = 'flex h-10 w-10 items-center justify-center rounded-lg transition-colors duration-150';
+const ROW = 'group flex min-w-0 items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm transition-colors duration-150';
+const ROW_IDLE = 'text-fg-muted hover:bg-surface-hover hover:text-fg';
+const RAIL_ROW = 'flex h-10 w-10 items-center justify-center rounded-sm transition-colors duration-150';
 
 function Sidebar({
   model,
@@ -392,19 +457,21 @@ function Sidebar({
   theme,
   onThemeChange,
   onNewApp,
+  onSearch,
   onNavigateInApp,
   headerAction,
 }: SidebarProps): JSX.Element {
   const productName = strings.shell.productName;
   const mark = (
     <>
-      <span
-        aria-hidden="true"
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-fg font-mono text-2xs font-semibold text-fg-inverted"
-      >
-        {monogramOf(productName).slice(0, 1)}
+      <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center">
+        <span className="h-2.5 w-2.5 bg-primary" />
       </span>
-      {rail ? <span className="sr-only">{productName}</span> : <span className="min-w-0 truncate text-sm font-semibold text-fg">{productName}</span>}
+      {rail ? (
+        <span className="sr-only">{productName}</span>
+      ) : (
+        <span className="min-w-0 truncate font-mono text-xs font-medium uppercase tracking-loose text-fg">{productName}</span>
+      )}
     </>
   );
 
@@ -419,7 +486,7 @@ function Sidebar({
             aria-label={rail ? strings.platformShell.home : undefined}
             title={rail ? productName : undefined}
             className={cn(
-              'flex min-w-0 items-center gap-2.5 rounded-lg hover:bg-surface-muted',
+              'flex min-w-0 items-center gap-1.5 rounded-sm hover:bg-surface-hover',
               rail ? 'p-2' : 'flex-1 p-1',
               focusRing,
             )}
@@ -428,6 +495,38 @@ function Sidebar({
           </a>
         )}
         {headerAction}
+      </div>
+
+      <div className={cn('shrink-0', rail ? 'flex justify-center px-2 pt-2' : 'px-3 pt-2')}>
+        {rail ? (
+          <button
+            type="button"
+            onClick={onSearch}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Meta+K Control+K"
+            title={strings.commandPalette.trigger}
+            className={cn(RAIL_ROW, ROW_IDLE, focusRing)}
+          >
+            <Icon name="search" />
+            <span className="sr-only">{strings.commandPalette.trigger}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onSearch}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Meta+K Control+K"
+            className={cn(
+              'flex w-full min-w-0 items-center gap-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-left text-sm text-fg-subtle',
+              'transition-colors duration-150 hover:border-border-strong hover:text-fg-muted',
+              focusRing,
+            )}
+          >
+            <Icon name="search" />
+            <span className="min-w-0 flex-1 truncate">{strings.commandPalette.trigger}</span>
+            <Kbd aria-hidden="true">⌘K</Kbd>
+          </button>
+        )}
       </div>
 
       <nav
@@ -542,7 +641,7 @@ function CurrentApp({
   if (rail) {
     return (
       <div className="flex flex-col items-center gap-1">
-        <AppLink href={app.href} current title={appTitle} className={cn(RAIL_ROW, 'bg-bg shadow-sm ring-1 ring-border')}>
+        <AppLink href={app.href} current title={appTitle} className={cn(RAIL_ROW, 'bg-surface-hover')}>
           <AppTile name={app.name} title={appTitle} />
           <span className="sr-only">{appTitle}</span>
         </AppLink>
@@ -557,7 +656,7 @@ function CurrentApp({
                   onClick={(event) => onNavigateInApp(event, item.href)}
                   className={cn(
                     'flex h-8 w-8 items-center justify-center rounded-md text-2xs transition-colors duration-150',
-                    item.current === true ? 'bg-surface-muted text-fg' : 'text-fg-muted hover:bg-surface-muted hover:text-fg',
+                    item.current === true ? 'bg-surface-hover text-fg' : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
                     focusRing,
                   )}
                 >
@@ -574,7 +673,7 @@ function CurrentApp({
 
   return (
     <div className="min-w-0">
-      <AppLink href={app.href} current className={cn(ROW, 'font-medium text-fg', app.href !== null && 'hover:bg-surface-muted')}>
+      <AppLink href={app.href} current className={cn(ROW, 'font-medium text-fg', app.href !== null && 'hover:bg-surface-hover')}>
         <AppTile name={app.name} title={appTitle} />
         <span className="min-w-0 flex-1 truncate">{appTitle}</span>
       </AppLink>
@@ -597,10 +696,10 @@ function CurrentApp({
                       aria-current={item.current === true ? 'page' : undefined}
                       onClick={(event) => onNavigateInApp(event, item.href)}
                       className={cn(
-                        'flex min-w-0 items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors duration-150',
+                        'relative flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors duration-150',
                         item.current === true
-                          ? 'bg-bg font-medium text-fg shadow-sm ring-1 ring-border'
-                          : 'text-fg-muted hover:bg-surface-muted hover:text-fg',
+                          ? "bg-surface-hover font-medium text-fg before:absolute before:inset-y-1 before:-left-2 before:w-0.5 before:bg-primary before:content-['']"
+                          : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
                         focusRing,
                       )}
                     >
@@ -632,7 +731,7 @@ function OtherApp({ app, rail }: { app: SidebarApp; rail: boolean }): JSX.Elemen
     <AppLink
       href={app.href}
       title={rail ? app.title : undefined}
-      className={rail ? cn(RAIL_ROW, 'hover:bg-surface-muted') : cn(ROW, ROW_IDLE)}
+      className={rail ? cn(RAIL_ROW, 'hover:bg-surface-hover') : cn(ROW, ROW_IDLE)}
     >
       <AppTile name={app.name} title={app.title} />
       <span className={rail ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{app.title}</span>
@@ -675,7 +774,7 @@ export function AppTile({ name, title, className }: { name: string; title: strin
       aria-hidden="true"
       data-tone={monogramTone(name)}
       className={cn(
-        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-2xs font-semibold leading-none',
+        'flex h-5 w-5 shrink-0 items-center justify-center rounded-sm font-mono text-2xs font-semibold leading-none',
         monogramTone(name),
         className,
       )}
@@ -689,7 +788,7 @@ function ActionGlyph({ children }: { children: ReactNode }): JSX.Element {
   return (
     <span
       aria-hidden="true"
-      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-dashed border-border-strong text-fg-muted group-hover:border-fg-muted group-hover:text-fg"
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-dashed border-border-strong text-fg-muted group-hover:border-fg-muted group-hover:text-fg"
     >
       {children}
     </span>
@@ -738,7 +837,7 @@ function IconButton({
       onClick={onClick}
       aria-controls={controls}
       title={label}
-      className={cn('shrink-0 rounded-lg p-2 text-fg-muted transition-colors duration-150 hover:bg-surface-muted hover:text-fg', focusRing)}
+      className={cn('shrink-0 rounded-full p-2 text-fg-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg', focusRing)}
     >
       {children}
       <span className="sr-only">{label}</span>

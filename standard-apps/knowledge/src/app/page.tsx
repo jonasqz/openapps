@@ -1,4 +1,4 @@
-import { Card, CardBody, EmptyState, ErrorState } from '@openapps/ui';
+import { Card, CardBody, EmptyState, ErrorState, PageHeader } from '@openapps/ui';
 import { Highlighted } from '@/components/Highlighted';
 import { SearchBox } from '@/components/SearchBox';
 import { TextLink } from '@/components/TextLink';
@@ -34,17 +34,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
 
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-fg">Knowledge</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Searches the stored documents and shows the matching sections with their source.
-          </p>
-        </div>
-        <TextLink href="/documents/new" className="shrink-0 self-start text-sm">
-          Add document
-        </TextLink>
-      </header>
+      <PageHeader
+        className="mb-0"
+        eyebrow="Knowledge"
+        title="Search"
+        description="Searches the stored documents and shows the matching sections with their source."
+        actions={
+          <TextLink href="/documents/new" className="shrink-0 self-start text-sm">
+            Add document
+          </TextLink>
+        }
+      />
 
       <SearchBox initialQuery={q} />
 

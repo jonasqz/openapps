@@ -126,9 +126,9 @@ export function SidebarUserMenu({
           }
         }}
         className={cn(
-          'flex w-full min-w-0 items-center gap-2.5 rounded-lg py-1.5 text-left',
-          'transition-colors duration-150 hover:bg-surface-muted',
-          open && 'bg-surface-muted',
+          'flex w-full min-w-0 items-center gap-2.5 rounded-sm py-1.5 text-left',
+          'transition-colors duration-150 hover:bg-surface-hover',
+          open && 'bg-surface-hover',
           rail ? 'justify-center' : 'px-2',
           focusRing,
         )}
@@ -193,7 +193,7 @@ export function SidebarUserMenu({
             <p aria-hidden="true" className="px-1.5 pb-1.5 font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">
               {strings.platformShell.theme}
             </p>
-            <div className="grid grid-cols-3 gap-0.5 rounded-lg bg-surface-muted p-0.5">
+            <div className="grid grid-cols-3 gap-0.5 rounded-full border border-border bg-bg p-0.5">
               {themes.map(([value, label, icon]) => (
                 <button
                   key={value}
@@ -202,11 +202,9 @@ export function SidebarUserMenu({
                   aria-checked={theme === value}
                   onClick={() => onThemeChange(value)}
                   className={cn(
-                    'flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-1 py-1.5 text-2xs',
+                    'flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1 text-2xs',
                     'transition-colors duration-150',
-                    theme === value
-                      ? 'bg-bg font-medium text-fg shadow-sm'
-                      : 'text-fg-muted hover:text-fg',
+                    theme === value ? 'bg-fg font-medium text-bg' : 'text-fg-muted hover:text-fg',
                     focusRingInset,
                   )}
                 >

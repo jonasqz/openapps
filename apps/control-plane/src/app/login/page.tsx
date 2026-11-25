@@ -60,16 +60,26 @@ export default async function LoginPage({
           'and otherwise contact your administrator.');
 
   return (
-    <section className="mx-auto flex max-w-md flex-col gap-6 px-4 py-12">
-      <h1 className="text-xl font-semibold">Sign in</h1>
-      <p className="max-w-prose text-sm">
-        The control plane manages the apps, deployments and grants of this instance. Access goes
-        through your organisation's Google account; without a grant, everything stays locked.
-      </p>
-      <SignInWithGoogle
-        callbackUrl={safeCallback(first(params.next))}
-        {...(error === undefined ? {} : { initialError: error })}
-      />
+    <section className="grid min-h-screen place-items-center bg-bg-subtle px-4 py-12">
+      <div className="flex w-full max-w-md flex-col gap-5 rounded-lg border border-border bg-bg px-6 py-10 shadow-md sm:px-8">
+        <p className="flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-loose text-fg">
+          <span aria-hidden="true" className="h-2.5 w-2.5 bg-primary" />
+          openapps
+          <span className="font-normal tracking-label text-fg-subtle">/ admin</span>
+        </p>
+        <h1 className="mt-4 font-display text-4xl font-normal tracking-display text-fg">Sign in</h1>
+        <p className="max-w-prose text-sm text-fg-muted">
+          The control plane manages the apps, deployments and grants of this instance. Access goes
+          through your organisation&apos;s Google account; without a grant, everything stays locked.
+        </p>
+        <SignInWithGoogle
+          callbackUrl={safeCallback(first(params.next))}
+          {...(error === undefined ? {} : { initialError: error })}
+        />
+        <p className="border-t border-border pt-4 text-xs text-fg-subtle">
+          Agents do not sign in here. They use their token on /mcp.
+        </p>
+      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Table } from '@openapps/ui';
+import { PageHeader, Table } from '@openapps/ui';
 import { TextLink } from '@/components/TextLink';
 import { listDocuments, type DocumentSummary } from '@/lib/documents';
 
@@ -40,20 +40,21 @@ export default async function DocumentsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-fg">Documents</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Everything the search knows. Newest first.
-          </p>
-        </div>
-        <TextLink href="/documents/new" className="shrink-0 self-start text-sm">
-          Add document
-        </TextLink>
-      </header>
+      <PageHeader
+        className="mb-0"
+        eyebrow="Knowledge"
+        title="Documents"
+        description="Everything the search knows. Newest first."
+        actions={
+          <TextLink href="/documents/new" className="shrink-0 self-start text-sm">
+            Add document
+          </TextLink>
+        }
+      />
 
       <Table<DocumentRow>
         caption="Documents"
+        searchable
         rows={failed ? [] : documents.map(toRow)}
         columns={[
           { field: 'title', header: 'Title' },

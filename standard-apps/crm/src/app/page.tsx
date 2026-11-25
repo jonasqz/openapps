@@ -1,4 +1,4 @@
-import { Badge, Card, CardBody, CardHeader, EmptyState, ErrorState } from '@openapps/ui';
+import { Badge, Card, CardBody, CardHeader, EmptyState, ErrorState, PageHeader } from '@openapps/ui';
 import { ButtonLink, TextLink } from '@/components/links';
 import { listDeals, pipelineSummary, type Deal } from '@/lib/crm';
 import { STAGE_LABELS, type Stage } from '@/lib/domain';
@@ -23,20 +23,19 @@ export default async function PipelinePage() {
 
   return (
     <>
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-fg">Pipeline</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Open deals with the total per stage, weighted by win probability.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <ButtonLink href="/deals/stage" variant="secondary">
-            Change stage
-          </ButtonLink>
-          <ButtonLink href="/deals/new">New deal</ButtonLink>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="CRM"
+        title="Pipeline"
+        description="Open deals with the total per stage, weighted by win probability."
+        actions={
+          <>
+            <ButtonLink href="/deals/stage" variant="secondary">
+              Change stage
+            </ButtonLink>
+            <ButtonLink href="/deals/new">New deal</ButtonLink>
+          </>
+        }
+      />
 
       {summary === null ? (
         <ErrorState

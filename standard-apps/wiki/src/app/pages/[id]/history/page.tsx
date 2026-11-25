@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { ToolNotFoundError } from '@openapps/sdk';
-import { Badge, Card, CardBody, CardHeader, EmptyState, ErrorState } from '@openapps/ui';
+import { Badge, Card, CardBody, CardHeader, EmptyState, ErrorState, PageHeader } from '@openapps/ui';
 import { Markdown } from '@/components/Markdown';
 import { TextLink } from '@/components/LinkButton';
 import { CHANGE_LABEL, formatDateTime } from '@/lib/format';
@@ -33,15 +33,12 @@ export default async function HistoryPage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-4">
       <TextLink href={`/pages/${parsedId.data}`}>← Back to page</TextLink>
-      <header>
-        <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">History</p>
-        <h1 className="mt-0.5 text-2xl font-semibold text-fg [overflow-wrap:anywhere]">
-          {failed ? 'History' : title}
-        </h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          Every change, by humans and agents alike, with the state after it.
-        </p>
-      </header>
+      <PageHeader
+        className="mb-0"
+        eyebrow="History"
+        title={failed ? 'History' : title}
+        description="Every change, by humans and agents alike, with the state after it."
+      />
 
       {failed ? (
         <ErrorState

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Badge, Table } from '@openapps/ui';
+import { Badge, PageHeader, Table } from '@openapps/ui';
 import { CompleteButton } from '@/components/CompleteButton';
 import { ButtonLink } from '@/components/links';
 import { listTasks, type Task } from '@/lib/tasks';
@@ -57,15 +57,15 @@ export default async function TasksPage() {
 
   return (
     <>
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-fg">Tasks</h1>
-          <p className="mt-1 text-sm text-fg-muted">Open tasks first, then by due date.</p>
-        </div>
-        <ButtonLink href="/new">New task</ButtonLink>
-      </header>
+      <PageHeader
+        eyebrow="Tasks"
+        title="All tasks"
+        description="Open tasks first, then by due date."
+        actions={<ButtonLink href="/new">New task</ButtonLink>}
+      />
       <Table<TaskRow>
         caption="Tasks"
+        searchable
         rows={failed ? [] : tasks.map((task) => toRow(task, today))}
         columns={[
           { field: 'title', header: 'Title' },
