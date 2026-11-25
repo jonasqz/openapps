@@ -37,14 +37,17 @@
  */
 
 import { ValidationError } from './errors';
-import { IDENTITY_HEADERS } from './gateway-headers';
+import { GATEWAY_RESPONSE_HEADERS } from './gateway-headers';
 import { appPathFor, appsDomainFor, assertAppName, gatewayAliasFor } from './naming';
 
 /* -------------------------------------------------------------------------- */
 /* Namen, die an zwei Seiten haengen                                           */
 /* -------------------------------------------------------------------------- */
 
-/** Loescht die `X-Auth-*` der **eingehenden** Anfrage. Laeuft immer zuerst. */
+/**
+ * Loescht die `X-Auth-*` der **eingehenden** Anfrage — Identitaet und
+ * Navigation (ADR 0017). Laeuft immer zuerst.
+ */
 export const STRIP_IDENTITY_MIDDLEWARE = 'openapps-strip-auth-headers';
 
 /** Die Forward-Auth. Laeuft immer danach. */
@@ -371,10 +374,11 @@ export function buildGatewayConfig(input: GatewayConfigInput): GatewayDynamicCon
   });
 
   const customRequestHeaders: Record<string, string> = {};
-  for (const header of IDENTITY_HEADERS) {
-    // Ein leerer Wert loescht den Header aus der Anfrage. Alle fuenf Namen,
-    // nicht „die wichtigen": ein nicht geloeschter `X-Auth-Issued-At` reicht,
-    // um das 60-Sekunden-Fenster aufzuweiten.
+  for (const header of GATEWAY_RESPONSE_HEADERS) {
+    // Ein leerer Wert loescht den Header aus der Anfrage. Alle Namen, nicht
+    // „die wichtigen": ein nicht geloeschter `X-Auth-Issued-At` reicht, um das
+    // 60-Sekunden-Fenster aufzuweiten, ein nicht geloeschter `X-Auth-Nav`
+    // bringt fremde Links in die Leiste (ADR 0017).
     customRequestHeaders[canonicalHeaderName(header)] = '';
   }
 
@@ -386,7 +390,7 @@ export function buildGatewayConfig(input: GatewayConfigInput): GatewayDynamicCon
         [FORWARD_AUTH_MIDDLEWARE]: {
           forwardAuth: {
             address: forwardAuthAddress,
-            authResponseHeaders: IDENTITY_HEADERS.map(canonicalHeaderName),
+            authResponseHeaders: GATEWAY_RESPONSE_HEADERS.map(canonicalHeaderName),
             trustForwardHeader: true,
             // Der Rumpf geht nicht an die Auth. Sie entscheidet ueber Host,
             // Pfad und Session, nicht ueber Nutzdaten.
@@ -480,11 +484,11 @@ export function gatewayConfigProblems(config: GatewayDynamicConfig): readonly st
       `the middleware "${STRIP_IDENTITY_MIDDLEWARE}" is missing or has the wrong shape`,
     );
   } else {
-    for (const header of IDENTITY_HEADERS) {
+    for (const header of GATEWAY_RESPONSE_HEADERS) {
       if (strip.headers.customRequestHeaders[canonicalHeaderName(header)] !== '') {
         problems.push(
           `"${STRIP_IDENTITY_MIDDLEWARE}" does not remove the header ${canonicalHeaderName(header)}: ` +
-            'a client could send its own identity (ADR 0004)',
+            'a client could send its own identity or navigation (ADR 0004, ADR 0017)',
         );
       }
     }
@@ -499,7 +503,7 @@ export function gatewayConfigProblems(config: GatewayDynamicConfig): readonly st
         `forward auth points to "${auth.forwardAuth.address}", which is not an address`,
       );
     }
-    const expected = IDENTITY_HEADERS.map(canonicalHeaderName);
+    const expected = GATEWAY_RESPONSE_HEADERS.map(canonicalHeaderName);
     const missing = expected.filter((name) => !auth.forwardAuth.authResponseHeaders.includes(name));
     if (missing.length > 0) {
       problems.push(`forward auth does not pass on the headers [${missing.join(', ')}]`);

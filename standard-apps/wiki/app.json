@@ -4,10 +4,10 @@
   "displayName": "Wiki",
   "description": "Knowledge pages like in Notion: a page tree, Markdown, full-text search and a history of every change. For humans and agents alike.",
   "category": "knowledge",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "wiki-v0.1.2"
+    "tag": "wiki-v0.1.3"
   },
   "requiredTables": [
     {

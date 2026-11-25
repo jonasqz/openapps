@@ -65,6 +65,8 @@
           "X-Auth-Groups": ""
           "X-Auth-Issued-At": ""
           "X-Auth-Signature": ""
+          "X-Auth-Nav": ""
+          "X-Auth-Nav-Signature": ""
     "openapps-forward-auth":
       "forwardAuth":
         "address": "http://openapps-control-plane:3000/api/authz/forward"
@@ -74,6 +76,8 @@
           - "X-Auth-Groups"
           - "X-Auth-Issued-At"
           - "X-Auth-Signature"
+          - "X-Auth-Nav"
+          - "X-Auth-Nav-Signature"
         "trustForwardHeader": true
         "forwardBody": false
   "services":

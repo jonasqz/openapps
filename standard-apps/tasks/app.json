@@ -4,7 +4,7 @@
   "displayName": "Tasks",
   "description": "Team tasks with title, assignee, due date and completion status. For people and agents.",
   "category": "internal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "source": {
     "git": "https://lokal.invalid/tasks",
     "tag": "lokal"

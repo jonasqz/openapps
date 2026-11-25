@@ -66,6 +66,23 @@ import { Button, Table, EmptyState, ErrorState } from '@openapps/ui';
 No custom colour values, no second UI library. Every list has an empty and an
 error state. The linter blocks the rest.
 
+## Where the sidebar comes from
+
+The platform shell comes from `PlatformShell` in `@openapps/ui` (ADR 0017):
+user, app list, "New app", "New agent", settings, sign-out and theme. Your
+app only provides its own sections.
+
+- `src/app/layout.tsx` — wires up the shell. Keep it as it is.
+- `src/lib/shell.ts` — reads the user (`getUser`) and the platform navigation
+  (`getNavigation`) from the gateway headers on the server. Never throws:
+  without navigation the sidebar shows only your app. Keep it as it is.
+- `src/components/Shell.tsx` — **your sections.** One entry in `SECTIONS` per
+  page people navigate to, with the path inside the app (`/items`, without
+  the `basePath`) and the paths that mark it as the current page.
+
+Pages render no `<main>` and no outer padding: the shell provides both. No
+navigation, login or user menu of your own.
+
 ## Before the first deploy
 
 ```bash

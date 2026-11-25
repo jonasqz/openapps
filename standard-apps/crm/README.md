@@ -57,6 +57,8 @@ A stage change logs an activity of kind `note`.
 - `src/lib/tools.ts` — the tool table, used by the route and the UI
 - `src/app/api/tools/[tool]/route.ts` — `createToolRoute`
 - `src/app/actions.ts` — server actions of the forms, they call the tools
+- `src/app/layout.tsx`, `src/lib/shell.ts`, `src/components/Shell.tsx` — the
+  shared platform sidebar (`PlatformShell`); the app only adds its sections
 
 ## Tests
 

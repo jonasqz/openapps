@@ -13,6 +13,10 @@ directory into a new repo.
 - `seeds/0001_sample.sql` — sample data, loaded locally only
 - `src/app/api/items/` — the route handlers for the two operations
 - `src/app/page.tsx` — a list with empty and error state
+- `src/app/layout.tsx`, `src/lib/shell.ts`, `src/components/Shell.tsx` — the
+  shared platform sidebar (`PlatformShell` from `@openapps/ui`). The platform
+  brings user, app list, settings and sign-out; the app only lists its own
+  sections in `src/components/Shell.tsx`
 - `AGENTS.md` — the order in which an agent works here
 - `next.config.js` — the `basePath` from `OPENAPPS_APP_BASE_PATH`: the app
   lives under `https://<domain>/<app-name>`, not on its own subdomain
@@ -25,6 +29,7 @@ directory into a new repo.
    app-name>` — it is the path the app lives under
 4. replace the example table `items` with your tables, in `app.json`,
    `openapi.yaml` and a **new** migration
+5. list your pages as sections in `SECTIONS` in `src/components/Shell.tsx`
 
 ## Locally
 
@@ -48,3 +53,6 @@ the gateway uses — and set `OPENAPPS_AUTH_SECRET`, `OPENAPPS_APP_ID` and
 together with the app's own secret separates them (ADR 0007). Do not build a
 shortcut that turns the check off locally: it ends up in production sooner or
 later.
+
+The sidebar still renders without the gateway: it shows only this app and a
+placeholder instead of the user. Pages keep working.

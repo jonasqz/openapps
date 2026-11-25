@@ -19,7 +19,7 @@ export default async function NewPage({
     const loaded = await loadPage(rawParent);
     if (loaded.kind !== 'ok' || loaded.value.archivedAt !== null) {
       return (
-        <main className="flex flex-col gap-4 p-6">
+        <div className="flex min-w-0 flex-col gap-4">
           <TextLink href="/">← All pages</TextLink>
           <ErrorState
             title={
@@ -29,15 +29,15 @@ export default async function NewPage({
             }
             description="Create the page without a parent or choose a different one."
           />
-        </main>
+        </div>
       );
     }
     parent = { id: loaded.value.id, title: loaded.value.title };
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+    <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-4">
       <PageForm mode="create" parent={parent} />
-    </main>
+    </div>
   );
 }

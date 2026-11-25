@@ -33,9 +33,18 @@ export {
   type GuardedRouter,
 } from './gateway-config';
 export {
+  EMPTY_NAV_HEADERS,
+  fitNav,
+  GATEWAY_RESPONSE_HEADERS,
   IDENTITY_HEADERS,
   identityHeaders,
   identityHeadersForApp,
+  NAV_HEADER,
+  NAV_HEADER_BUDGET,
+  NAV_HEADERS,
+  NAV_SIGNATURE_HEADER,
+  navHeaders,
+  navHeadersForApp,
   GROUPS_HEADER,
   ISSUED_AT_HEADER,
   SIGNATURE_HEADER,
@@ -43,7 +52,16 @@ export {
   USER_ID_HEADER,
   type GatewayIdentity,
   type IdentityHeaderInput,
+  type NavHeaderInput,
 } from './gateway-headers';
+export {
+  canCreateApps,
+  isPlatformAdmin,
+  PLATFORM_ADMINS_GROUP,
+  platformNavFor,
+  visibleAppsFor,
+} from './navigation';
+export { describeActor, type ActorDescription, type AgentSelf } from './me';
 export {
   proposedGrantsOf,
   resourceRefOf,

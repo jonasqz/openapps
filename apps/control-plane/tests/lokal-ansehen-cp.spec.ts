@@ -65,11 +65,15 @@ describe('Ansehen-Proxy fuer die Control Plane: Weiterleitung', () => {
       cookie: '__Secure-better-auth.session_token=gestohlen; openapps_local_role=user',
       authorization: 'Bearer fremd',
       'x-auth-user-id': 'admin',
+      'X-Auth-Nav': 'eyJ2IjoxfQ',
+      'x-auth-nav-signature': 'gefaelscht',
       accept: 'text/html',
     });
     expect(out.headers.cookie).toBe(`${SESSION.cookieName}=${SESSION.value}`);
     expect(out.headers.authorization).toBeUndefined();
     expect(out.headers['x-auth-user-id']).toBeUndefined();
+    expect(out.headers['x-auth-nav']).toBeUndefined();
+    expect(out.headers['x-auth-nav-signature']).toBeUndefined();
     expect(out.headers.accept).toBe('text/html');
     expect(out.url).toBe('http://openapps-control-plane:3000/grants');
   });

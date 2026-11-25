@@ -124,6 +124,47 @@ export interface UiStrings {
     /** Name des Glocken-Knopfs, mit der Zahl ungelesener Meldungen. */
     readonly label: (unread: number) => string;
   };
+  readonly platformShell: {
+    /** Name des Bereichs mit allen Apps. */
+    readonly appsLabel: string;
+    /** Name der ganzen Leiste. */
+    readonly sidebarLabel: string;
+    /** Link der Marke links oben zur Plattform. */
+    readonly home: string;
+    /** Die App hat keine eigenen Bereiche. */
+    readonly sectionsEmpty: string;
+    readonly collapse: string;
+    readonly expand: string;
+    readonly newApp: string;
+    readonly newAgent: string;
+    readonly admin: string;
+    readonly settings: string;
+    readonly getStarted: string;
+    readonly signOut: string;
+    readonly theme: string;
+    readonly themeSystem: string;
+    readonly themeLight: string;
+    readonly themeDark: string;
+    readonly loadingUser: string;
+    /** „Account menu, signed in as Anna Example" */
+    readonly userMenuLabel: (name: string) => string;
+    readonly newAppTitle: string;
+    readonly newAppDescription: string;
+    readonly newAppName: string;
+    readonly newAppNameHint: string;
+    readonly newAppPurpose: string;
+    readonly newAppPurposePlaceholder: string;
+    readonly newAppCommand: string;
+    /** Platzhalter im Befehl, solange nichts beschrieben ist. */
+    readonly newAppCommandEmpty: string;
+    readonly newAppExplanation: string;
+    readonly newAppConnect: string;
+    readonly copy: string;
+    readonly copied: string;
+    readonly copyFailed: string;
+    readonly copyFailedDescription: string;
+    readonly copiedDescription: string;
+  };
   readonly developer: {
     readonly toastProviderMissing: string;
   };
@@ -243,6 +284,41 @@ const en: UiStrings = {
     loading: 'Loading notifications…',
     label: (unread) =>
       unread === 0 ? 'Notifications, none unread' : `Notifications, ${unread} unread`,
+  },
+  platformShell: {
+    appsLabel: 'Apps',
+    sidebarLabel: 'Sidebar',
+    home: 'Platform home',
+    sectionsEmpty: 'No pages yet',
+    collapse: 'Collapse sidebar',
+    expand: 'Expand sidebar',
+    newApp: 'New app',
+    newAgent: 'New agent',
+    admin: 'Admin',
+    settings: 'Settings',
+    getStarted: 'Get started',
+    signOut: 'Sign out',
+    theme: 'Theme',
+    themeSystem: 'System',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    loadingUser: 'Loading account',
+    userMenuLabel: (name) => `Account menu, signed in as ${name}`,
+    newAppTitle: 'New app',
+    newAppDescription: 'Describe the app. Your assistant builds it from the command below.',
+    newAppName: 'Name',
+    newAppNameHint: 'Short and plain, for example Leave requests.',
+    newAppPurpose: 'What should it do?',
+    newAppPurposePlaceholder: 'Team members request leave, their lead approves it, HR sees a calendar.',
+    newAppCommand: 'Command for your assistant',
+    newAppCommandEmpty: '<describe your app>',
+    newAppExplanation: 'Paste the command into your assistant. It builds the app for you on this platform.',
+    newAppConnect: 'How to connect your assistant',
+    copy: 'Copy',
+    copied: 'Command copied',
+    copiedDescription: 'Paste it into your assistant.',
+    copyFailed: 'Could not copy',
+    copyFailedDescription: 'Select the command and copy it by hand.',
   },
   developer: {
     toastProviderMissing: 'useToast needs a <ToastProvider> above it.',

@@ -25,7 +25,7 @@
 import { createHmac } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { IDENTITY_HEADERS } from '../domain';
+import { GATEWAY_RESPONSE_HEADERS } from '../domain';
 
 export const ROLLEN = ['admin', 'user'] as const;
 export type Rolle = (typeof ROLLEN)[number];
@@ -80,7 +80,8 @@ export function rollenwechsel(path: string): Rolle | null {
 }
 
 const DROP = new Set([
-  ...IDENTITY_HEADERS.map((h) => h.toLowerCase()),
+  // Identitaet und Navigation (ADR 0017): nie vom Browser.
+  ...GATEWAY_RESPONSE_HEADERS.map((h) => h.toLowerCase()),
   'host',
   'connection',
   'cookie',

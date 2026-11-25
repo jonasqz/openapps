@@ -52,3 +52,35 @@ export interface ShellNotification {
   read?: boolean;
   href?: string;
 }
+
+/**
+ * Eine App in der gemeinsamen Leiste (ADR 0017). Kommt vom Gateway, nicht
+ * aus der App: nur Apps, die die Person lesen darf.
+ */
+export interface ShellPlatformApp {
+  /** Technischer Name, z. B. `crm`. Vergleich mit `appName` der Shell. */
+  name: string;
+  /** Anzeigename, z. B. „CRM“. */
+  title: string;
+  /** Kategorie aus `app.json`. Gruppiert erst ab vielen Apps. */
+  category?: string | null;
+  /** Absolute Adresse der App. Alles außer http(s) und `/` fällt weg. */
+  href: string;
+}
+
+/**
+ * Navigationsdaten der Plattform aus `X-Auth-Nav` (ADR 0017). Anzeige, keine
+ * Freigabe: Ob jemand eine App öffnen darf, entscheidet die Forward-Auth.
+ */
+export interface ShellPlatform {
+  /** Adresse der Control Plane, z. B. `https://admin.example.com`. */
+  platformUrl: string;
+  apps: readonly ShellPlatformApp[];
+  /** Zeigt „New app“. */
+  canCreateApps: boolean;
+  /** Zeigt „Admin“. */
+  isAdmin: boolean;
+}
+
+/** Darstellung: dem System folgen oder hell/dunkel erzwingen. */
+export type ShellTheme = 'system' | 'light' | 'dark';

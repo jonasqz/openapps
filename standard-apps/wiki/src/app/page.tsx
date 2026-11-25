@@ -67,7 +67,7 @@ export default async function WikiHome({
   }
 
   return (
-    <main className="p-6">
+    <div>
       <PageList
         mode={q === '' ? 'tree' : 'search'}
         rows={rows}
@@ -77,6 +77,6 @@ export default async function WikiHome({
         failed={failed}
         truncated={truncated}
       />
-    </main>
+    </div>
   );
 }

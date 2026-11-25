@@ -6,11 +6,12 @@
  * Betriebs gar nicht erst startet.
  */
 
-import { getUser } from '@openapps/sdk';
+import { getNavigation, getUser, NAV_HEADER, NAV_SIGNATURE_HEADER } from '@openapps/sdk';
 import { describe, expect, it } from 'vitest';
 import { appAuthSecret, gatewayHost } from '../src/domain';
 import {
   ANSICHT_IDENTITY,
+  ansichtNav,
   appNameFromPath,
   buildForward,
   indexPage,
@@ -73,6 +74,56 @@ describe('lokal-ansehen', () => {
     expect(lower.host).toBeUndefined();
     expect(lower['x-forwarded-host']).toBe(gatewayHost('apps.local.test'));
     expect(lower.accept).toBe('text/html');
+  });
+
+  it('signiert die Navigation der Leiste, und die App nimmt sie an (ADR 0017)', () => {
+    const now = new Date('2026-11-24T12:00:00Z');
+    const nav = ansichtNav({
+      apps: [app('crm'), app('wiki'), app('entwurf', false)],
+      platformUrl: 'http://127.0.0.1:8091',
+    });
+    const forward = buildForward({
+      app: app('crm'),
+      path: '/crm',
+      incoming: {
+        // Was der Browser an Navigation mitschickt, faellt weg.
+        'X-Auth-Nav': 'eyJ2IjoxfQ',
+        'x-auth-nav-signature': 'gefaelscht',
+      },
+      masterSecret: MASTER,
+      now,
+      nav,
+    });
+
+    const read = getNavigation(forward.headers, {
+      secret: appAuthSecret({ masterSecret: MASTER, appId: 'crm', generation: 1 }),
+      appId: 'crm',
+      appHost: gatewayHost('apps.local.test'),
+      now: () => now.getTime(),
+    });
+    expect(read).toEqual({
+      v: 1,
+      platformUrl: 'http://127.0.0.1:8091',
+      apps: [
+        { name: 'crm', title: 'CRM', category: null, href: 'http://127.0.0.1:8090/crm' },
+        { name: 'wiki', title: 'WIKI', category: null, href: 'http://127.0.0.1:8090/wiki' },
+      ],
+      canCreateApps: true,
+      isAdmin: false,
+    });
+  });
+
+  it('setzt beide Nav-Header leer, wenn es keine Navigation gibt', () => {
+    const forward = buildForward({
+      app: app('crm'),
+      path: '/crm',
+      incoming: { 'x-auth-nav': 'eyJ2IjoxfQ', 'x-auth-nav-signature': 'gefaelscht' },
+      masterSecret: MASTER,
+    });
+    expect(forward.headers[NAV_HEADER]).toBe('');
+    expect(forward.headers[NAV_SIGNATURE_HEADER]).toBe('');
+    expect(forward.headers['x-auth-nav']).toBeUndefined();
+    expect(forward.headers['x-auth-nav-signature']).toBeUndefined();
   });
 
   it('gibt nur eigenen Anfragen die Origin der App, fremde bleiben fremd', () => {

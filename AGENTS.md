@@ -30,7 +30,11 @@ the MCP prompt `how_to_build_app` through the platform MCP.
 6. **Only the design system.** Components and tokens from `@openapps/ui`. No
    custom color values, no second UI library. Every list has an empty state
    and an error state, every form has validation with a visible error
-   message.
+   message. The sidebar comes from the platform: `PlatformShell` from
+   `@openapps/ui` renders users, the app list, settings and sign-out. Your
+   app only provides its own sections (the template shows how, in
+   `src/app/layout.tsx` and `src/components/Shell.tsx`). No navigation,
+   login or user menu of your own.
 7. **Nothing bypasses the gateway.** No outbound network access except to the
    targets declared in the manifest.
 
