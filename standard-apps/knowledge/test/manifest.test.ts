@@ -126,3 +126,15 @@ describe('Tool-Zuordnung', () => {
     expect(openapi).toMatch(/default: \/knowledge\s*$/m);
   });
 });
+
+describe('Suche ueber alle Apps (ADR 0021)', () => {
+  it('nennt documents.search als Such-Tool, ein lesendes Tool', () => {
+    const m = manifest();
+    expect(m.search).toEqual({ tool: 'documents.search' });
+    expect(m.offeredTools.find((tool) => tool.name === 'documents.search')?.verb).toBe('read');
+  });
+
+  it('steht auf Version 0.2.2', () => {
+    expect(manifest().version).toBe('0.2.2');
+  });
+});

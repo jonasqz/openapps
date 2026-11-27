@@ -6,12 +6,14 @@ import { appManifestSchema } from '@openapps/app-manifest';
 import {
   GROUPS_HEADER,
   ISSUED_AT_HEADER,
+  normalizeSearchResult,
   SIGNATURE_HEADER,
   signatureFor,
   USER_EMAIL_HEADER,
   USER_ID_HEADER,
 } from '@openapps/sdk';
 import { POST } from '@/app/api/tools/[tool]/route';
+import { toSearchHit } from './pages';
 import { toolHandlers, toolSchemas } from './tools';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -58,8 +60,8 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
       'search_outbox',
       'search_sync',
     ]);
-    expect(manifest.version).toBe('0.3.1');
-    expect(manifest.source.tag).toBe('wiki-v0.3.1');
+    expect(manifest.version).toBe('0.3.2');
+    expect(manifest.source.tag).toBe('wiki-v0.3.2');
   });
 
   it('offers exactly the fourteen tools of the wiki', () => {
@@ -239,5 +241,36 @@ describe('tool route — signature first, then arguments', () => {
       expect(body.error).toBe('invalid');
       expect(body.issues.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('platform search (ADR 0021)', () => {
+  it('names pages.search as the search tool, a read tool', () => {
+    expect(manifest.search).toEqual({ tool: 'pages.search' });
+    expect(manifest.offeredTools.find((tool) => tool.name === 'pages.search')?.verb).toBe('read');
+  });
+
+  it('returns hits the platform accepts: a path inside the wiki and kind page', () => {
+    const row = {
+      id: '3f1c2a8e-6b2d-4a51-9a64-0b1f6f6c9e11',
+      parent_id: null,
+      title: 'Leave policy',
+      tags: ['hr'],
+      updated_at: new Date('2026-11-27T10:00:00Z'),
+      rank: 0.4,
+      snippet: 'How to request «leave»\n in   time',
+    };
+    const hit = toSearchHit(row);
+    expect(hit.url).toBe(`/pages/${row.id}`);
+    expect(hit.kind).toBe('page');
+    expect(normalizeSearchResult({ hits: [hit] }, 5)).toEqual([
+      {
+        id: row.id,
+        title: 'Leave policy',
+        url: `/pages/${row.id}`,
+        kind: 'page',
+        snippet: 'How to request «leave» in time',
+      },
+    ]);
   });
 });

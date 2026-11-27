@@ -4,7 +4,7 @@
   "displayName": "Tasks",
   "description": "Team tasks with status, assignee, due date, priority, projects, comments and history. For people and agents.",
   "category": "internal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "source": {
     "git": "https://lokal.invalid/tasks",
     "tag": "lokal"
@@ -81,8 +81,17 @@
       "description": "Creates a project to group tasks. Arguments: name (required, 1-100 chars, unique ignoring case), description (up to 1000 chars). Returns { project }. If the name already exists, it returns 400 with a hint; use projects.list to get the existing id.",
       "operationId": "createProject",
       "verb": "write"
+    },
+    {
+      "name": "search",
+      "description": "Searches tasks (title, description) and projects (name, description) at once, case-insensitive. Arguments: query (1 to 200 characters), limit (1 to 20, default 5). Returns {hits: [{id, title, snippet, url, kind}]}: kind is task or project, url the path in Tasks (/task/<id>, or /all?project=<id> for a project), snippet the status and project. Titles starting with the query first, open tasks before done ones. The tool of Tasks for the platform search.",
+      "operationId": "searchTasks",
+      "verb": "read"
     }
   ],
+  "search": {
+    "tool": "search"
+  },
   "requestedGrants": [
     {
       "subjectKind": "group",

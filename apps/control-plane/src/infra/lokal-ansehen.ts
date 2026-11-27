@@ -27,14 +27,24 @@ import type { LokalAuth } from './lokal-ansehen-cp';
 import {
   appContainerPort,
   appPathFor,
+  federateSearch,
   gatewayAliasFor,
   gatewayHost,
   GATEWAY_RESPONSE_HEADERS,
   identityHeadersForApp,
+  isSearchable,
   navHeadersForApp,
+  parseSearchRequest,
+  PLATFORM_SEARCH_LIMITS,
+  PLATFORM_SEARCH_PATH,
   readableAppsHeadersForApp,
+  searchToolOf,
+  ValidationError,
   wantsReadableApps,
   type App,
+  type AppToolInvoker,
+  type PlatformSearchResult,
+  type SearchTarget,
 } from '../domain';
 
 export const ANSICHT_IDENTITY = {
@@ -188,6 +198,77 @@ export function buildForward(params: {
   };
 }
 
+/**
+ * Die Suche ueber alle Apps fuer den Betrachter (ADR 0021). Auf dem Server
+ * fuehrt Traefik `/_platform/search` zur Control Plane, die die Session
+ * prueft. Hier gibt es keine Session und keine Forward-Auth (Dateikopf);
+ * der Proxy foederiert selbst, mit derselben Funktion wie die Control Plane
+ * (`federateSearch`), als der Betrachter. Er sieht, wie in der Leiste, alle
+ * deployten Apps. Die Links zeigen auf diesen Proxy.
+ */
+export async function ansichtSearch(params: {
+  readonly apps: readonly AnsichtApp[];
+  readonly url: URL;
+  readonly invoker: AppToolInvoker;
+  readonly origin?: string;
+  readonly timeoutMs?: number;
+}): Promise<PlatformSearchResult> {
+  const {
+    query,
+    limit,
+    apps: only,
+  } = parseSearchRequest({
+    query: params.url.searchParams.get('q') ?? '',
+    ...(params.url.searchParams.get('limit') === null
+      ? {}
+      : { limit: Number(params.url.searchParams.get('limit')) }),
+    ...(params.url.searchParams.get('apps') === null
+      ? {}
+      : {
+          apps: (params.url.searchParams.get('apps') ?? '')
+            .split(',')
+            .map((name) => name.trim())
+            .filter((name) => name !== ''),
+        }),
+  });
+  const origin = (params.origin ?? DEFAULT_ANSICHT_ORIGIN).replace(/\/+$/, '');
+  // Im Betrieb kommt die Liste aus `apps.listAll()` und traegt jedes Feld
+  // einer App; `AnsichtApp` ist nur fuer die Tests schmaler. Der Invoker
+  // liest davon Name, Domain, Manifest und Secret-Generation.
+  const deployed = params.apps as readonly App[];
+  const readable = deployed.map((a) => a.name);
+  const targets: SearchTarget[] = deployed
+    .filter((app) => isSearchableAnsicht(app) && (only === undefined || only.includes(app.name)))
+    .map((app) => ({
+      app,
+      tool: searchToolOf(app) ?? '',
+      baseHref: `${origin}${appPathFor(app.name)}`,
+    }));
+  const actor = { kind: 'user' as const, id: ANSICHT_IDENTITY.userId, groups: [] };
+  const outcome = await federateSearch({
+    targets,
+    query,
+    limit,
+    timeoutMs: params.timeoutMs ?? PLATFORM_SEARCH_LIMITS.timeoutMs,
+    call: (target, args, signal) =>
+      params.invoker.invoke({
+        app: target.app,
+        toolName: target.tool,
+        actor,
+        args,
+        readableApps: wantsReadableApps(target.app) ? readable : null,
+        humanIdentity: { ...ANSICHT_IDENTITY, groups: [] },
+        signal,
+      }),
+  });
+  return { query, ...outcome };
+}
+
+/** `isSearchable` fuer die schmalere Form; `listAll` liefert nur nicht archivierte Apps. */
+function isSearchableAnsicht(app: AnsichtApp): boolean {
+  return isSearchable({ ...app, archivedAt: null });
+}
+
 function escapeHtml(value: string): string {
   return value.replace(
     /[&<>"']/g,
@@ -229,12 +310,19 @@ export function createAnsichtServer(options: {
   readonly origin?: string;
   /** Adresse der lokalen Control Plane, fuer die Leiste. */
   readonly platformUrl?: string;
+  /** Fuer die Suche ueber alle Apps (ADR 0021). Ohne ihn antwortet sie mit 404. */
+  readonly invoker?: AppToolInvoker;
 }) {
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const path = req.url ?? '/';
     if (path === '/' || path === '') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       res.end(indexPage(await options.listApps()));
+      return;
+    }
+    const url = new URL(path, 'http://ansicht.invalid');
+    if (url.pathname === PLATFORM_SEARCH_PATH) {
+      await searchResponse(req, res, url);
       return;
     }
     const name = appNameFromPath(path);
@@ -292,6 +380,41 @@ export function createAnsichtServer(options: {
     Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
   };
 
+  const json = (res: ServerResponse, status: number, body: unknown): void => {
+    res.writeHead(status, {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    });
+    res.end(JSON.stringify(body));
+  };
+
+  const searchResponse = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+  ): Promise<void> => {
+    if (req.method !== 'GET' || options.invoker === undefined) {
+      json(res, 404, { error: 'not_found', message: 'no search here' });
+      return;
+    }
+    try {
+      const result = await ansichtSearch({
+        apps: await options.listApps(),
+        url,
+        invoker: options.invoker,
+        ...(options.origin === undefined ? {} : { origin: options.origin }),
+      });
+      json(res, 200, result);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        json(res, 422, { error: error.code, message: error.message });
+        return;
+      }
+      throw error;
+    }
+  };
+
   return createServer((req, res) => {
     handle(req, res).catch((error: unknown) => {
       console.error('[view]', error);
@@ -321,6 +444,10 @@ async function main(): Promise<void> {
     listApps: () => apps.listAll(),
     origin: process.env.ANSEHEN_ORIGIN ?? `http://127.0.0.1:${String(port)}`,
     platformUrl: process.env.ANSEHEN_PLATFORM_URL ?? `http://127.0.0.1:${String(cpPort)}`,
+    // Dieselbe Weiterleitung wie fuer Agents, direkt an die Container.
+    invoker: (await import('./app-tool-invoker')).createHttpInvoker({
+      authMasterSecret: masterSecret,
+    }),
   }).listen(port, '0.0.0.0', () => {
     console.log(`[view] http://127.0.0.1:${String(port)} (local only)`);
   });

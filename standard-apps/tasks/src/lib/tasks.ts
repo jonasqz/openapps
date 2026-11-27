@@ -121,7 +121,7 @@ const toTask = (row: TaskRow): Task => ({
 });
 
 /** `%` und `_` sind in ILIKE Platzhalter; eine Suche nach "50%" meint das Zeichen. */
-function likePattern(text: string): string {
+export function likePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
 }
 

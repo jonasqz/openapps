@@ -624,6 +624,51 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /tools/search:
+    post:
+      operationId: searchCrm
+      summary: Search companies, contacts and deals at once
+      description: >-
+        The CRM's search tool for the platform search across all apps
+        (manifest field search). Case-insensitive search in company name,
+        industry and website, contact name, email, phone and role, and deal
+        title. Names that start with the query come first, then the most
+        recently changed.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              additionalProperties: false
+              properties:
+                query: { type: string, minLength: 1, maxLength: 200 }
+                limit: { type: integer, minimum: 1, maximum: 20, default: 5 }
+      responses:
+        '200':
+          description: Hits, best first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hits]
+                properties:
+                  hits:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, url, kind]
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        snippet: { type: string, description: 'Company, email, role or stage, joined with ·' }
+                        url: { type: string, description: 'Path in the CRM without the base path, e.g. /deals/<id>' }
+                        kind: { type: string, enum: [company, contact, deal] }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /tools/pipeline.summary:
     post:
       operationId: getPipelineSummary

@@ -13,6 +13,11 @@
 # Jeder Router hier traegt beide Middlewares, in dieser Reihenfolge:
 # erst die eingehenden X-Auth-* loeschen, dann die Forward-Auth. Es gibt
 # keine Stelle mehr, die das global erzwingt.
+#
+# `openapps-platform` fuehrt `/_platform/…` auf dem Host der Apps zur Control
+# Plane (ADR 0021): die Suche ueber alle Apps fuer die Leiste im Browser.
+# Welche Pfade darunter offen sind (nur `/_platform/search`, nur mit
+# Session), entscheidet die Forward-Auth im Code.
 "http":
   "routers":
     "openapps-app-projektliste":
@@ -44,6 +49,16 @@
         - "openapps-strip-auth-headers"
         - "openapps-forward-auth"
       "priority": 2
+      "tls":
+        "certResolver": "letsencrypt"
+    "openapps-platform":
+      "rule": "Host(`intern.example.com`) && PathPrefix(`/_platform/`)"
+      "entryPoints":
+        - "https"
+      "service": "openapps-control-plane"
+      "middlewares":
+        - "openapps-strip-auth-headers"
+        - "openapps-forward-auth"
       "tls":
         "certResolver": "letsencrypt"
     "openapps-catch-all":

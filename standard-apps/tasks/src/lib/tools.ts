@@ -1,8 +1,10 @@
 import { parseArgs, type ToolHandler } from '@openapps/sdk';
+import { query } from './db';
 import { createProject, listProjects } from './projects';
 import {
   ProjectCreateArgs,
   ProjectListArgs,
+  SearchArgs,
   TaskAssignArgs,
   TaskCommentArgs,
   TaskCompleteArgs,
@@ -11,6 +13,7 @@ import {
   TaskListArgs,
   TaskUpdateArgs,
 } from './schemas';
+import { searchTasks } from './task-search';
 import { addComment, createTask, getTask, listTasks, updateTask } from './tasks';
 import { actorOf } from './workflow';
 
@@ -48,6 +51,7 @@ export const toolHandlers = {
     parseArgs(ProjectListArgs, args ?? {});
     return { projects: await listProjects() };
   },
+  search: async (args) => searchTasks(query, parseArgs(SearchArgs, args)),
   'projects.create': async (args, { user }) => ({
     project: await createProject(parseArgs(ProjectCreateArgs, args), actorOf(user)),
   }),

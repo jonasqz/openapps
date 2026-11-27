@@ -19,17 +19,19 @@ description differs from the code, the code wins.
 
 ## Fields
 
-| Field | Why |
-| --- | --- |
-| `manifestVersion` | Version of the format, not of the app. Currently `1`. |
-| `name`, `displayName`, `description`, `category` | Catalog entry. `name` is the slug and the namespace for schema and tools. |
-| `version` | Exact semver. No ranges — a deploy is bound to a version. |
-| `requiredTables` | Tables in the app's own schema (AGENTS.md rule 2). |
-| `offeredTools` | MCP tools, generated from `openapi.yaml` (rule 3). `verb` binds each tool to the permission model. |
-| `requestedGrants` | Requested permissions in the one permission model: subject kind, verb, resource. A request, not a grant. |
-| `env` | Declared env variables with a `secret` flag (rule 5). Values never appear in the manifest. |
-| `egress` | Allowed outbound targets (rule 7). Anything missing here is blocked. |
-| `source` | Git URL and tag. |
+| Field                                            | Why                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manifestVersion`                                | Version of the format, not of the app. Currently `1`.                                                                                                                                                                                                                     |
+| `name`, `displayName`, `description`, `category` | Catalog entry. `name` is the slug and the namespace for schema and tools.                                                                                                                                                                                                 |
+| `version`                                        | Exact semver. No ranges — a deploy is bound to a version.                                                                                                                                                                                                                 |
+| `requiredTables`                                 | Tables in the app's own schema (AGENTS.md rule 2).                                                                                                                                                                                                                        |
+| `offeredTools`                                   | MCP tools, generated from `openapi.yaml` (rule 3). `verb` binds each tool to the permission model.                                                                                                                                                                        |
+| `requestedGrants`                                | Requested permissions in the one permission model: subject kind, verb, resource. A request, not a grant.                                                                                                                                                                  |
+| `env`                                            | Declared env variables with a `secret` flag (rule 5). Values never appear in the manifest.                                                                                                                                                                                |
+| `egress`                                         | Allowed outbound targets (rule 7). Anything missing here is blocked.                                                                                                                                                                                                      |
+| `gatewayContext`                                 | Optional. Signed context the app asks the gateway for, today only `readableApps` (ADR 0020).                                                                                                                                                                              |
+| `search`                                         | Optional. `{ "tool": "<name>" }`: the app's search tool for the search across all apps (ADR 0021). Must be a `read` tool from `offeredTools`; input `{ query, limit }`, output `{ hits: [{ id, title, snippet?, url, kind? }] }` (`SearchToolResult` in `@openapps/sdk`). |
+| `source`                                         | Git URL and tag.                                                                                                                                                                                                                                                          |
 
 ## The permission model in the manifest
 

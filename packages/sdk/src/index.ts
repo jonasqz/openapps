@@ -114,6 +114,19 @@ export {
 } from './tools.js';
 
 export {
+  isAppRelativePath,
+  normalizeSearchResult,
+  parseSearchArgs,
+  SEARCH_HIT_LIMITS,
+  SEARCH_LIMIT_DEFAULT,
+  SEARCH_LIMIT_MAX,
+  SEARCH_QUERY_MAX_LENGTH,
+  type SearchHit,
+  type SearchToolArgs,
+  type SearchToolResult,
+} from './search.js';
+
+export {
   MIGRATIONS_TABLE,
   runMigrations,
   runSeeds,

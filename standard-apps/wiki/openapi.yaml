@@ -143,8 +143,9 @@ paths:
       description: >-
         English stemming (`websearch_to_tsquery('english', …)`); words in
         other languages match only exactly, English stop words are ignored.
-        Syntax like a web search: "exact phrase", -exclude, or. Best hit first, with rank
-        and snippet.
+        Syntax like a web search: "exact phrase", -exclude, or. Best hit first, with rank,
+        snippet and the page path (url). Also the wiki's search tool for the platform
+        search across all apps (manifest field search).
       x-openapps-verb: read
       requestBody:
         required: true
@@ -602,7 +603,7 @@ components:
           items: { $ref: '#/components/schemas/TreeNode' }
     SearchHit:
       type: object
-      required: [id, parentId, title, tags, updatedAt, rank, snippet]
+      required: [id, parentId, title, tags, updatedAt, rank, snippet, url, kind]
       properties:
         id: { type: string, format: uuid }
         parentId: { type: [string, 'null'], format: uuid }
@@ -611,6 +612,8 @@ components:
         updatedAt: { type: string, format: date-time }
         rank: { type: number }
         snippet: { type: string, description: 'One-line excerpt, hits wrapped in « and »' }
+        url: { type: string, description: 'Path of the page in the wiki without the base path, e.g. /pages/<id>' }
+        kind: { type: string, enum: [page] }
     Revision:
       type: object
       required: [id, change, parentId, title, contentMd, tags, editedBy, editedAt]

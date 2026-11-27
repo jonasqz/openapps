@@ -58,6 +58,11 @@ export interface Page extends PageSummary {
   backlinks: PageRef[];
 }
 
+/**
+ * Ein Treffer von `pages.search`. `url` und `kind` sind das feste Format der
+ * Suche ueber alle Apps (ADR 0021, `SearchHit` in `@openapps/sdk`); die
+ * uebrigen Felder sind die eigenen des Wikis.
+ */
 export interface SearchHit {
   id: string;
   parentId: string | null;
@@ -67,6 +72,9 @@ export interface SearchHit {
   rank: number;
   /** Ausschnitt um die Treffer, Treffer in `«` und `»` eingefasst, eine Zeile. */
   snippet: string;
+  /** Pfad der Seite im Wiki, ohne basePath: `/pages/<id>`. */
+  url: string;
+  kind: 'page';
 }
 
 export type RevisionChange = 'create' | 'update' | 'archive' | 'move' | 'restore';
@@ -234,7 +242,7 @@ export async function getPage(args: PagesGetArgs): Promise<Page> {
   return readPage(query, args.id);
 }
 
-interface SearchRow extends Record<string, unknown> {
+export interface SearchRow extends Record<string, unknown> {
   id: string;
   parent_id: string | null;
   title: string;
@@ -265,16 +273,21 @@ export async function searchPages(args: PagesSearchArgs): Promise<{ hits: Search
       limit $2`,
     [args.query, args.limit],
   );
+  return { hits: rows.map(toSearchHit) };
+}
+
+/** Eine Zeile der Suche als Treffer, mit Pfad fuer die Suche ueber alle Apps. */
+export function toSearchHit(row: SearchRow): SearchHit {
   return {
-    hits: rows.map((row) => ({
-      id: row.id,
-      parentId: row.parent_id,
-      title: row.title,
-      tags: row.tags,
-      updatedAt: row.updated_at.toISOString(),
-      rank: Number(row.rank),
-      snippet: row.snippet.replace(/\s+/g, ' ').trim(),
-    })),
+    id: row.id,
+    parentId: row.parent_id,
+    title: row.title,
+    tags: row.tags,
+    updatedAt: row.updated_at.toISOString(),
+    rank: Number(row.rank),
+    snippet: row.snippet.replace(/\s+/g, ' ').trim(),
+    url: `/pages/${encodeURIComponent(row.id)}`,
+    kind: 'page',
   };
 }
 

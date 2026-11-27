@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useMemo, type JSX, type ReactNode } from 'react';
 import { PlatformShell } from '../shell/PlatformShell.tsx';
+import { createPlatformSearch, type PlatformSearch } from '../shell/platform-search.ts';
 import { sectionNav, withoutBasePath, type AppSection } from '../shell/sections.ts';
 import type { ShellPlatform, ShellUser } from '../shell/types.ts';
 
@@ -19,6 +20,12 @@ export interface NextPlatformShellProps {
   basePath: string;
   /** Die eigenen Bereiche der App. Die einzige Angabe, die die App selbst macht. */
   sections: readonly AppSection[];
+  /**
+   * Die Suche ueber alle Apps (ADR 0021). Ohne Angabe: `/_platform/search`
+   * auf dem eigenen Origin, sobald die Plattform da ist (`platform !== null`,
+   * also hinter dem Gateway). `null` schaltet sie ab.
+   */
+  search?: PlatformSearch | null;
   children: ReactNode;
 }
 
@@ -43,6 +50,7 @@ export function NextPlatformShell({
   user,
   basePath,
   sections,
+  search,
   children,
 }: NextPlatformShellProps): JSX.Element {
   // Ohne basePath: Next rechnet ihn aus usePathname heraus.
@@ -61,6 +69,15 @@ export function NextPlatformShell({
     [router, basePath],
   );
 
+  // Ohne gueltige Navigation laeuft die App nicht hinter dem Gateway (etwa
+  // `pnpm dev`); dann gibt es auch keinen Weg zur Suche. Stabil je Plattform,
+  // damit die Palette nicht bei jedem Render neu sucht.
+  const hasPlatform = platform !== null;
+  const platformSearch = useMemo(
+    () => (search === undefined ? (hasPlatform ? createPlatformSearch() : null) : search),
+    [search, hasPlatform],
+  );
+
   return (
     <PlatformShell
       platform={platform}
@@ -69,6 +86,7 @@ export function NextPlatformShell({
       sections={groups}
       user={user}
       onNavigate={onNavigate}
+      {...(platformSearch === null ? {} : { search: platformSearch })}
     >
       {children}
     </PlatformShell>

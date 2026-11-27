@@ -138,6 +138,25 @@ export const CompanyCreateArgs = z
   .strict();
 export type CompanyCreateArgs = z.infer<typeof CompanyCreateArgs>;
 
+// --- Suche ueber alle Apps (ADR 0021) --------------------------------------
+
+/**
+ * `search`: das feste Format der Plattform (`parseSearchArgs` in
+ * `@openapps/sdk`), Suchtext 1 bis 200 Zeichen, 1 bis 20 Treffer.
+ */
+export const SearchArgs = z
+  .object({
+    query: requiredText(200),
+    limit: z
+      .number({ invalid_type_error: 'expected a whole number' })
+      .int('expected a whole number')
+      .min(1, 'at least 1')
+      .max(20, 'at most 20')
+      .default(5),
+  })
+  .strict();
+export type SearchArgs = z.infer<typeof SearchArgs>;
+
 // --- Kontakte -------------------------------------------------------------
 
 export const ContactsListArgs = z.object({ q: query, companyId: optionalUuid, limit }).strict();

@@ -181,6 +181,16 @@ export interface UiStrings {
     readonly appsGroup: string;
     readonly hint: string;
     readonly escapeKey: string;
+    /** Platzhalter, wenn die Palette auch in den Apps sucht (ADR 0021). */
+    readonly searchPlaceholder: string;
+    /** Die Suche laeuft. */
+    readonly searching: string;
+    /** Keine App hat etwas gefunden. */
+    readonly searchEmpty: string;
+    /** Die Suche selbst ist gescheitert. */
+    readonly searchError: string;
+    /** Diese Apps haben nicht rechtzeitig geantwortet. */
+    readonly searchFailed: (apps: string) => string;
   };
   readonly tableSearch: {
     readonly label: (caption: string) => string;
@@ -335,6 +345,11 @@ const en: UiStrings = {
     appsGroup: 'Apps',
     hint: 'Enter to open · Esc to close',
     escapeKey: 'Esc',
+    searchPlaceholder: 'Search your apps or jump to…',
+    searching: 'Searching your apps…',
+    searchEmpty: 'No results in your apps',
+    searchError: 'Search is not available right now. Try again in a moment.',
+    searchFailed: (apps) => `No answer from ${apps}`,
   },
   tableSearch: {
     label: (caption) => `Search ${caption}`,

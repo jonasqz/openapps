@@ -33,6 +33,7 @@ second way into the data.
 | `activities.log`      | write | Log a note, call, email or meeting                                                           |
 | `activities.list`     | read  | History, newest first                                                                        |
 | `pipeline.summary`    | read  | Count, total and weighted total per stage                                                    |
+| `search`              | read  | Companies, contacts and deals at once (`query`, `limit`); the CRM's tool for the search across all apps (ADR 0021) |
 
 ## Rules agents can rely on
 

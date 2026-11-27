@@ -259,4 +259,14 @@ describe.skipIf(!enabled)('Tasks against Postgres', () => {
     const none = (await run('tasks.list', { query: '_' })) as { tasks: Task[] };
     expect(none.tasks).toEqual([]);
   });
+
+  it('finds tasks and projects for the platform search (ADR 0021)', async () => {
+    const found = (await run('search', { query: 'website', limit: 10 })) as {
+      hits: { id: string; kind: string; url: string }[];
+    };
+    expect(found.hits.some((hit) => hit.kind === 'project' && hit.id === WEBSITE)).toBe(true);
+    for (const hit of found.hits) expect(hit.url).toMatch(/^\/(task\/|all\?project=)[0-9a-f-]{36}$/);
+    const prices = (await run('search', { query: '5%' })) as { hits: { title: string }[] };
+    expect(prices.hits.map((hit) => hit.title)).toEqual(['Raise prices by 5%']);
+  });
 });

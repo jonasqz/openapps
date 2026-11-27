@@ -18,6 +18,7 @@ functions as tools.
 | `tasks.comment`   | write | Add a comment                                                       |
 | `projects.list`   | read  | Projects with open, overdue and done counts                         |
 | `projects.create` | write | Create a project (unique name)                                      |
+| `search`          | read  | Tasks and projects at once (`query`, `limit`); the tool of Tasks for the search across all apps (ADR 0021) |
 
 In the MCP they are called `tasks__tasks__list`, `tasks__projects__list` and
 so on; arguments go into the `args` field. The UI calls the same handlers

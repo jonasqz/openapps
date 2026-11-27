@@ -154,6 +154,22 @@ export type TaskCommentArgs = z.infer<typeof TaskCommentArgs>;
 
 export const ProjectListArgs = z.object({}).strict();
 
+/**
+ * `search`, das Such-Tool fuer die Suche ueber alle Apps (ADR 0021): das feste
+ * Format der Plattform (`parseSearchArgs` in `@openapps/sdk`).
+ */
+export const SearchArgs = z
+  .object({
+    query: z
+      .string()
+      .trim()
+      .min(1, 'query must not be empty.')
+      .max(200, 'query can have at most 200 characters.'),
+    limit: z.number().int().min(1).max(20, 'limit can be at most 20.').default(5),
+  })
+  .strict();
+export type SearchArgs = z.infer<typeof SearchArgs>;
+
 export const ProjectCreateArgs = z
   .object({
     name: z

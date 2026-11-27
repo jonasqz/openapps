@@ -1,7 +1,7 @@
 # @openapps/platform-mcp
 
-The platform's MCP server. It offers the six tools of the brief plus lookup
-and group management, serves `AGENTS.md` and the get-started guide as prompts,
+The platform's MCP server. It offers the six tools of the brief plus lookup,
+the search across all apps and group management, serves `AGENTS.md` and the get-started guide as prompts,
 and forwards the apps' tools — each only to callers that have a grant.
 
 ## The tools
@@ -16,6 +16,7 @@ and forwards the apps' tools — each only to callers that have a grant.
 | `revoke`         | revoke a grant                                                                    |
 | `list_grants`    | look up grants                                                                    |
 | `whoami`         | who you are: identity, groups, apps you can open, grants with their source        |
+| `search`         | search all apps you may search at once, hits grouped by app (ADR 0021)            |
 
 `whoami` needs no grant and only ever shows the caller's own grants: those
 made to the caller directly and those made to one of the caller's groups. An
@@ -124,6 +125,19 @@ If the target app asks for `gatewayContext: ["readableApps"]` in its manifest
 agent may read (`X-Auth-Readable-Apps`). An agent with only `execute` on
 `knowledge.search` therefore sees no wiki hits; it also needs `read` on
 `app:wiki`.
+
+### Search across all apps
+
+`search` takes `query` (2 to 200 characters), optionally `apps` (names) and
+`limit` (hits per app, 1 to 10, default 5). It asks every app whose manifest
+names a search tool, in parallel, with about 2 seconds each, and returns
+`{ query, results: [{ app, title, hits }], failed: [{ app, title, reason }], searched }`.
+An agent gets an app only with `read` on the app **and** `execute` on its
+search tool (for example `crm.search`, `wiki.pages.search`,
+`knowledge.documents.search`); without both the app is not asked and not
+mentioned. `search` itself needs no grant, like `list_apps`. It is the same
+domain function as the bar's search (`searchApps`), with one audit entry
+`search` per call and without the query text in the log.
 
 ## Prompts
 

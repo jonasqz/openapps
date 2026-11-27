@@ -27,3 +27,8 @@ https://intern.example/gibt-es-nicht
 # ein Router, der nur das erste Segment schuetzt, faellt nur hier auf.
 https://intern.example/projektliste
 https://intern.example/projektliste/1
+
+# Die Pfade der Plattform auf der gemeinsamen Domain (ADR 0021): ohne Session
+# 401, alles unter /_platform/ ausser der Suche 403.
+https://intern.example/_platform/search?q=test
+https://intern.example/_platform/gibt-es-nicht

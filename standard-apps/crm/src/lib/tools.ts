@@ -20,6 +20,8 @@ import {
   updateDeal,
   updateDealStage,
 } from './crm';
+import { searchCrm } from './crm-search';
+import { query } from './db';
 import {
   ActivitiesListArgs,
   ActivityLogArgs,
@@ -37,6 +39,7 @@ import {
   NextStepCreateArgs,
   NextStepsListArgs,
   PipelineSummaryArgs,
+  SearchArgs,
 } from './schemas';
 
 /**
@@ -95,6 +98,8 @@ export const toolHandlers = {
   'activities.list': async (args) => ({
     activities: await listActivities(parseArgs(ActivitiesListArgs, args)),
   }),
+
+  search: async (args) => searchCrm(query, parseArgs(SearchArgs, args)),
 
   'pipeline.summary': async (args) => {
     parseArgs(PipelineSummaryArgs, args);

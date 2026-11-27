@@ -20,6 +20,7 @@ import { appAuthSecret, gatewayHost } from '../src/domain';
 import {
   ANSICHT_IDENTITY,
   ansichtNav,
+  ansichtSearch,
   appNameFromPath,
   buildForward,
   indexPage,
@@ -224,5 +225,65 @@ describe('lokal-ansehen', () => {
         stdio: 'pipe',
       }),
     ).toThrow(/only runs with OPENAPPS_BACKEND=lokal/);
+  });
+});
+
+describe('lokal-ansehen: Suche ueber alle Apps (ADR 0021)', () => {
+  const searchable = (name: string, extra: Record<string, unknown> = {}): AnsichtApp =>
+    ({
+      ...app(name),
+      manifest: {
+        env: [],
+        offeredTools: [{ name: 'find', description: 'x', verb: 'read', operationId: 'find' }],
+        search: { tool: 'find' },
+        ...extra,
+      },
+    }) as unknown as AnsichtApp;
+
+  it('foederiert als der Betrachter und verlinkt auf den Proxy, nicht aufs Gateway', async () => {
+    const seen: string[] = [];
+    const result = await ansichtSearch({
+      apps: [
+        searchable('crm'),
+        searchable('knowledge', { gatewayContext: ['readableApps'] }),
+        app('tasks'),
+        searchable('wiki', {}),
+      ].map((entry, index) => (index === 3 ? { ...entry, primaryDomain: null } : entry)),
+      url: new URL('http://x/_platform/search?q=angebot&limit=2'),
+      invoker: {
+        async invoke({ app: target, args, humanIdentity, readableApps }) {
+          seen.push(
+            `${target.name}:${String(args.limit)}:${humanIdentity?.email ?? '-'}:${
+              readableApps === null || readableApps === undefined ? '-' : readableApps.join('+')
+            }`,
+          );
+          return { hits: [{ id: '1', title: 'Hit', url: '/deals/1' }] };
+        },
+      },
+      origin: 'http://127.0.0.1:8090/',
+    });
+    // tasks hat kein Such-Tool, wiki ist nicht deployt.
+    expect(seen.sort()).toEqual([
+      `crm:2:${ANSICHT_IDENTITY.email}:-`,
+      `knowledge:2:${ANSICHT_IDENTITY.email}:crm+knowledge+tasks+wiki`,
+    ]);
+    expect(result.results[0]?.hits[0]?.href).toBe('http://127.0.0.1:8090/crm/deals/1');
+  });
+
+  it('weist einen zu kurzen Suchtext ab, ohne eine App zu fragen', async () => {
+    let called = false;
+    await expect(
+      ansichtSearch({
+        apps: [searchable('crm')],
+        url: new URL('http://x/_platform/search?q=a'),
+        invoker: {
+          async invoke() {
+            called = true;
+            return { hits: [] };
+          },
+        },
+      }),
+    ).rejects.toThrow(/at least 2/);
+    expect(called).toBe(false);
   });
 });

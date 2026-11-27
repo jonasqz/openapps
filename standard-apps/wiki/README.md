@@ -18,7 +18,7 @@ calls the same functions.
 | `pages.list`      | read  | Pages without content, filter `q` (title), `parentId`, `tag`; `sort: 'updated'` for recently edited, `limit` |
 | `pages.tree`      | read  | The page tree without content, optionally from `rootId` down                                                 |
 | `pages.get`       | read  | Page with content, parent, subpages, `path` (breadcrumbs) and `backlinks`                                    |
-| `pages.search`    | read  | Full text with rank and snippet (`«hit»`)                                                                    |
+| `pages.search`    | read  | Full text with rank, snippet (`«hit»`) and page path (`url`); also the wiki's tool for the search across all apps (ADR 0021) |
 | `pages.create`    | write | Create a page, optionally as a subpage                                                                       |
 | `pages.update`    | write | Change title/content/tags or append with `appendMd`                                                          |
 | `pages.move`      | write | Move a page with its subpages; `parentId: null` = top level; no cycles                                       |

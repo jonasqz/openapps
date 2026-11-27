@@ -102,6 +102,23 @@ For every deployment the control plane sets these in the env **of the app**:
 `src/domain/gateway-identity.ts` — the same functions that also sign. Only that
 makes them byte-identical.
 
+## Search across all apps
+
+`GET /api/search?q=…&apps=…&limit=…` searches all apps the caller may search
+and groups the hits by app (ADR 0021, `domain/platform-search.ts`). It takes
+the person from the session only. The same route answers on the shared app
+domain as `/_platform/search` (Next rewrite), so the bar in the browser calls
+it on its own origin: the generator writes a router `openapps-platform` for
+`/_platform/` with the same two middlewares as every router, and the forward
+auth lets exactly `/_platform/search` through, with a session (401 without),
+without identity headers. A person searches apps they have `read` on; an
+agent (MCP tool `search`) also needs `execute` on the app's search tool. Each
+app gets 2 s; one that times out or fails is listed under `failed`. One audit
+entry `search` per search, without the query text. Logic in
+`src/lib/platform-search-http.ts`, tests in `tests/platform-search.spec.ts`
+and `tests/platform-search-http.spec.ts`. Locally, the viewing proxy on 8090
+answers `/_platform/search` itself, as the viewer (`ansichtSearch`).
+
 ## Repo backend
 
 `create_app` creates the repo before it registers. If that fails, nothing is

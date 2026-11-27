@@ -23,8 +23,9 @@ the MCP prompt `how_to_build_app` through the platform MCP.
    platform generates the app's MCP tools from it. A UI action without a
    matching API endpoint blocks the review gate.
 4. **Maintain the manifest.** `app.json` describes name, category, version,
-   required tables, offered tools, requested permissions and the source. If
-   you change tables or tools, change the manifest with them.
+   required tables, offered tools, requested permissions, the source and,
+   optionally, the app's search tool. If you change tables or tools, change
+   the manifest with them.
 5. **No secrets in code.** Only through env variables, declared in the
    manifest.
 6. **Only the design system.** Components and tokens from `@openapps/ui`. No
@@ -40,7 +41,7 @@ the MCP prompt `how_to_build_app` through the platform MCP.
 7. **Nothing bypasses the gateway.** No outbound network access except to the
    targets declared in the manifest.
 
-## Other apps and the shared search
+## Other apps and search
 
 - **Call another app only through the platform:** `callAppTool(app, tool,
 args)` from `@openapps/sdk`. The call is signed with your app's own
@@ -59,6 +60,14 @@ args)` from `@openapps/sdk`. The call is signed with your app's own
   deliver into an outbox table in the same transaction, deliver after the
   commit, retry later, and offer a backfill tool. The wiki shows how
   (`standard-apps/wiki/src/lib/search-sync.ts`).
+- **Show up in the search across all apps:** offer a read tool that takes
+  `{ query, limit }` and returns `{ hits: [{ id, title, snippet?, url, kind? }] }`
+  (`SearchToolResult` and `parseSearchArgs` in `@openapps/sdk`; `url` is a
+  path in your app without the base path), and name it in `app.json`:
+  `"search": { "tool": "search" }`. The platform calls it in parallel with
+  the other apps, as the caller, with about 2 seconds per app (ADR 0021).
+  People see your hits if they may open your app; agents also need
+  `execute` on the tool. Keep it fast and never write in it.
 - **Showing content of other apps:** request
   `gatewayContext: ["readableApps"]` in `app.json` and filter with
   `getReadableApps` (or `ctx.readableApps` in a tool). `null` means: show

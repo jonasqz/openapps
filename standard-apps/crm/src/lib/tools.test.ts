@@ -150,13 +150,14 @@ describe('tool mapping', () => {
         'next_steps.list',
         'next_steps.reopen',
         'pipeline.summary',
+        'search',
       ].sort(),
     );
   });
 
   it('declares reads as read and everything that writes as write', () => {
     for (const tool of manifest.offeredTools) {
-      const reads = /\.(list|get|summary)$/.test(tool.name);
+      const reads = /\.(list|get|summary)$/.test(tool.name) || tool.name === 'search';
       expect(tool.verb, tool.name).toBe(reads ? 'read' : 'write');
     }
   });

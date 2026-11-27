@@ -65,6 +65,50 @@ paths:
                     items: { $ref: '#/components/schemas/Passage' }
         '400': { description: The arguments do not match the tool }
         '401': { description: Not a valid call through the platform }
+  /tools/documents.search:
+    post:
+      operationId: searchDocuments
+      summary: Find documents for the platform search
+      description: >-
+        The search tool of Knowledge for the platform search across all apps
+        (manifest field search). Finds documents stored in Knowledge itself,
+        one hit per document, best match first. Content other apps delivered
+        (for example wiki pages) is not included; the platform finds it in
+        those apps. To answer a question with sources use search instead.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              additionalProperties: false
+              properties:
+                query: { type: string, minLength: 1, maxLength: 200 }
+                limit: { type: integer, minimum: 1, maximum: 20, default: 5 }
+      responses:
+        '200':
+          description: Documents found, best match first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hits]
+                properties:
+                  hits:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, snippet, url, kind]
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        snippet: { type: string, description: 'Excerpt, matches wrapped in « and »' }
+                        url: { type: string, description: 'Path of the document without the base path, /documents/<id>' }
+                        kind: { type: string, enum: [document] }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
   /tools/documents.add:
     post:
       operationId: addDocument

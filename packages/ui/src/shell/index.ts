@@ -34,3 +34,20 @@ export { sectionMatches, sectionNav, withBasePath, withoutBasePath } from './sec
 export type { AppSection } from './sections.ts';
 export { CommandPalette, filterCommands } from './CommandPalette.tsx';
 export type { CommandItem, CommandPaletteProps } from './CommandPalette.tsx';
+export {
+  createPlatformSearch,
+  parsePlatformSearchResponse,
+  plainSnippet,
+  PLATFORM_SEARCH_DEBOUNCE_MS,
+  PLATFORM_SEARCH_MIN_QUERY,
+  PLATFORM_SEARCH_PATH,
+  PlatformSearchError,
+} from './platform-search.ts';
+export type {
+  CreatePlatformSearchOptions,
+  PlatformSearch,
+  PlatformSearchFailure,
+  PlatformSearchGroup,
+  PlatformSearchHit,
+  PlatformSearchResponse,
+} from './platform-search.ts';

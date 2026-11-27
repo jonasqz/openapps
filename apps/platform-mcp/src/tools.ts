@@ -37,7 +37,10 @@ import {
   requestDeploy,
   revoke,
   rollback,
+  searchApps,
+  PLATFORM_SEARCH_LIMITS,
   type Actor,
+  type AppToolInvoker,
   type DomainContext,
 } from '@openapps/control-plane/domain';
 
@@ -45,6 +48,11 @@ export interface ToolCallContext {
   readonly ctx: DomainContext;
   readonly actor: Actor;
   readonly correlationId?: string;
+  /**
+   * Weiterleitung an die Apps. Nur `search` braucht sie (ADR 0021); fehlt
+   * sie, scheitert `search` mit einer klaren Meldung statt still leer.
+   */
+  readonly invoker?: AppToolInvoker;
 }
 
 export interface ToolDefinition<Schema extends z.ZodTypeAny> {
@@ -414,8 +422,40 @@ export const whoamiTool = defineTool({
 });
 
 /**
- * Die sechs Tools des Briefs, `list_grants` und `whoami` zum Nachsehen, die
- * Gruppenpflege und die Agent-Identitaeten. Mehr gibt es nicht: jede weitere Plattform-Aktion entsteht
+ * Die Suche ueber alle Apps (ADR 0021), dieselbe Domaenenfunktion wie die
+ * Leiste (`GET /_platform/search`). Ein Agent bekommt Treffer einer App nur
+ * mit `read` auf die App **und** `execute` auf ihr Such-Tool; ohne beides
+ * wird die App nicht gefragt. Keine eigene Freigabe fuer `search` selbst:
+ * Wie `list_apps` zeigt es nur, was der Aufrufer ohnehin darf.
+ */
+export const searchTool = defineTool({
+  name: 'search',
+  title: 'Search all apps',
+  description:
+    "Searches all apps you may search at once and returns hits grouped by app: {query, results: [{app, title, hits: [{id, title, snippet, kind, url, href}]}], failed: [{app, title, reason}], searched}. An app is searched only if you have read on the app (resourceKind app) and execute on its search tool (for example crm.search, wiki.pages.search); without both it is skipped silently. Each app gets about 2 seconds; an app that times out or errors is listed under failed and the others still answer. Arguments: query (2 to 200 characters), apps (optional list of app names to limit the search), limit (hits per app, 1 to 10, default 5). Open a hit with the app's own get tool using its id, or give the href to a person.",
+  schema: z.object({
+    query: z.string(),
+    apps: z.array(z.string()).max(PLATFORM_SEARCH_LIMITS.appsFilterMax).optional(),
+    limit: z.number().int().optional(),
+  }),
+  async handler({ ctx, actor, correlationId, invoker }, input) {
+    if (invoker === undefined) {
+      throw new Error('search is not available here: no connection to the apps');
+    }
+    return searchApps(ctx, {
+      actor,
+      query: input.query,
+      invoker,
+      ...(input.apps === undefined ? {} : { apps: input.apps }),
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+/**
+ * Die sechs Tools des Briefs, `list_grants` und `whoami` zum Nachsehen,
+ * `search` ueber alle Apps, die Gruppenpflege und die Agent-Identitaeten. Mehr gibt es nicht: jede weitere Plattform-Aktion entsteht
  * erst als Domaenenfunktion.
  */
 export const platformTools: readonly AnyToolDefinition[] = [
@@ -427,6 +467,7 @@ export const platformTools: readonly AnyToolDefinition[] = [
   revokeTool,
   listGrantsTool,
   whoamiTool,
+  searchTool,
   listGroupsTool,
   createGroupTool,
   listGroupMembersTool,

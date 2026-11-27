@@ -166,3 +166,39 @@ describe('ThemeScript', () => {
     expect(renderToStaticMarkup(<ThemeScript />)).toBe(`<script>${themeScript}</script>`);
   });
 });
+
+describe('NextPlatformShell: Suche ueber alle Apps (ADR 0021)', () => {
+  it('sucht hinter dem Gateway auf /_platform/search des eigenen Origins', async () => {
+    Element.prototype.scrollIntoView = () => undefined;
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ results: [], failed: [] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderShell();
+      await userEvent.keyboard('{Control>}k{/Control}');
+      await userEvent.type(screen.getByRole('combobox'), 'angebot');
+      expect(await screen.findByText('No results in your apps')).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe('/_platform/search?q=angebot');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('sucht ohne Plattform nicht (etwa bei pnpm dev ohne Gateway)', async () => {
+    Element.prototype.scrollIntoView = () => undefined;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderShell({ platform: null });
+      await userEvent.keyboard('{Control>}k{/Control}');
+      await userEvent.type(screen.getByRole('combobox'), 'angebot');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(screen.getByText('No matches')).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

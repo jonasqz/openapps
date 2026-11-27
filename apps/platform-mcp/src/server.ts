@@ -37,6 +37,7 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
   const call = {
     ctx: options.ctx,
     actor: options.actor,
+    invoker: options.invoker,
     ...(options.correlationId === undefined ? {} : { correlationId: options.correlationId }),
   };
 

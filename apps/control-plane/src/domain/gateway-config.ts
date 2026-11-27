@@ -72,6 +72,18 @@ export const CONTROL_PLANE_ROUTER = 'openapps-control-plane';
 
 export const CONTROL_PLANE_SERVICE = 'openapps-control-plane';
 
+/**
+ * Der Router fuer die Pfade der Plattform auf dem Host der Apps
+ * (`/_platform/…`, ADR 0021), etwa die Suche ueber alle Apps. Er zeigt auf
+ * die Control Plane und traegt dieselben zwei Middlewares wie jeder Router;
+ * welche Pfade darunter offen sind, entscheidet die Forward-Auth im Code.
+ * App-Namen beginnen nie mit `_`, der Praefix kollidiert mit keiner App.
+ */
+export const PLATFORM_ROUTER = 'openapps-platform';
+
+/** Muss zu `PLATFORM_PATH_PREFIX` in `platform-search.ts` passen. */
+const PLATFORM_ROUTE_PREFIX = '/_platform/';
+
 /** Router- und Dienstname einer App. */
 export function gatewayRouterNameFor(appName: string): string {
   assertAppName(appName);
@@ -360,6 +372,15 @@ export function buildGatewayConfig(input: GatewayConfigInput): GatewayDynamicCon
     services[CONTROL_PLANE_SERVICE] = service(
       safeUrl(input.controlPlane.url, 'the control plane address'),
     );
+
+    // 2b. Die Pfade der Plattform auf dem Host der Apps (ADR 0021). Gleiche
+    //     Kette, gleicher Dienst; ohne Control Plane gibt es sie nicht.
+    routers[PLATFORM_ROUTER] = guardedRouter({
+      rule: `Host(\`${domain}\`) && PathPrefix(\`${PLATFORM_ROUTE_PREFIX}\`)`,
+      entryPoint,
+      service: CONTROL_PLANE_SERVICE,
+      certResolver,
+    });
   }
 
   // 3. Der Catch-all auf derselben Domain: alles, was kein App-Pfad ist, geht

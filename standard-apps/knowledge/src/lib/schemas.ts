@@ -24,6 +24,20 @@ export const SearchArgs = z
   .strict();
 export type SearchArgs = z.infer<typeof SearchArgs>;
 
+/**
+ * `documents.search`, das Such-Tool fuer die Suche ueber alle Apps (ADR 0021).
+ * Dieselben Grenzen wie das feste Format der Plattform (`parseSearchArgs` in
+ * `@openapps/sdk`): Suchtext bis 200 Zeichen, 1 bis 20 Treffer.
+ */
+export const DOCUMENT_SEARCH_QUERY_MAX = 200;
+export const DocumentSearchArgs = z
+  .object({
+    query: z.string().trim().min(1, 'query must not be empty').max(DOCUMENT_SEARCH_QUERY_MAX),
+    limit: z.number().int().min(1).max(SEARCH_LIMIT_MAX).default(SEARCH_LIMIT_DEFAULT),
+  })
+  .strict();
+export type DocumentSearchArgs = z.infer<typeof DocumentSearchArgs>;
+
 export const DocumentInput = z
   .object({
     title: z.string().trim().min(1, 'title must not be empty').max(TITLE_MAX),

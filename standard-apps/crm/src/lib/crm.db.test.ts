@@ -421,6 +421,18 @@ describe.skipIf(!enabled)('CRM against Postgres', () => {
     expect(unknownStep).toBeInstanceOf(ToolNotFoundError);
   });
 
+  it('searches companies, contacts and deals for the platform search (ADR 0021)', async () => {
+    const found = (await run('search', { query: 'crane', limit: 10 })) as {
+      hits: { kind: string; title: string; url: string }[];
+    };
+    expect(found.hits.some((hit) => hit.kind === 'company' && hit.title === 'Crane Bakery')).toBe(true);
+    for (const hit of found.hits) expect(hit.url).toMatch(/^\/(companies|contacts|deals)\/[0-9a-f-]{36}$/);
+    const none = (await run('search', { query: '%' })) as { hits: unknown[] };
+    expect(none.hits).toEqual([]);
+    const limited = (await run('search', { query: 'e', limit: 2 })) as { hits: unknown[] };
+    expect(limited.hits.length).toBeLessThanOrEqual(2);
+  });
+
   it('lets the database reject a next step without a reference or a half-done one', async () => {
     await expect(
       db.query("insert into next_steps (title, due_on, created_by) values ('x', current_date, 'y')"),

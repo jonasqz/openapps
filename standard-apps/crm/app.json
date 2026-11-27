@@ -4,10 +4,10 @@
   "displayName": "CRM",
   "description": "CRM for humans and agents: companies, contacts, a deal pipeline with stages and close reasons, a timeline of activities, and next steps with due dates.",
   "category": "sales",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "crm-v0.2.0"
+    "tag": "crm-v0.3.0"
   },
   "requiredTables": [
     {
@@ -145,8 +145,17 @@
       "description": "Summarises the pipeline, no arguments. Returns { stages: [{ stage, count, sumCents, probability, weightedCents }], totals: { count, openCount, openSumCents, weightedOpenCents, wonCents, lostCents } }. Weighting: lead 10 %, qualified 25 %, proposal 60 %, won 100 %, lost 0 %. weightedOpenCents is the weighted total of open deals.",
       "operationId": "getPipelineSummary",
       "verb": "read"
+    },
+    {
+      "name": "search",
+      "description": "Searches companies (name, industry, website), contacts (name, email, phone, role) and deals (title) at once, case-insensitive. Arguments: query (1 to 200 characters), limit (1 to 20, default 5). Returns {hits: [{id, title, snippet, url, kind}]}: kind is company, contact or deal, url the path in the CRM (/deals/<id>), names starting with the query first. The CRM's tool for the platform search; use the get tool of the kind for details.",
+      "operationId": "searchCrm",
+      "verb": "read"
     }
   ],
+  "search": {
+    "tool": "search"
+  },
   "requestedGrants": [
     {
       "subjectKind": "group",

@@ -109,3 +109,68 @@ describe('gatewayContext (ADR 0020)', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('search (ADR 0021)', () => {
+  const tools = [
+    { name: 'projects.list', description: 'Listet.', verb: 'read' as const, operationId: 'list' },
+    { name: 'projects.search', description: 'Sucht.', verb: 'read' as const, operationId: 'find' },
+    {
+      name: 'projects.purge',
+      description: 'Loescht.',
+      verb: 'write' as const,
+      operationId: 'purge',
+    },
+  ];
+
+  it('ist optional: ohne das Feld nimmt die App an der Suche nicht teil', () => {
+    const result = validateAppManifest(validManifest());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.manifest.search).toBeUndefined();
+  });
+
+  it('nimmt ein lesendes Tool aus offeredTools an', () => {
+    const result = validateAppManifest(
+      validManifest({ offeredTools: tools, search: { tool: 'projects.search' } }),
+    );
+    expect(result.ok ? [] : result.issues).toEqual([]);
+  });
+
+  it('weist ein Tool ab, das nicht im Manifest steht', () => {
+    const result = validateAppManifest(validManifest({ search: { tool: 'projects.search' } }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual({
+        path: 'search.tool',
+        message: 'search tool "projects.search" is not in offeredTools',
+      });
+    }
+  });
+
+  it('weist ein schreibendes Tool ab: eine Suche darf nichts aendern', () => {
+    const result = validateAppManifest(
+      validManifest({ offeredTools: tools, search: { tool: 'projects.purge' } }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues[0]?.path).toBe('search.tool');
+  });
+
+  it('weist unbekannte Felder und falsche Tool-Namen ab', () => {
+    expect(
+      validateAppManifest({
+        ...validManifest({ offeredTools: tools }),
+        search: { tool: 'projects.search', format: 'passages' },
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateAppManifest({
+        ...validManifest({ offeredTools: tools }),
+        search: { tool: 'Projects Search' },
+      }).ok,
+    ).toBe(false);
+  });
+
+  it('steht im JSON-Schema', () => {
+    const schema = appManifestJsonSchema() as { properties: Record<string, unknown> };
+    expect(schema.properties.search).toBeDefined();
+  });
+});

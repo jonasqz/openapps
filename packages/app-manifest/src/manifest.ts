@@ -133,6 +133,21 @@ export type EgressTarget = z.infer<typeof egressTargetSchema>;
 export const gatewayContextSchema = z.enum(['readableApps']);
 export type GatewayContext = z.infer<typeof gatewayContextSchema>;
 
+/**
+ * Das Such-Tool der App fuer die Suche ueber alle Apps (ADR 0021). Die
+ * Plattform ruft es mit `{ query, limit }` auf und erwartet
+ * `{ hits: [{ id, title, snippet?, url, kind? }] }` (Typ `SearchToolResult`
+ * in `@openapps/sdk`). Das Tool muss in `offeredTools` stehen und lesen
+ * (`verb: read`): Eine Suche, die schreibt, gibt es nicht. Ohne das Feld
+ * nimmt die App an der Suche nicht teil.
+ */
+export const manifestSearchSchema = z
+  .object({
+    tool: offeredToolSchema.shape.name,
+  })
+  .strict();
+export type ManifestSearch = z.infer<typeof manifestSearchSchema>;
+
 /** Die Quelle: Git-URL und Tag. Ein Branch ist keine Quelle — Deploys sind an einen Tag gebunden. */
 export const manifestSourceSchema = z
   .object({
@@ -162,6 +177,8 @@ export const appManifestSchema = z
     egress: z.array(egressTargetSchema).default([]),
     /** Optional, damit aeltere Manifeste unveraendert gueltig bleiben. */
     gatewayContext: z.array(gatewayContextSchema).max(8).optional(),
+    /** Optional: Ohne Such-Tool nimmt die App an der Suche ueber alle Apps nicht teil. */
+    search: manifestSearchSchema.optional(),
     source: manifestSourceSchema,
   })
   .strict()
@@ -181,6 +198,22 @@ export const appManifestSchema = z
       ['env'],
       ctx,
     );
+    if (value.search !== undefined) {
+      const tool = value.offeredTools.find((entry) => entry.name === value.search?.tool);
+      if (tool === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['search', 'tool'],
+          message: `search tool "${value.search.tool}" is not in offeredTools`,
+        });
+      } else if (tool.verb !== 'read') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['search', 'tool'],
+          message: `search tool "${tool.name}" must have verb "read", not "${tool.verb}"`,
+        });
+      }
+    }
   });
 
 export type AppManifest = z.infer<typeof appManifestSchema>;

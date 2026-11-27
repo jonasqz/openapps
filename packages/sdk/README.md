@@ -20,20 +20,20 @@ export async function GET(request: Request) {
 the signature over them is valid. Otherwise it throws `UntrustedRequestError`
 (status 401). There is no anonymous user and no fallback.
 
-| Header | Content |
-| --- | --- |
-| `X-Auth-User-Id` | Stable id of the user |
-| `X-Auth-User-Email` | Email from Google SSO |
-| `X-Auth-Groups` | Groups, comma-separated |
-| `X-Auth-Issued-At` | Unix time of the decision, in seconds |
-| `X-Auth-Signature` | HMAC-SHA256 over the four values above plus host and app id |
+| Header              | Content                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| `X-Auth-User-Id`    | Stable id of the user                                       |
+| `X-Auth-User-Email` | Email from Google SSO                                       |
+| `X-Auth-Groups`     | Groups, comma-separated                                     |
+| `X-Auth-Issued-At`  | Unix time of the decision, in seconds                       |
+| `X-Auth-Signature`  | HMAC-SHA256 over the four values above plus host and app id |
 
 All five are always set, even with empty values (spec 3.1). An empty but
 correctly signed user is rejected — a signed "nobody" is not a user.
 
 The signal is deliberately an HMAC over the identity values and not a shared
-secret: a token only proves that *some* request came from the gateway, not
-that *these* user values came from the gateway (ADR 0004).
+secret: a token only proves that _some_ request came from the gateway, not
+that _these_ user values came from the gateway (ADR 0004).
 
 ### The signature material
 
@@ -155,11 +155,11 @@ with the request headers — same result, no framework.
 The platform tells an app who calls in the signed identity. `callerOf(user)`
 reads it, and tool handlers get it as `ctx.caller`:
 
-| Caller | `user.id`      | `user.email`              | `callerOf(user)`               |
-| ------ | -------------- | ------------------------- | ------------------------------ |
-| Human  | id from SSO    | the person's email        | `{ kind: 'human', id }`        |
-| Agent  | `agent:<name>` | `<name>@agents.invalid`   | `{ kind: 'agent', agent }`     |
-| App    | `app:<name>`   | `<name>@apps.invalid`     | `{ kind: 'app', app }`         |
+| Caller | `user.id`      | `user.email`            | `callerOf(user)`           |
+| ------ | -------------- | ----------------------- | -------------------------- |
+| Human  | id from SSO    | the person's email      | `{ kind: 'human', id }`    |
+| Agent  | `agent:<name>` | `<name>@agents.invalid` | `{ kind: 'agent', agent }` |
+| App    | `app:<name>`   | `<name>@apps.invalid`   | `{ kind: 'app', app }`     |
 
 Both values have to match; `.invalid` can never be a sign-in domain. Use it to
 record who did something, or to accept a tool only from apps (Knowledge does
@@ -213,9 +213,9 @@ the caller may read. It asks for it in `app.json` with
 `gatewayContext: ["readableApps"]`; the gateway then sends two more headers,
 with their own signature (ADR 0020):
 
-| Header                           | Content                                          |
-| -------------------------------- | ------------------------------------------------ |
-| `X-Auth-Readable-Apps`           | base64url of `{"v":1,"apps":["wiki", …]}`        |
+| Header                           | Content                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| `X-Auth-Readable-Apps`           | base64url of `{"v":1,"apps":["wiki", …]}`                                |
 | `X-Auth-Readable-Apps-Signature` | HMAC-SHA256 over version, app id, host, user id, issued-at and the value |
 
 ```ts
@@ -230,6 +230,39 @@ or the identity has expired. Treat `null` as "show nothing that belongs to
 another app" and still answer normally. The list is a filter, not the
 navigation: it is not shortened for display and it counts apps without a
 domain. For apps that do not request it, both headers are empty.
+
+## Search across all apps
+
+The bar's command palette and the platform MCP tool `search` ask every app
+that names a search tool in `app.json` (`"search": { "tool": "search" }`), in
+parallel, about 2 seconds each (ADR 0021). The tool has a fixed shape:
+
+```ts
+import { parseSearchArgs, type SearchToolResult } from '@openapps/sdk';
+
+export const toolHandlers = {
+  search: async (args): Promise<SearchToolResult> => {
+    const { query, limit } = parseSearchArgs(args); // 400 on bad input
+    const rows = await findRequests(query, limit);
+    return {
+      hits: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        snippet: row.reason, // plain text, matches may be wrapped in « and »
+        url: `/requests/${row.id}`, // path in your app, without the base path
+        kind: 'request',
+      })),
+    };
+  },
+};
+```
+
+`parseSearchArgs` accepts `query` (trimmed, 1 to 200 characters) and `limit`
+(1 to 20, default 5) and nothing else. The platform keeps only `id`, `title`,
+`snippet`, `url` and `kind`, cuts long values and drops hits whose `url` is
+not a path inside the app (`isAppRelativePath`: no scheme, no `//`, no `..`,
+no backslash). `normalizeSearchResult` is that check, shared with the control
+plane.
 
 ## Postgres client
 
@@ -256,29 +289,29 @@ reads another app's data.
 
 ## Errors
 
-| Error | Status | Meaning |
-| --- | --- | --- |
-| `UntrustedRequestError` | 401 | Signal or user headers are missing or invalid. |
-| `SdkConfigurationError` | 500 | The app is misconfigured (missing or weak env). |
-| `ToolInputError` | 400 | The arguments of a tool call are invalid. |
-| `ToolNotFoundError` | 404 | The tool call refers to something that does not exist. |
-| `AppCallError` | varies | A call to another app failed; see `code`. |
+| Error                   | Status | Meaning                                                |
+| ----------------------- | ------ | ------------------------------------------------------ |
+| `UntrustedRequestError` | 401    | Signal or user headers are missing or invalid.         |
+| `SdkConfigurationError` | 500    | The app is misconfigured (missing or weak env).        |
+| `ToolInputError`        | 400    | The arguments of a tool call are invalid.              |
+| `ToolNotFoundError`     | 404    | The tool call refers to something that does not exist. |
+| `AppCallError`          | varies | A call to another app failed; see `code`.              |
 
 All inherit from `SdkError` and carry `status`, which an app can return
 unchanged as the HTTP status.
 
 ## Env
 
-| Variable | Secret | Purpose |
-| --- | --- | --- |
-| `OPENAPPS_AUTH_SECRET` | yes | HMAC key for the identity headers. At least 32 characters. |
-| `OPENAPPS_APP_ID` | no | App id in the signature material. |
-| `OPENAPPS_APP_HOST` | no | The app's own domain in the signature material. |
-| `OPENAPPS_APP_BASE_PATH` | no | The path the app lives under (`/<app>`); empty locally. Read by `loadShell`. |
-| `OPENAPPS_PLATFORM_URL` | no | Address of the control plane in the platform network. Read by `callAppTool`. |
-| `OPENAPPS_CALL_SECRET` | yes | The app's own key for calls to other apps. Read by `callAppTool`. |
-| `DATABASE_URL` | yes | Connection with the app's own DB role. |
-| `DATABASE_SCHEMA` | no | The app's own schema. |
+| Variable                 | Secret | Purpose                                                                      |
+| ------------------------ | ------ | ---------------------------------------------------------------------------- |
+| `OPENAPPS_AUTH_SECRET`   | yes    | HMAC key for the identity headers. At least 32 characters.                   |
+| `OPENAPPS_APP_ID`        | no     | App id in the signature material.                                            |
+| `OPENAPPS_APP_HOST`      | no     | The app's own domain in the signature material.                              |
+| `OPENAPPS_APP_BASE_PATH` | no     | The path the app lives under (`/<app>`); empty locally. Read by `loadShell`. |
+| `OPENAPPS_PLATFORM_URL`  | no     | Address of the control plane in the platform network. Read by `callAppTool`. |
+| `OPENAPPS_CALL_SECRET`   | yes    | The app's own key for calls to other apps. Read by `callAppTool`.            |
+| `DATABASE_URL`           | yes    | Connection with the app's own DB role.                                       |
+| `DATABASE_SCHEMA`        | no     | The app's own schema.                                                        |
 
 Every app declares the first six in its `app.json` (AGENTS.md rule 5). An app
 that calls other apps also declares `OPENAPPS_PLATFORM_URL` and

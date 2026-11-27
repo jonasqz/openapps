@@ -18,6 +18,11 @@
  *    Nav-Headern der gemeinsamen Leiste (ADR 0017) und den zwei Headern der
  *    lesbaren Apps (ADR 0020), notfalls leer.
  *
+ * Eine Ausnahme vor Schritt 1b: die Pfade der Plattform auf dem Host der
+ * Apps (`/_platform/search`, ADR 0021). Sie gehoeren keiner App, sondern der
+ * Control Plane. Ohne Session 401, mit Session 200 **ohne** Identitaets-
+ * Header: Die Control Plane liest die Session selbst aus dem Cookie.
+ *
  * Jede Antwort ausser 2xx heisst „nein". Auch ein Fehler in dieser Route heisst
  * „nein": es gibt keinen Pfad, auf dem ein Ausfall der Control Plane Apps
  * oeffnet. Nichts wird gecacht — ein Widerruf wirkt beim naechsten Aufruf.
@@ -27,6 +32,8 @@ import {
   appNameFromPath,
   canAccessApp,
   gatewayHost,
+  PLATFORM_PATH_PREFIX,
+  PLATFORM_PATHS,
   identityHeadersForApp,
   navHeadersForApp,
   platformNavFor,
@@ -122,6 +129,11 @@ async function handle(request: Request): Promise<Response> {
         : new Response(null, { status: 200 });
     }
 
+    // Schritt 1a': die Pfade der Plattform auf dem Host der Apps (ADR 0021).
+    if (pathOnly(path).startsWith(PLATFORM_PATH_PREFIX)) {
+      return platformPath(request, host, pathOnly(path), env.appsDomain);
+    }
+
     // Schritt 1b: welche App? Unter ADR 0007 tragen alle Apps denselben Host,
     // also entscheidet der Pfad. Ein Pfad ohne App ist nicht „offen", sondern
     // unbekannt — auch `/` auf der gemeinsamen Domain.
@@ -213,6 +225,40 @@ async function readableHeaders(
     console.error('[forward-auth] readable apps not computed', error);
     return EMPTY_READABLE_APPS_HEADERS;
   }
+}
+
+/**
+ * Ein Pfad der Plattform auf dem Host der Apps (ADR 0021). Genau die Pfade
+ * aus `PLATFORM_PATHS`, nach derselben strengen Lesart wie die Allowlist der
+ * Control Plane (`normalizedPath`): kein `..`, keine doppelte Kodierung, kein
+ * Praefix-Vergleich. Nur auf dem Host der Apps, nicht auf einem beliebigen.
+ *
+ * Ohne Session 401 statt 302: Den Pfad ruft die Leiste per `fetch`, nicht
+ * der Browser als Seite; eine Weiterleitung auf den Login liefe dort ins
+ * Leere. Mit Session 200 ohne Header: Die Route liest die Session selbst und
+ * glaubt keinem `X-Auth-*` (die hat die Strip-Middleware ohnehin geloescht).
+ */
+async function platformPath(
+  request: Request,
+  host: string,
+  path: string,
+  appsDomain: string | undefined,
+): Promise<Response> {
+  if (appsDomain === undefined || host !== gatewayHost(appsDomain)) {
+    return deny(`no platform path on "${host}"`);
+  }
+  const normalized = normalizedPath(path);
+  if (normalized === null || normalized !== path || !PLATFORM_PATHS.includes(normalized)) {
+    return deny(`unknown platform path "${path}"`);
+  }
+  const user = await currentUser(request);
+  if (user === null) {
+    return new Response('sign in first', {
+      status: 401,
+      headers: { 'content-type': 'text/plain' },
+    });
+  }
+  return new Response(null, { status: 200 });
 }
 
 function deny(reason: string): Response {

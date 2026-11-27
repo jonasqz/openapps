@@ -21,10 +21,10 @@ import {
   appContainerPort,
   AppToolError,
   appPathFor,
-  callerIdentityFor,
   gatewayAliasFor,
   gatewayHost,
   identityHeadersForApp,
+  invocationIdentityFor,
   readableAppsHeadersForApp,
   type AppToolInvoker,
 } from '../domain';
@@ -63,7 +63,7 @@ export function appToolUrl(
 
 export function createHttpInvoker(options: HttpInvokerOptions): AppToolInvoker {
   return {
-    async invoke({ app, toolName, actor, args, readableApps }) {
+    async invoke({ app, toolName, actor, args, readableApps, humanIdentity, signal }) {
       if (app.primaryDomain === null) {
         // Noch nie deployt: Es gibt keinen Container, und auch kein Secret,
         // mit dem er rechnen koennte.
@@ -71,8 +71,13 @@ export function createHttpInvoker(options: HttpInvokerOptions): AppToolInvoker {
       }
 
       // Dieselbe Funktion, die auch die Forward-Auth benutzt. Der Aufrufer
-      // ist das Subjekt: `agent:<name>` oder `app:<name>`.
-      const identity = callerIdentityFor(actor, Math.floor((options.now?.() ?? Date.now()) / 1000));
+      // ist das Subjekt: `agent:<name>`, `app:<name>` oder, fuer die Suche
+      // ueber alle Apps (ADR 0021), der Mensch aus seiner Session.
+      const identity = invocationIdentityFor(
+        actor,
+        humanIdentity,
+        Math.floor((options.now?.() ?? Date.now()) / 1000),
+      );
       const headers = identityHeadersForApp({
         app,
         identity,
@@ -101,7 +106,10 @@ export function createHttpInvoker(options: HttpInvokerOptions): AppToolInvoker {
           'x-forwarded-host': gatewayHost(app.primaryDomain),
         },
         body: JSON.stringify(args),
-        signal: AbortSignal.timeout(options.requestTimeoutMs ?? 30_000),
+        signal:
+          signal === undefined
+            ? AbortSignal.timeout(options.requestTimeoutMs ?? 30_000)
+            : AbortSignal.any([signal, AbortSignal.timeout(options.requestTimeoutMs ?? 30_000)]),
       });
 
       if (!response.ok) {

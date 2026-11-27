@@ -67,6 +67,8 @@ Maintain `app.json` before you write code:
   value.
 - `version`: Bump it with every new state, otherwise the review gate rejects
   it.
+- `search` (optional): `{ "tool": "<name of a read tool>" }` puts your app
+  into the search across all apps (see below).
 
 ## 4. Build
 
@@ -202,6 +204,27 @@ there; Knowledge shows it only to callers who may read your app (ADR 0020).
 
 Do not pass a source app in the arguments; Knowledge rejects it and takes
 your name from your verified identity.
+
+## Show up in the search across all apps
+
+The bar's "Search or jump to… ⌘K" and the platform MCP tool `search` ask
+every app that names a search tool, in parallel, and group the hits by app
+(ADR 0021). There is no index: your app searches its own data, as the caller.
+
+1. **Tool:** a read tool (often `search`) that takes `{ query, limit }` and
+   returns `{ hits: [{ id, title, snippet?, url, kind? }] }`. `url` is a path
+   in your app without the base path (`/requests/42`); `kind` says what the
+   hit is (`request`). Check the arguments with `parseSearchArgs` from
+   `@openapps/sdk` (or the same limits with zod: query 1 to 200 characters,
+   limit 1 to 20, default 5) and type the result as `SearchToolResult`.
+2. **Manifest:** list the tool in `offeredTools` with `verb: read`, in
+   `openapi.yaml` and in `src/lib/tools.ts`, and add
+   `"search": { "tool": "search" }`.
+3. **Fast and harmless:** the platform waits about 2 seconds per app and
+   calls the tool while people type. Never write anything in it.
+
+People see your hits if they may open your app. Agents also need `execute`
+on `<name>.search`, granted like every other tool.
 
 ## Change an app
 

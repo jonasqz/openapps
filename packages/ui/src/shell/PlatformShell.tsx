@@ -23,6 +23,7 @@ import {
 import { SidebarUserMenu } from './SidebarUserMenu.tsx';
 import { CommandPalette } from './CommandPalette.tsx';
 import type { CommandItem } from './CommandPalette.tsx';
+import type { PlatformSearch } from './platform-search.ts';
 import { Icon } from '../components/Icon.tsx';
 import { Kbd } from '../components/Kbd.tsx';
 import type { ShellNavGroup, ShellNavItem, ShellPlatform, ShellTheme, ShellUser } from './types.ts';
@@ -49,6 +50,13 @@ export interface PlatformShellProps {
    * dem Link. Links zu anderen Apps und zur Plattform laufen nie hierueber.
    */
   onNavigate?: (href: string) => void;
+  /**
+   * Die Suche ueber alle Apps in der Befehlspalette (ADR 0021), meist
+   * `createPlatformSearch()`. Ohne sie springt die Palette nur. Muss ueber
+   * Renders stabil sein (`useMemo`), sonst sucht die Palette bei jedem
+   * Render neu.
+   */
+  search?: PlatformSearch;
   className?: string;
 }
 
@@ -180,6 +188,7 @@ export function PlatformShell({
   user,
   children,
   onNavigate,
+  search,
   className,
 }: PlatformShellProps): JSX.Element {
   const baseId = useId().replace(/:/g, '');
@@ -421,7 +430,13 @@ export function PlatformShell({
           </div>
         ) : null}
 
-        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} onSelect={runCommand} />
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          items={commands}
+          onSelect={runCommand}
+          {...(search === undefined ? {} : { search })}
+        />
 
         {model.canCreateApps ? (
           <NewAppDialog open={dialogOpen} onClose={closeNewApp} getStartedHref={model.getStarted} />

@@ -8,10 +8,12 @@ import {
   removeSourceDocument,
   upsertSourceDocument,
 } from './documents';
+import { searchOwnDocuments } from './document-search';
 import { createFulltextRetriever, type Retriever } from './retriever';
 import {
   DeleteArgs,
   DocumentInput,
+  DocumentSearchArgs,
   GetArgs,
   ListArgs,
   RemoveArgs,
@@ -70,6 +72,10 @@ export const toolHandlers = {
   search: async (args, ctx) => {
     const { query: text, limit } = parseArgs(SearchArgs, args);
     return { passages: await currentRetriever().search(text, limit, visibilityOf(ctx)) };
+  },
+  'documents.search': async (args) => {
+    const { query: text, limit } = parseArgs(DocumentSearchArgs, args);
+    return searchOwnDocuments(currentRetriever(), text, limit);
   },
   'documents.add': async (args, ctx) => addDocument(parseArgs(DocumentInput, args), ctx.user.id),
   'documents.list': async (args, ctx) => ({

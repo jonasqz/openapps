@@ -4,10 +4,10 @@
   "displayName": "Wiki",
   "description": "Notes and documents for humans and agents: nested pages with a page tree, a Markdown editor with preview, links between pages with backlinks, favorites, full-text search and a history of every change with restore. Every page is also delivered to the shared search (Knowledge).",
   "category": "knowledge",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "wiki-v0.3.1"
+    "tag": "wiki-v0.3.2"
   },
   "requiredTables": [
     {
@@ -56,7 +56,7 @@
     },
     {
       "name": "pages.search",
-      "description": "Full-text search in title and content of non-archived pages, Postgres English dictionary: English word forms match (request finds requests), stop words like the are ignored. Arguments: query (\"exact phrase\", -word excludes, or combines), limit (optional, 1 to 50, default 10). Returns {hits: [{id, parentId, title, tags, updatedAt, rank, snippet}]}, best first; snippet marks hits with «…».",
+      "description": "Full-text search in title and content of non-archived pages, English dictionary: word forms match, stop words are ignored. Arguments: query (\"exact phrase\", -word excludes, or combines), limit (optional, 1 to 50, default 10). Returns {hits: [{id, parentId, title, tags, updatedAt, rank, snippet, url, kind}]}, best first; snippet marks hits with «…», url is the page path (/pages/<id>). Also the wiki's tool for the platform search.",
       "operationId": "searchPages",
       "verb": "read"
     },
@@ -121,6 +121,9 @@
       "operationId": "searchStatus"
     }
   ],
+  "search": {
+    "tool": "pages.search"
+  },
   "requestedGrants": [
     {
       "subjectKind": "group",

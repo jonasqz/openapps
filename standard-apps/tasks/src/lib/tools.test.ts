@@ -75,9 +75,9 @@ describe('Manifest', () => {
     expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual(created.sort());
   });
 
-  it('steht auf Version 0.2.0 und behaelt die lokale Quelle', () => {
+  it('steht auf Version 0.3.0 und behaelt die lokale Quelle', () => {
     const manifest = parseAppManifest(JSON.parse(manifestText));
-    expect(manifest.version).toBe('0.2.0');
+    expect(manifest.version).toBe('0.3.0');
     expect(manifest.source.tag).toBe('lokal');
   });
 
@@ -97,6 +97,7 @@ describe('Tool-Zuordnung', () => {
     const expected = [
       'projects.create',
       'projects.list',
+      'search',
       'tasks.assign',
       'tasks.comment',
       'tasks.complete',
@@ -119,9 +120,9 @@ describe('Tool-Zuordnung', () => {
     expect(operations.length).toBe(manifest.offeredTools.length);
   });
 
-  it('beschreibt nur list und get als read, alles, was schreibt, als write', () => {
+  it('beschreibt nur list, get und search als read, alles, was schreibt, als write', () => {
     for (const tool of manifest.offeredTools) {
-      const reads = tool.name.endsWith('.list') || tool.name.endsWith('.get');
+      const reads = tool.name.endsWith('.list') || tool.name.endsWith('.get') || tool.name === 'search';
       expect(tool.verb, tool.name).toBe(reads ? 'read' : 'write');
     }
   });

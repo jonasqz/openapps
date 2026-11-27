@@ -4,10 +4,10 @@
   "displayName": "Knowledge",
   "description": "The shared search of the platform: store internal documents, let other apps deliver their content, and find the relevant passages with their source. The retrieval half of a RAG: the calling agent writes the answer itself.",
   "category": "knowledge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "v0.2.1"
+    "tag": "v0.2.2"
   },
   "requiredTables": [
     {
@@ -24,6 +24,12 @@
       "name": "search",
       "description": "Searches internal documents and content other apps delivered (e.g. wiki pages) for passages on a question (German and English full-text search, word forms match). Returns passages with chunkId, documentId, documentTitle, source, sourceApp, sourceUrl, an excerpt (matches in «») and the section text. Content from apps the caller may not read never appears. Answer only from these passages and cite the source (documentTitle, sourceUrl or source). An empty list means nothing was found: do not guess.",
       "operationId": "search",
+      "verb": "read"
+    },
+    {
+      "name": "documents.search",
+      "description": "Finds documents stored in Knowledge itself by their content (German and English full-text search), one hit per document: {hits: [{id, title, snippet, url, kind}]}, url is the document path (/documents/<id>), kind is document. Content other apps delivered is not included; it is found in those apps. Arguments: query (1 to 200 characters), limit (1 to 20, default 5). Knowledge's tool for the platform search. To answer questions use search.",
+      "operationId": "searchDocuments",
       "verb": "read"
     },
     {
@@ -63,6 +69,9 @@
       "verb": "write"
     }
   ],
+  "search": {
+    "tool": "documents.search"
+  },
   "requestedGrants": [
     {
       "subjectKind": "group",

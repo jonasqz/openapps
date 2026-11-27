@@ -38,7 +38,47 @@ export interface AppToolInvoker {
      * Ziel-App sie anfordert. `null` oder fehlend: Header leer.
      */
     readonly readableApps?: readonly string[] | null;
+    /**
+     * Nur fuer einen Menschen (`actor.kind === 'user'`, ADR 0021): die
+     * Identitaet aus seiner Session, wie die Forward-Auth sie signiert. Agents
+     * und Apps bekommen ihre Identitaet aus `callerIdentityFor`; fuer sie ist
+     * das Feld ein Fehler.
+     */
+    readonly humanIdentity?: HumanIdentity;
+    /** Bricht den Aufruf ab, etwa wenn die Frist der Suche abgelaufen ist. */
+    readonly signal?: AbortSignal;
   }): Promise<unknown>;
+}
+
+/** Wer ein Mensch fuer die Ziel-App ist: dieselben Werte wie nach der Forward-Auth. */
+export interface HumanIdentity {
+  readonly userId: string;
+  readonly email: string;
+  readonly groups: readonly string[];
+}
+
+/**
+ * Die Identitaet fuer einen Aufruf. Ein Mensch nur mit seiner eigenen
+ * Identitaet (`userId` = Actor-Id), damit ein Aufrufer des Invokers keinen
+ * anderen Menschen signieren laesst; Agents und Apps wie bisher.
+ */
+export function invocationIdentityFor(
+  actor: Actor,
+  humanIdentity: HumanIdentity | undefined,
+  issuedAt: number,
+): GatewayIdentity {
+  if (humanIdentity === undefined) return callerIdentityFor(actor, issuedAt);
+  if (actor.kind !== 'user' || humanIdentity.userId !== actor.id) {
+    throw new PermissionDeniedError(
+      `${actor.kind}:${actor.id} cannot call an app tool as another person`,
+    );
+  }
+  return {
+    userId: humanIdentity.userId,
+    email: humanIdentity.email,
+    groups: [...humanIdentity.groups],
+    issuedAt,
+  };
 }
 
 /**
