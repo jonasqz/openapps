@@ -225,6 +225,30 @@ export function createLokalBackend(config: LokalConfig): DeploymentBackend {
       });
     },
 
+    async mergeEnv(backendRef, env) {
+      const name = appNameFromRef(backendRef);
+      await mkdir(appDir(name), { recursive: true, mode: 0o700 });
+      const path = join(appDir(name), 'env.json');
+      // Was schon da ist, bleibt: DATABASE_URL mit dem Passwort der laufenden
+      // App und OPENAPPS_SAMPLE_DATA. Nur fehlende oder geaenderte Schluessel
+      // kommen dazu.
+      let current: Record<string, string> = {};
+      try {
+        const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown;
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          current = Object.fromEntries(
+            Object.entries(parsed as Record<string, unknown>).filter(
+              (entry): entry is [string, string] => typeof entry[1] === 'string',
+            ),
+          );
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      const merged = { ...current, ...env };
+      await writeFile(path, JSON.stringify(merged), { mode: 0o600 });
+    },
+
     async deploy(request: BackendDeployRequest): Promise<BackendDeployResult> {
       const name = appNameFromRef(request.backendRef);
       await writeSignal(name, request.gitSha);

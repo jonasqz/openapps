@@ -2,27 +2,27 @@
   "manifestVersion": 1,
   "name": "knowledge",
   "displayName": "Knowledge",
-  "description": "Store internal documents and find the relevant passages with their source. The retrieval half of a RAG: the calling agent writes the answer itself.",
+  "description": "The shared search of the platform: store internal documents, let other apps deliver their content, and find the relevant passages with their source. The retrieval half of a RAG: the calling agent writes the answer itself.",
   "category": "knowledge",
-  "version": "0.1.3",
+  "version": "0.2.1",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "v0.1.3"
+    "tag": "v0.2.1"
   },
   "requiredTables": [
     {
       "name": "documents",
-      "description": "Stored documents with title, source and full text. Deleted documents stay with deleted_at set and are invisible to search."
+      "description": "Stored documents with title, source and full text. Documents delivered by another app carry source_app, source_key (unique per pair) and source_path for the link back. Deleted documents stay with deleted_at set and are invisible to search."
     },
     {
       "name": "chunks",
-      "description": "Sections of the documents, about 800 characters with overlap, with an English full-text index (tsvector, GIN)."
+      "description": "Sections of the documents, about 800 characters with overlap, with an English and a German full-text index (tsvector, GIN)."
     }
   ],
   "offeredTools": [
     {
       "name": "search",
-      "description": "Searches the internal documents for passages on a question or keyword (English full-text search, word forms are matched). Returns passages with chunkId, documentId, documentTitle, source, an excerpt (matches marked with «») and the full section text. Answer only from these passages and cite the source for every statement (documentTitle, source, documentId/chunkId). An empty list means nothing was found: do not guess.",
+      "description": "Searches internal documents and content other apps delivered (e.g. wiki pages) for passages on a question (German and English full-text search, word forms match). Returns passages with chunkId, documentId, documentTitle, source, sourceApp, sourceUrl, an excerpt (matches in «») and the section text. Content from apps the caller may not read never appears. Answer only from these passages and cite the source (documentTitle, sourceUrl or source). An empty list means nothing was found: do not guess.",
       "operationId": "search",
       "verb": "read"
     },
@@ -34,20 +34,32 @@
     },
     {
       "name": "documents.list",
-      "description": "Lists the stored documents (without full text), newest first, at most 200. Optional q filters by title or source. For questions about content use search, not this tool.",
+      "description": "Lists the stored documents the caller can see (without full text), newest first, at most 200. Documents from other apps carry sourceApp and sourceUrl. Optional q filters by title or source. For questions about content use search, not this tool.",
       "operationId": "listDocuments",
       "verb": "read"
     },
     {
       "name": "documents.get",
-      "description": "Reads a document with full text by its id (documentId from search or documents.list). With includeChunks: true the sections with chunkId and ord are included. Deleted documents return 404.",
+      "description": "Reads a document with full text by its id (documentId from search or documents.list). With includeChunks: true the sections with chunkId and ord are included. Deleted documents and documents from apps the caller may not read return 404.",
       "operationId": "getDocument",
       "verb": "read"
     },
     {
       "name": "documents.delete",
-      "description": "Deletes a document by its id. The document and its sections no longer appear in search or documents.list. Only call this when the user explicitly asks for it.",
+      "description": "Deletes a document by its id. The document and its sections no longer appear in search or documents.list. Documents delivered by another app (sourceApp set) cannot be deleted here; they are removed in that app. Only call this when the user explicitly asks for it.",
       "operationId": "deleteDocument",
+      "verb": "write"
+    },
+    {
+      "name": "documents.upsert",
+      "description": "For apps only: stores or replaces the calling app's own document with this key (key, title, content, optional source, path for the link back, updatedAt), sections included, in one transaction. The source app comes from the verified caller identity, never from the arguments, so an app can only replace its own content. An older updatedAt than the stored one is ignored (status stale). Humans and agents use documents.add.",
+      "operationId": "upsertDocument",
+      "verb": "write"
+    },
+    {
+      "name": "documents.remove",
+      "description": "For apps only: removes the calling app's own document with this key, sections included. The source app comes from the verified caller identity, so an app can only remove its own content. Idempotent: removed is false if there was nothing to remove.",
+      "operationId": "removeDocument",
       "verb": "write"
     }
   ],
@@ -104,5 +116,8 @@
       "description": "Path the app lives under (/knowledge). Must be set at build time, otherwise links and images point nowhere."
     }
   ],
-  "egress": []
+  "egress": [],
+  "gatewayContext": [
+    "readableApps"
+  ]
 }

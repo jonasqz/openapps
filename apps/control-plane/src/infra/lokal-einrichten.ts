@@ -14,7 +14,12 @@
  *    durch die Domaene und steht im Audit-Log als `user:lokal-betreiber`.
  * 2. Es registriert die Standard-Apps aus `LOKAL_SOURCE_DIR` und deployt sie —
  *    durch dasselbe Review-Gate wie auf dem Server.
- * 3. Es legt den Agenten `operator` an und gibt ihm die Rechte, die die Gruppe
+ * 3. Es erteilt die Freigaben, die eine App im Manifest **fuer sich selbst**
+ *    als App beantragt (`requestedGrants` mit `subjectKind: app` und dem
+ *    eigenen Namen, ADR 0020), etwa dem Wiki das Abliefern an Knowledge.
+ *    Nur lokal: Auf dem Server erteilt sie ein Mensch oder Agent mit `grant`.
+ *    Antraege fuer Gruppen, Menschen oder Agents erteilt es nicht.
+ * 4. Es legt den Agenten `operator` an und gibt ihm die Rechte, die die Gruppe
  *    `platform-admins` hat. Alles Weitere — Arbeits-Agents, Freigaben — macht
  *    `operator` dann ueber den Plattform-MCP, wie jeder andere Agent.
  *
@@ -28,6 +33,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseAppManifest } from '@openapps/app-manifest';
+import type { AppManifest } from '@openapps/app-manifest';
 import {
   createAgentIdentity,
   createApp,
@@ -37,6 +43,7 @@ import {
   type Actor,
   type Verb,
 } from '../domain';
+import { grantSelfRequests } from './lokal-freigaben';
 import { domainContext } from '../lib/runtime';
 
 const OPERATOR: Actor = { kind: 'user', id: 'lokal-betreiber', groups: ['platform-admins'] };
@@ -82,9 +89,11 @@ async function main(): Promise<void> {
     .map((entry) => entry.name)
     .sort();
 
+  const manifests: AppManifest[] = [];
   for (const name of names) {
     const dir = join(sourceDir, name);
     const manifest = parseAppManifest(JSON.parse(await readFile(join(dir, 'app.json'), 'utf8')));
+    manifests.push(manifest);
     if ((await ctx.apps.findByName(name)) === null) {
       await createApp(ctx, { actor: OPERATOR, name, manifest });
       console.log(`App ${name}: created`);
@@ -125,7 +134,10 @@ async function main(): Promise<void> {
     );
   }
 
-  // 2. Der Betriebs-Agent.
+  // 2. Freigaben, die Apps fuer sich selbst als App beantragen.
+  await grantSelfRequests(ctx, OPERATOR, manifests);
+
+  // 3. Der Betriebs-Agent.
   if ((await ctx.agents.findByName('operator')) === null) {
     const created = await createAgentIdentity(ctx, {
       actor: OPERATOR,

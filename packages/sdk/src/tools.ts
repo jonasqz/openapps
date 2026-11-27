@@ -1,5 +1,7 @@
+import { callerOf, type Caller } from './caller.js';
 import { SdkError, UntrustedRequestError } from './errors.js';
 import { getUser, type GetUserOptions, type PlatformUser } from './gateway.js';
+import { getReadableApps } from './readable-apps.js';
 
 /**
  * Der Endpunkt, ueber den Agents die Tools einer App aufrufen:
@@ -22,8 +24,22 @@ import { getUser, type GetUserOptions, type PlatformUser } from './gateway.js';
  */
 
 export interface ToolContext {
-  /** Wer ruft: Mensch (`<id>`) oder Agent (`agent:<name>`). */
+  /** Wer ruft: Mensch (`<id>`), Agent (`agent:<name>`) oder App (`app:<name>`). */
   readonly user: PlatformUser;
+  /**
+   * Dasselbe, gedeutet: Mensch, Agent oder App (ADR 0020). `createToolRoute`
+   * setzt es immer. Optional, damit Apps, die Handler selbst mit `{ user }`
+   * aufrufen (etwa aus einer Server Action), unveraendert weiterlaufen; fehlt
+   * es, gilt `callerOf(user)`.
+   */
+  readonly caller?: Caller;
+  /**
+   * Apps, die der Aufrufer lesen darf, aus dem signierten Kontext der
+   * Plattform (ADR 0020), oder `null`. Nur gefuellt, wenn das Manifest
+   * `gatewayContext: ["readableApps"]` anfordert. `null` oder fehlend heisst:
+   * nichts zeigen, was einer anderen App gehoert.
+   */
+  readonly readableApps?: readonly string[] | null;
 }
 
 export type ToolHandler = (args: unknown, ctx: ToolContext) => Promise<unknown>;
@@ -106,7 +122,11 @@ export function createToolRoute(
     }
 
     try {
-      const result = await handler(args, { user });
+      const result = await handler(args, {
+        user,
+        caller: callerOf(user),
+        readableApps: getReadableApps(request.headers, options),
+      });
       return Response.json(result ?? null);
     } catch (error) {
       if (error instanceof ToolInputError) {

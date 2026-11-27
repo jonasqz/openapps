@@ -38,6 +38,11 @@ import {
   NAV_HEADER,
   NAV_SIGNATURE_HEADER,
   navSignatureFor,
+  decodeReadableApps,
+  encodeReadableApps,
+  READABLE_APPS_HEADER,
+  READABLE_APPS_SIGNATURE_HEADER,
+  readableAppsSignatureFor,
   SIGNATURE_HEADER,
   USER_EMAIL_HEADER,
   USER_ID_HEADER,
@@ -50,6 +55,8 @@ export {
   ISSUED_AT_HEADER,
   NAV_HEADER,
   NAV_SIGNATURE_HEADER,
+  READABLE_APPS_HEADER,
+  READABLE_APPS_SIGNATURE_HEADER,
   SIGNATURE_HEADER,
   USER_EMAIL_HEADER,
   USER_ID_HEADER,
@@ -71,12 +78,27 @@ export const IDENTITY_HEADERS = [
 export const NAV_HEADERS = [NAV_HEADER, NAV_SIGNATURE_HEADER] as const;
 
 /**
- * Alle Header, die die Forward-Auth bei einem Ja setzt: Identitaet plus
- * Navigation. Genau diese muss Traefik als `authResponseHeaders` uebernehmen
- * und aus jeder eingehenden Anfrage loeschen — sonst schmuggelt ein Browser
- * eigene Links in die Leiste.
+ * Die zwei Header der lesbaren Apps (ADR 0020). Eigene Signatur wie die
+ * Navigation, aber ein Filter, keine Anzeige: Knowledge zeigt damit nur
+ * Treffer aus Apps, die der Aufrufer lesen darf.
  */
-export const GATEWAY_RESPONSE_HEADERS = [...IDENTITY_HEADERS, ...NAV_HEADERS] as const;
+export const READABLE_APPS_HEADERS = [
+  READABLE_APPS_HEADER,
+  READABLE_APPS_SIGNATURE_HEADER,
+] as const;
+
+/**
+ * Alle Header, die die Forward-Auth bei einem Ja setzt: Identitaet,
+ * Navigation und lesbare Apps. Genau diese muss Traefik als
+ * `authResponseHeaders` uebernehmen und aus jeder eingehenden Anfrage
+ * loeschen — sonst schmuggelt ein Browser eigene Links in die Leiste oder
+ * eine eigene Liste lesbarer Apps in die Suche.
+ */
+export const GATEWAY_RESPONSE_HEADERS = [
+  ...IDENTITY_HEADERS,
+  ...NAV_HEADERS,
+  ...READABLE_APPS_HEADERS,
+] as const;
 
 /** Beide Nav-Header leer: so sieht ein Ja ohne Navigation aus. */
 export const EMPTY_NAV_HEADERS: Readonly<Record<string, string>> = Object.freeze({
@@ -259,6 +281,119 @@ export function navHeadersForApp(params: {
   const appId = appIdOf(app);
   return navHeaders({
     nav: params.nav,
+    identity: params.identity,
+    appId,
+    host: gatewayHost(app.primaryDomain),
+    secret: appAuthSecret({
+      masterSecret: params.masterSecret,
+      appId,
+      generation: app.authSecretGeneration,
+    }),
+    currentApp: app.name,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Lesbare Apps (ADR 0020)                                                     */
+/* -------------------------------------------------------------------------- */
+
+/** Beide Header leer: so sieht ein Ja ohne angeforderte Liste aus. */
+export const EMPTY_READABLE_APPS_HEADERS: Readonly<Record<string, string>> = Object.freeze({
+  [READABLE_APPS_HEADER]: '',
+  [READABLE_APPS_SIGNATURE_HEADER]: '',
+});
+
+/**
+ * Hoechstlaenge des kodierten Werts. Zusammen mit Navigation (8 KiB) und
+ * Identitaet bleibt die Anfrage unter dem Header-Puffer von Node (16 KiB).
+ * Bei App-Namen bis 40 Zeichen passen gut 80 Apps.
+ */
+export const READABLE_APPS_HEADER_BUDGET = 4 * 1024;
+
+/**
+ * Kuerzt die Liste, bis sie ins Budget passt: erst die aufgerufene App, dann
+ * alphabetisch. Kuerzen zeigt weniger, nie mehr — es bleibt Default-Deny.
+ * Passt nicht einmal die leere Liste, `null`.
+ */
+export function fitReadableApps(
+  apps: readonly string[],
+  budget: number = READABLE_APPS_HEADER_BUDGET,
+  currentApp?: string,
+): readonly string[] | null {
+  const unique = [...new Set(apps)];
+  const ordered = [
+    ...unique.filter((name) => name === currentApp),
+    ...unique.filter((name) => name !== currentApp).sort(),
+  ];
+  if (encodeReadableApps(ordered).length <= budget) return ordered;
+  let low = 0;
+  let high = ordered.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (encodeReadableApps(ordered.slice(0, mid)).length <= budget) low = mid;
+    else high = mid - 1;
+  }
+  const fitted = ordered.slice(0, low);
+  return encodeReadableApps(fitted).length <= budget ? fitted : null;
+}
+
+export interface ReadableAppsHeaderInput {
+  readonly apps: readonly string[];
+  /** Dieselben Rohwerte wie in den Identitaets-Headern dieser Antwort. */
+  readonly identity: Pick<GatewayIdentity, 'userId' | 'issuedAt'>;
+  readonly appId: string;
+  readonly host: string;
+  readonly secret: string;
+  readonly currentApp?: string;
+}
+
+/**
+ * Die zwei Header. Wirft nicht: Passt die Liste nicht ins Budget oder besteht
+ * sie die Formpruefung des SDK nicht, gehen beide leer raus — die App zeigt
+ * dann nichts aus anderen Apps. Die Pruefung ist dieselbe Funktion, mit der
+ * die App liest (`decodeReadableApps`).
+ */
+export function readableAppsHeaders(
+  input: ReadableAppsHeaderInput,
+): Readonly<Record<string, string>> {
+  const fitted = fitReadableApps(input.apps, READABLE_APPS_HEADER_BUDGET, input.currentApp);
+  if (fitted === null) return EMPTY_READABLE_APPS_HEADERS;
+  if (fitted.length < new Set(input.apps).size) {
+    console.warn(
+      `[gateway] readable apps for ${input.appId} shortened from ${String(input.apps.length)} to ${String(fitted.length)}`,
+    );
+  }
+  const value = encodeReadableApps(fitted);
+  if (decodeReadableApps(value) === null) return EMPTY_READABLE_APPS_HEADERS;
+  return {
+    [READABLE_APPS_HEADER]: value,
+    [READABLE_APPS_SIGNATURE_HEADER]: readableAppsSignatureFor({
+      secret: input.secret,
+      appId: input.appId,
+      host: input.host,
+      userId: input.identity.userId,
+      issuedAt: String(input.identity.issuedAt),
+      value,
+    }),
+  };
+}
+
+/**
+ * Die Header fuer eine konkrete App, mit App-Id, Host und Secret aus denselben
+ * Funktionen wie `identityHeadersForApp`. `apps === null` (nicht angefordert
+ * oder nicht berechnet): beide leer — gesetzt sind sie immer.
+ */
+export function readableAppsHeadersForApp(params: {
+  readonly app: Pick<App, 'name' | 'primaryDomain' | 'authSecretGeneration'>;
+  readonly identity: Pick<GatewayIdentity, 'userId' | 'issuedAt'>;
+  readonly masterSecret: string;
+  readonly apps: readonly string[] | null;
+}): Readonly<Record<string, string>> {
+  const { app } = params;
+  if (params.apps === null || app.primaryDomain === null) return EMPTY_READABLE_APPS_HEADERS;
+  const appId = appIdOf(app);
+  return readableAppsHeaders({
+    apps: params.apps,
     identity: params.identity,
     appId,
     host: gatewayHost(app.primaryDomain),

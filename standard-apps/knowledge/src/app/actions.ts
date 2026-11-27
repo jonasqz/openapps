@@ -1,6 +1,6 @@
 'use server';
 
-import { getUser, ToolNotFoundError, type PlatformUser } from '@openapps/sdk';
+import { getUser, ToolInputError, ToolNotFoundError, type PlatformUser } from '@openapps/sdk';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { addDocument, deleteDocument } from '@/lib/documents';
@@ -78,6 +78,10 @@ export async function deleteDocumentAction(id: string): Promise<DeleteDocumentRe
   } catch (error) {
     if (error instanceof ToolNotFoundError) {
       return { ok: false, message: 'This document no longer exists or has already been deleted.' };
+    }
+    if (error instanceof ToolInputError) {
+      // Ein Dokument einer Quell-App: die Meldung sagt, wo es gepflegt wird.
+      return { ok: false, message: error.message };
     }
     console.error('[knowledge] deleteDocumentAction:', error);
     return { ok: false, message: 'The document could not be deleted. Try again in a moment.' };

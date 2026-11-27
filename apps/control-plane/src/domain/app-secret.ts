@@ -52,3 +52,24 @@ export function appAuthSecret(input: AppSecretInput): string {
   const bits = hkdfSync('sha256', input.masterSecret, '', info, SECRET_BYTES);
   return Buffer.from(bits).toString('hex');
 }
+
+const CALL_INFO_PREFIX = 'openapps/app-call-secret/1';
+
+/**
+ * Das `OPENAPPS_CALL_SECRET` pro App (ADR 0020): Damit signiert die App ihre
+ * Aufrufe an andere Apps, und die Control Plane prueft sie. Abgeleitet wie
+ * `appAuthSecret`, aber mit eigenem Kontext — zwei Richtungen, zwei
+ * Schluessel. Wer das eine kennt, kennt das andere nicht. Dieselbe
+ * Generation: eine Rotation der App rotiert beide.
+ */
+export function appCallSecret(input: AppSecretInput): string {
+  if (input.masterSecret.trim() === '') {
+    throw new Error('master secret missing: without it no app secret can be derived');
+  }
+  if (!Number.isInteger(input.generation) || input.generation < 1) {
+    throw new Error(`invalid generation: ${String(input.generation)}`);
+  }
+  const info = `${CALL_INFO_PREFIX}\n${input.appId}\n${String(input.generation)}`;
+  const bits = hkdfSync('sha256', input.masterSecret, '', info, SECRET_BYTES);
+  return Buffer.from(bits).toString('hex');
+}

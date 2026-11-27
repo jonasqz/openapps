@@ -143,6 +143,66 @@ The MCP assembles the list of tools when you connect. A tool you have just
 been granted therefore only shows up after a new connection (in Claude Code
 via `/mcp` or a new session). That is not a problem with the grant.
 
+## Make content findable in the shared search
+
+Knowledge is the shared search of the platform. Your app delivers its content
+there; Knowledge shows it only to callers who may read your app (ADR 0020).
+
+1. **Manifest:** request the two grants for your app itself and declare the
+   env and the egress:
+
+   ```json
+   "requestedGrants": [
+     { "subjectKind": "app", "subjectId": "<name>", "verb": "execute",
+       "resource": { "kind": "tool", "app": "knowledge", "name": "documents.upsert" },
+       "reason": "Deliver <things> to the shared search." },
+     { "subjectKind": "app", "subjectId": "<name>", "verb": "execute",
+       "resource": { "kind": "tool", "app": "knowledge", "name": "documents.remove" },
+       "reason": "Remove deleted <things> from the shared search." }
+   ],
+   "env": [
+     { "name": "OPENAPPS_PLATFORM_URL", "secret": false, "required": false, "description": "…" },
+     { "name": "OPENAPPS_CALL_SECRET", "secret": true, "required": false, "description": "…" }
+   ],
+   "egress": [
+     { "host": "openapps-control-plane", "protocol": "http", "port": 3000, "reason": "Calls to other apps go through the platform." }
+   ]
+   ```
+
+2. **Outbox:** a new migration with an outbox table (one row per item, with
+   a version). Every write that changes an item inserts or bumps its row **in
+   the same transaction**.
+3. **Deliver after the commit**, without waiting and without ever failing the
+   save:
+
+   ```ts
+   import { callAppTool } from '@openapps/sdk';
+
+   await callAppTool('knowledge', 'documents.upsert', {
+     key: item.id, // your id; unique within your app
+     title: item.title,
+     content: item.text, // plain text, non-empty
+     source: 'Requests › 2026', // readable origin shown with the hit
+     path: `/requests/${item.id}`, // link back, inside your app
+     updatedAt: item.updatedAt, // older states are ignored
+   });
+   await callAppTool('knowledge', 'documents.remove', { key: item.id });
+   ```
+
+   Delete the outbox row only with the version you delivered. On an
+   `AppCallError` keep the row and its error; retry on the next write, on
+   start and on a timer. Copy `standard-apps/wiki/src/lib/search-sync.ts`.
+
+4. **Backfill:** a tool that queues everything again (the wiki has
+   `search.backfill`) and one that shows what is stuck (`search.status`).
+5. **Grant:** locally `apps-ausrollen.sh` grants what your app requests for
+   itself. On a server, `grant` with `subjectKind: app`, `subjectId: <name>`,
+   `verb: execute`, `resourceKind: tool`,
+   `resourceId: knowledge.documents.upsert` (and `.remove`).
+
+Do not pass a source app in the arguments; Knowledge rejects it and takes
+your name from your verified identity.
+
 ## Change an app
 
 1. Read `app.json`, `src/lib/tools.ts` and the affected pages.

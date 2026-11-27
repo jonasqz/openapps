@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { runMigrations, runSeeds, ToolInputError, ToolNotFoundError } from '@openapps/sdk';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AppCallError, runMigrations, runSeeds, ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { appPool, query } from './db';
 import {
   archivePage,
@@ -19,6 +19,16 @@ import {
   updatePage,
 } from './pages';
 import { PagesCreateArgs, PagesMoveArgs, PagesUpdateArgs } from './schemas';
+import {
+  backfillIfFirstRun,
+  backfillSearch,
+  kickSearchSync,
+  searchSyncStatus,
+  setSearchDeliverer,
+  settleSearchSync,
+  type Deliverer,
+  type UpsertPayload,
+} from './search-sync';
 import { flattenTree } from './tree';
 
 /**
@@ -53,6 +63,7 @@ describe.skipIf(!enabled)('Wiki against Postgres', () => {
   });
 
   afterAll(async () => {
+    await settleSearchSync();
     await appPool().end();
   });
 
@@ -65,6 +76,7 @@ describe.skipIf(!enabled)('Wiki against Postgres', () => {
       '0003_history_moves_restores.sql',
       '0004_favorites.sql',
       '0005_page_links.sql',
+      '0006_search_outbox.sql',
     ]);
   });
 
@@ -383,5 +395,183 @@ describe.skipIf(!enabled)('Wiki against Postgres', () => {
   it('keeps the revisions even if someone tries to delete around the code', async () => {
     const page = await create({ title: 'Test page delete', contentMd: '' });
     await expect(query('delete from pages where id = $1', [page.id])).rejects.toThrow();
+  });
+  /* ------------------------------------------------------------------------ */
+  /* Gemeinsame Suche: Outbox (ADR 0020)                                       */
+  /* ------------------------------------------------------------------------ */
+
+  describe('delivery to the shared search', () => {
+    interface Delivered {
+      op: 'upsert' | 'remove';
+      args: { key: string } & Partial<UpsertPayload>;
+    }
+    const delivered: Delivered[] = [];
+    let failWith: AppCallError | null = null;
+    let duringUpsert: ((args: UpsertPayload) => Promise<void>) | null = null;
+
+    const fake: Deliverer = {
+      async upsert(args) {
+        if (failWith !== null) throw failWith;
+        if (duringUpsert !== null) {
+          const hook = duringUpsert;
+          duringUpsert = null;
+          await hook(args);
+        }
+        delivered.push({ op: 'upsert', args });
+        return { status: 'created' };
+      },
+      async remove(args) {
+        if (failWith !== null) throw failWith;
+        delivered.push({ op: 'remove', args });
+        return { removed: true };
+      },
+    };
+
+    const outboxRow = async (pageId: string) =>
+      (
+        await query<{ attempts: number; last_error: string | null }>(
+          'select attempts, last_error from search_outbox where page_id = $1',
+          [pageId],
+        )
+      )[0];
+
+    const deliveredFor = (pageId: string) => delivered.filter((d) => d.args.key === pageId);
+
+    beforeEach(async () => {
+      await settleSearchSync();
+      setSearchDeliverer(fake);
+      delivered.length = 0;
+      failWith = null;
+      duringUpsert = null;
+    });
+
+    afterAll(async () => {
+      await settleSearchSync();
+      setSearchDeliverer(undefined);
+    });
+
+    it('saves even when Knowledge is unreachable, and keeps the page in the outbox', async () => {
+      failWith = new AppCallError('unreachable', 'knowledge.documents.upsert: not reachable', 502);
+      const page = await create({ title: 'Sync unreachable', contentMd: 'Text' });
+      await settleSearchSync();
+      expect((await getPage({ id: page.id })).title).toBe('Sync unreachable');
+      const row = await outboxRow(page.id);
+      expect(row?.attempts).toBeGreaterThanOrEqual(1);
+      expect(row?.last_error).toContain('unreachable');
+      expect(deliveredFor(page.id)).toEqual([]);
+    });
+
+    it('saves even without the grant, and delivers once it is there', async () => {
+      failWith = new AppCallError('denied', 'app:wiki may not call "knowledge.documents.upsert"', 403);
+      const page = await create({ title: 'Sync denied', contentMd: 'Inhalt' });
+      await settleSearchSync();
+      expect((await outboxRow(page.id))?.last_error).toContain('denied');
+
+      // Die Freigabe ist da: der naechste Anstoss liefert, ohne neue Aenderung.
+      failWith = null;
+      kickSearchSync();
+      await settleSearchSync();
+      expect(await outboxRow(page.id)).toBeUndefined();
+      const [entry] = deliveredFor(page.id);
+      expect(entry?.op).toBe('upsert');
+      expect(entry?.args).toMatchObject({
+        key: page.id,
+        title: 'Sync denied',
+        path: `/pages/${page.id}`,
+        source: 'Wiki › Sync denied',
+      });
+      expect(entry?.args.content).toBe('Sync denied\n\nInhalt');
+    });
+
+    it('a failing database write leaves nothing in the outbox', async () => {
+      const parent = await create({ title: 'Sync parent archived', contentMd: '' });
+      await archivePage({ id: parent.id }, AGENT);
+      await expect(
+        create({ title: 'Sync child', contentMd: '', parentId: parent.id }),
+      ).rejects.toBeInstanceOf(ToolInputError);
+      const rows = await query<{ n: number }>(
+        `select count(*)::int as n from search_outbox o join pages p on p.id = o.page_id
+          where p.title = 'Sync child'`,
+      );
+      expect(rows[0]?.n).toBe(0);
+    });
+
+    it('loses no change that happens while a page is being delivered', async () => {
+      const page = await create({ title: 'Sync race v1', contentMd: '' });
+      await settleSearchSync();
+      delivered.length = 0;
+      // Waehrend v2 geliefert wird, kommt v3.
+      duringUpsert = async () => {
+        await update({ id: page.id, title: 'Sync race v3' });
+      };
+      await update({ id: page.id, title: 'Sync race v2' });
+      await settleSearchSync();
+      kickSearchSync();
+      await settleSearchSync();
+      expect(await outboxRow(page.id)).toBeUndefined();
+      const titles = deliveredFor(page.id).map((d) => d.args.title);
+      expect(titles.at(-1)).toBe('Sync race v3');
+    });
+
+    it('removes archived pages and re-delivers subpages after a rename or move', async () => {
+      const parent = await create({ title: 'Sync handbook', contentMd: '' });
+      const child = await create({ title: 'Sync chapter', contentMd: '', parentId: parent.id });
+      await settleSearchSync();
+      delivered.length = 0;
+
+      await update({ id: parent.id, title: 'Sync manual' });
+      await settleSearchSync();
+      expect(deliveredFor(child.id).at(-1)?.args.source).toBe('Wiki › Sync manual › Sync chapter');
+
+      delivered.length = 0;
+      await move(child.id, null);
+      await settleSearchSync();
+      expect(deliveredFor(child.id).at(-1)?.args.source).toBe('Wiki › Sync chapter');
+
+      delivered.length = 0;
+      await archivePage({ id: child.id }, AGENT);
+      await settleSearchSync();
+      expect(deliveredFor(child.id)).toEqual([{ op: 'remove', args: { key: child.id } }]);
+    });
+
+    it('restoring a revision delivers the restored state', async () => {
+      const page = await create({ title: 'Sync restore', contentMd: 'Erste Fassung' });
+      await update({ id: page.id, contentMd: 'Zweite Fassung' });
+      await settleSearchSync();
+      delivered.length = 0;
+      const { revisions } = await pageHistory({ id: page.id, limit: 50 });
+      const first = revisions.find((r) => r.change === 'create');
+      if (first === undefined) throw new Error('no create revision');
+      await restorePage({ id: page.id, revisionId: first.id }, HUMAN);
+      await settleSearchSync();
+      expect(deliveredFor(page.id).at(-1)?.args.content).toBe('Sync restore\n\nErste Fassung');
+    });
+
+    it('queues every page once on the first run, and search.backfill again on demand', async () => {
+      await query('update search_sync set backfilled_at = null');
+      const queued = await backfillIfFirstRun();
+      const total = await query<{ n: number }>('select count(*)::int as n from pages');
+      expect(queued).toBe(total[0]?.n);
+      expect(await backfillIfFirstRun()).toBeNull();
+
+      const result = await backfillSearch();
+      expect(result.queued).toBe(total[0]?.n);
+      expect(result.pending).toBe(0);
+      expect(result.failed).toBe(0);
+      const status = await searchSyncStatus();
+      expect(status.pending).toBe(0);
+      expect(status.backfilledAt).not.toBeNull();
+    });
+
+    it('search.status names the stuck pages and the reason', async () => {
+      failWith = new AppCallError('denied', 'app:wiki may not call "knowledge.documents.upsert"', 403);
+      const page = await create({ title: 'Sync status', contentMd: '' });
+      await settleSearchSync();
+      const status = await searchSyncStatus();
+      expect(status.pending).toBeGreaterThanOrEqual(1);
+      expect(status.errors.some((e) => e.pageId === page.id && e.lastError?.includes('denied'))).toBe(
+        true,
+      );
+    });
   });
 });

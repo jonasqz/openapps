@@ -1,9 +1,9 @@
 {
   "name": "@openapps/app-knowledge",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
-  "description": "Standard app knowledge: store documents, split them into sections and find relevant passages with their source (the retrieval half of a RAG).",
+  "description": "Standard app knowledge: the shared search of the platform. Store documents, receive content from other apps, split them into sections and find relevant passages with their source (the retrieval half of a RAG).",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

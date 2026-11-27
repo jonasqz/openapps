@@ -12,12 +12,13 @@
 openapi: 3.1.0
 info:
   title: Wiki
-  version: 0.2.0
+  version: 0.3.1
   description: >-
     Notes and documents with nested pages, Markdown, links between pages with
     backlinks, favorites, full-text search (Postgres English dictionary) and a
     history of every change with restore. Humans and agents use the same
-    operations.
+    operations. Every page is also delivered to the shared search of the
+    platform (Knowledge); archived pages are removed there.
 servers:
   # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
   # `basePath` setzt die Control Plane pro Deployment in OPENAPPS_APP_BASE_PATH.
@@ -428,6 +429,84 @@ paths:
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/search.backfill:
+    post:
+      operationId: backfillSearch
+      summary: Delivers all pages to the shared search again
+      description: >-
+        Queues every page for the shared search of the platform (Knowledge) and
+        delivers as many as fit into about 20 seconds; the rest follows in the
+        background. Archived pages are removed there. Use it after the first
+        rollout or when search.status reports pages that are stuck. Saving
+        pages never depends on this.
+      x-openapps-verb: write
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '200':
+          description: What was queued and delivered
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queued, delivered, failed, pending, stopped, lastError]
+                properties:
+                  queued: { type: integer, minimum: 0 }
+                  delivered: { type: integer, minimum: 0 }
+                  failed: { type: integer, minimum: 0 }
+                  pending: { type: integer, minimum: 0, description: Still waiting after this call }
+                  stopped:
+                    type: boolean
+                    description: The platform or Knowledge did not accept deliveries (unreachable or no grant)
+                  lastError: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/search.status:
+    post:
+      operationId: searchStatus
+      summary: Shows what is waiting to be delivered to the shared search
+      description: >-
+        Shows how many pages are waiting to be delivered to the shared search
+        (Knowledge), how many failed and why, and when all pages were last
+        queued. A permission_denied error means the platform has not granted
+        app:wiki execute on knowledge.documents.upsert and knowledge.documents.remove.
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '200':
+          description: The state of the delivery
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pending, failing, backfilledAt, oldestEnqueuedAt, errors]
+                properties:
+                  pending: { type: integer, minimum: 0 }
+                  failing: { type: integer, minimum: 0 }
+                  backfilledAt: { type: [string, 'null'], format: date-time }
+                  oldestEnqueuedAt: { type: [string, 'null'], format: date-time }
+                  errors:
+                    type: array
+                    maxItems: 10
+                    items:
+                      type: object
+                      required: [pageId, attempts, lastError, lastAttemptAt]
+                      properties:
+                        pageId: { type: string, format: uuid }
+                        attempts: { type: integer, minimum: 1 }
+                        lastError: { type: [string, 'null'] }
+                        lastAttemptAt: { type: [string, 'null'], format: date-time }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   responses:

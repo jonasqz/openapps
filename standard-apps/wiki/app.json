@@ -2,12 +2,12 @@
   "manifestVersion": 1,
   "name": "wiki",
   "displayName": "Wiki",
-  "description": "Notes and documents for humans and agents: nested pages with a page tree, a Markdown editor with preview, links between pages with backlinks, favorites, full-text search and a history of every change with restore.",
+  "description": "Notes and documents for humans and agents: nested pages with a page tree, a Markdown editor with preview, links between pages with backlinks, favorites, full-text search and a history of every change with restore. Every page is also delivered to the shared search (Knowledge).",
   "category": "knowledge",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "wiki-v0.2.0"
+    "tag": "wiki-v0.3.1"
   },
   "requiredTables": [
     {
@@ -25,6 +25,14 @@
     {
       "name": "page_links",
       "description": "Links between pages ([text](page:<id>) in the content), kept in step with the content; the source of backlinks."
+    },
+    {
+      "name": "search_outbox",
+      "description": "Pages waiting to be delivered to the shared search (Knowledge): one row per page, written in the same transaction as the change, with a version, attempts and the last error. Deleted after delivery."
+    },
+    {
+      "name": "search_sync",
+      "description": "One row: when all pages were last queued for the shared search."
     }
   ],
   "offeredTools": [
@@ -99,6 +107,18 @@
       "description": "Adds a page to your own favorites or removes it. Arguments: id; favorite (true adds, false removes). Idempotent. An archived page cannot be added (400) but can be removed. Unknown page: 404. Returns {id, favorite}.",
       "operationId": "setFavorite",
       "verb": "write"
+    },
+    {
+      "name": "search.backfill",
+      "description": "Queues every page for the shared search of the platform (Knowledge) and delivers as many as fit into about 20 seconds; the rest follows in the background. Archived pages are removed there. Use after the first rollout or when search.status shows stuck pages. Returns {queued, delivered, failed, pending, stopped, lastError}.",
+      "verb": "write",
+      "operationId": "backfillSearch"
+    },
+    {
+      "name": "search.status",
+      "description": "Shows how many pages wait to be delivered to the shared search (Knowledge), how many failed and why (errors: pageId, attempts, lastError), and when all pages were last queued. permission_denied in lastError means the grant for app:wiki on knowledge.documents.upsert/remove is missing.",
+      "verb": "read",
+      "operationId": "searchStatus"
     }
   ],
   "requestedGrants": [
@@ -110,6 +130,28 @@
         "app": "wiki"
       },
       "reason": "Who may open the wiki. Which group is decided by the grant in the control plane; a requested right is a request, not an assignment."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "wiki",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "knowledge",
+        "name": "documents.upsert"
+      },
+      "reason": "The wiki delivers every page to the shared search. Without this grant pages wait in the outbox; saving in the wiki is never affected."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "wiki",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "knowledge",
+        "name": "documents.remove"
+      },
+      "reason": "Archived pages are removed from the shared search. Without this grant they stay findable there until it is granted."
     }
   ],
   "env": [
@@ -142,7 +184,26 @@
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
       "description": "Path the app lives under (/wiki). Must be set at build time, otherwise links and images point nowhere."
+    },
+    {
+      "name": "OPENAPPS_PLATFORM_URL",
+      "secret": false,
+      "required": false,
+      "description": "Address of the control plane in the platform network. The SDK calls Knowledge through it (callAppTool). Set by the control plane."
+    },
+    {
+      "name": "OPENAPPS_CALL_SECRET",
+      "secret": true,
+      "required": false,
+      "description": "The app's own secret for calls to other apps through the platform. Set by the control plane per deployment; never logged."
     }
   ],
-  "egress": []
+  "egress": [
+    {
+      "host": "openapps-control-plane",
+      "protocol": "http",
+      "port": 3000,
+      "reason": "Calls to other apps go through the control plane (OPENAPPS_PLATFORM_URL): delivering pages to the shared search."
+    }
+  ]
 }

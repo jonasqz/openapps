@@ -6,7 +6,15 @@
  * Betriebs gar nicht erst startet.
  */
 
-import { getNavigation, getUser, NAV_HEADER, NAV_SIGNATURE_HEADER } from '@openapps/sdk';
+import {
+  getNavigation,
+  getReadableApps,
+  getUser,
+  NAV_HEADER,
+  NAV_SIGNATURE_HEADER,
+  READABLE_APPS_HEADER,
+  READABLE_APPS_SIGNATURE_HEADER,
+} from '@openapps/sdk';
 import { describe, expect, it } from 'vitest';
 import { appAuthSecret, gatewayHost } from '../src/domain';
 import {
@@ -124,6 +132,45 @@ describe('lokal-ansehen', () => {
     expect(forward.headers[NAV_SIGNATURE_HEADER]).toBe('');
     expect(forward.headers['x-auth-nav']).toBeUndefined();
     expect(forward.headers['x-auth-nav-signature']).toBeUndefined();
+  });
+
+  it('signiert lesbare Apps nur fuer eine App, die sie anfordert, und verwirft die des Browsers (ADR 0020)', () => {
+    const now = new Date('2026-11-24T12:00:00Z');
+    const knowledge = {
+      ...app('knowledge'),
+      manifest: { env: [], gatewayContext: ['readableApps'] },
+    } as unknown as AnsichtApp;
+    const incoming = {
+      'X-Auth-Readable-Apps': 'eyJ2IjoxLCJhcHBzIjpbImdlaGVpbSJdfQ',
+      'x-auth-readable-apps-signature': 'gefaelscht',
+    };
+    const forward = buildForward({
+      app: knowledge,
+      path: '/knowledge',
+      incoming,
+      masterSecret: MASTER,
+      now,
+      readableApps: ['wiki', 'knowledge'],
+    });
+    const options = {
+      secret: appAuthSecret({ masterSecret: MASTER, appId: 'knowledge', generation: 1 }),
+      appId: 'knowledge',
+      appHost: gatewayHost('apps.local.test'),
+      now: () => now.getTime(),
+    };
+    expect(getReadableApps(forward.headers, options)).toEqual(['knowledge', 'wiki']);
+    expect(forward.headers['x-auth-readable-apps-signature']).toBeUndefined();
+
+    // Eine App ohne Anforderung bekommt leere Header, auch wenn eine Liste da ist.
+    const crm = buildForward({
+      app: app('crm'),
+      path: '/crm',
+      incoming,
+      masterSecret: MASTER,
+      readableApps: ['wiki'],
+    });
+    expect(crm.headers[READABLE_APPS_HEADER]).toBe('');
+    expect(crm.headers[READABLE_APPS_SIGNATURE_HEADER]).toBe('');
   });
 
   it('gibt nur eigenen Anfragen die Origin der App, fremde bleiben fremd', () => {

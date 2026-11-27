@@ -2,6 +2,7 @@ import { ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { query, transaction, type Tx } from './db';
 import { extractPageLinks } from './markdown';
 import { moveProblem } from './move';
+import { enqueuePages, enqueueSubtree, kickSearchSync } from './search-sync';
 import {
   LIMITS,
   type FavoritesSetArgs,
@@ -23,6 +24,11 @@ import { buildTree, type TreeNode } from './tree';
  * dieselben Funktionen. Rechte werden hier nicht geprueft — das hat das
  * Gateway bzw. der Plattform-MCP vor dem Aufruf getan. `actor` ist nur fuer
  * `created_by`/`updated_by` und den Verlauf da.
+ *
+ * Jede schreibende Funktion reiht die geaenderten Seiten in derselben
+ * Transaktion fuer die gemeinsame Suche ein und stoesst die Lieferung nach dem
+ * Commit an (`search-sync.ts`, ADR 0020). Die Lieferung kann das Speichern
+ * nicht scheitern lassen: Sie laeuft danach und wirft nie.
  */
 
 export interface PageRef {
@@ -340,8 +346,10 @@ export async function createPage(args: PagesCreateArgs, actor: string): Promise<
     if (created === undefined) throw new Error('insert returned no row');
     await writeRevision(tx, created.id, 'create', actor);
     await syncLinks(tx, created.id, args.contentMd);
+    await enqueuePages(tx, [created.id]);
     return created.id;
   });
+  kickSearchSync();
   return getPage({ id });
 }
 
@@ -382,7 +390,11 @@ export async function updatePage(args: PagesUpdateArgs, actor: string): Promise<
     );
     await writeRevision(tx, args.id, 'update', actor);
     if (contentMd !== current.content_md) await syncLinks(tx, args.id, contentMd);
+    // Ein neuer Titel aendert den Pfad jeder Unterseite in der Suche.
+    if (title !== current.title) await enqueueSubtree(tx, args.id);
+    else await enqueuePages(tx, [args.id]);
   });
+  kickSearchSync();
   return getPage({ id: args.id });
 }
 
@@ -430,8 +442,10 @@ export async function archivePage(args: PagesArchiveArgs, actor: string): Promis
     const row = rows[0];
     if (row === undefined) throw new Error('update returned no row');
     await writeRevision(tx, args.id, 'archive', actor);
+    // Archiviert heisst fuer die Suche: entfernen (`search-sync.ts`).
+    await enqueuePages(tx, [args.id]);
     return { id: args.id, archivedAt: row.archived_at.toISOString() };
-  });
+  }).finally(kickSearchSync);
 }
 
 interface RevisionRow extends Record<string, unknown> {
@@ -524,7 +538,10 @@ export async function movePage(args: PagesMoveArgs, actor: string): Promise<Page
       [args.id, args.parentId, actor],
     );
     await writeRevision(tx, args.id, 'move', actor);
+    // Der Pfad der Seite und aller Unterseiten hat sich geaendert.
+    await enqueueSubtree(tx, args.id);
   });
+  kickSearchSync();
   return getPage({ id: args.id });
 }
 
@@ -622,7 +639,10 @@ export async function restorePage(args: PagesRestoreArgs, actor: string): Promis
     );
     await writeRevision(tx, args.id, 'restore', actor);
     await syncLinks(tx, args.id, revision.content_md);
+    if (revision.title !== current.title) await enqueueSubtree(tx, args.id);
+    else await enqueuePages(tx, [args.id]);
   });
+  kickSearchSync();
   return getPage({ id: args.id });
 }
 

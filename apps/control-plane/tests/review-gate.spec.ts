@@ -344,7 +344,8 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
     expect(harness.gatewayConfig.published).toHaveLength(1);
     expect(outcome.gateway.state).toBe('clean');
 
-    // Die Env traegt genau das, womit @openapps/sdk rechnet (ADR 0004).
+    // Die Env traegt genau das, womit @openapps/sdk rechnet (ADR 0004), dazu
+    // die Zugangsdaten fuer Aufrufe an andere Apps (ADR 0020).
     const envKeys = harness.backend.calls.find((c) => c.method === 'setEnv')?.args[1];
     expect(envKeys).toEqual([
       'DATABASE_URL',
@@ -353,6 +354,8 @@ describe('Deploy kommt nicht am Gate vorbei', () => {
       'OPENAPPS_APP_HOST',
       'OPENAPPS_APP_BASE_PATH',
       'OPENAPPS_AUTH_SECRET',
+      'OPENAPPS_CALL_SECRET',
+      'OPENAPPS_PLATFORM_URL',
     ]);
   });
 });

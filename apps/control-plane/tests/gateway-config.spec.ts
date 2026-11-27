@@ -29,6 +29,7 @@ import {
   GATEWAY_RESPONSE_HEADERS,
   IDENTITY_HEADERS,
   NAV_HEADERS,
+  READABLE_APPS_HEADERS,
   type GatewayConfigInput,
   type GatewayDynamicConfig,
 } from '../src/domain';
@@ -109,7 +110,7 @@ describe('Gateway-Konfiguration: was erzeugt wird', () => {
     });
   });
 
-  it('definiert die zwei Middlewares: alle sieben Header loeschen, dann Forward-Auth', () => {
+  it('definiert die zwei Middlewares: alle neun Header loeschen, dann Forward-Auth', () => {
     const config = buildGatewayConfig(input());
     const strip = config.http.middlewares[STRIP_IDENTITY_MIDDLEWARE];
     const auth = config.http.middlewares[FORWARD_AUTH_MIDDLEWARE];
@@ -124,6 +125,8 @@ describe('Gateway-Konfiguration: was erzeugt wird', () => {
           'X-Auth-Signature': '',
           'X-Auth-Nav': '',
           'X-Auth-Nav-Signature': '',
+          'X-Auth-Readable-Apps': '',
+          'X-Auth-Readable-Apps-Signature': '',
         },
       },
     });
@@ -138,15 +141,22 @@ describe('Gateway-Konfiguration: was erzeugt wird', () => {
           'X-Auth-Signature',
           'X-Auth-Nav',
           'X-Auth-Nav-Signature',
+          'X-Auth-Readable-Apps',
+          'X-Auth-Readable-Apps-Signature',
         ],
         trustForwardHeader: true,
         forwardBody: false,
       },
     });
     // Genau die fuenf aus Spec 3.1 — nicht mehr und nicht weniger. Die zwei
-    // Nav-Header (ADR 0017) stehen getrennt, mit eigener Signatur.
+    // Nav-Header (ADR 0017) und die zwei der lesbaren Apps (ADR 0020) stehen
+    // getrennt, je mit eigener Signatur.
     expect(IDENTITY_HEADERS).toHaveLength(5);
-    expect(GATEWAY_RESPONSE_HEADERS).toEqual([...IDENTITY_HEADERS, ...NAV_HEADERS]);
+    expect(GATEWAY_RESPONSE_HEADERS).toEqual([
+      ...IDENTITY_HEADERS,
+      ...NAV_HEADERS,
+      ...READABLE_APPS_HEADERS,
+    ]);
   });
 
   it('haengt die Router an Coolifys Entrypoint-Namen, nicht an unseren alten', () => {

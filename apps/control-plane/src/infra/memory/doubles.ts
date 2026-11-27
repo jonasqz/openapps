@@ -37,6 +37,8 @@ export interface RecordingBackendOptions {
    * steht fuer „wir wissen nichts".
    */
   readonly appGatewayFacts?: Partial<AppGatewayFacts> | 'unreachable';
+  /** Soll das Nachziehen der Env scheitern? */
+  readonly mergeEnvFailsWith?: string;
 }
 
 /** Der gute Fall: Coolify hat der App keinen eigenen Weg nach innen gegeben. */
@@ -58,6 +60,10 @@ export function createRecordingBackend(options?: RecordingBackendOptions): Recor
     },
     async setEnv(ref, env) {
       note('setEnv', ref, Object.keys(env));
+    },
+    async mergeEnv(ref, env) {
+      note('mergeEnv', ref, Object.keys(env));
+      if (options?.mergeEnvFailsWith !== undefined) throw new Error(options.mergeEnvFailsWith);
     },
     async deploy(request): Promise<BackendDeployResult> {
       note('deploy', request);

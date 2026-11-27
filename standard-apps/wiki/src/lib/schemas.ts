@@ -223,3 +223,11 @@ export function splitTags(raw: string): string[] {
     .map((tag) => tag.trim())
     .filter((tag) => tag !== '');
 }
+
+/** search.backfill — keine Argumente (ADR 0020). */
+export const SearchBackfillArgs = z.object({}).strict();
+export type SearchBackfillArgs = z.infer<typeof SearchBackfillArgs>;
+
+/** search.status — keine Argumente. */
+export const SearchStatusArgs = z.object({}).strict();
+export type SearchStatusArgs = z.infer<typeof SearchStatusArgs>;

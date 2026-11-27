@@ -1,15 +1,18 @@
 import { Card, CardBody, EmptyState, ErrorState, PageHeader } from '@openapps/ui';
 import { Highlighted } from '@/components/Highlighted';
 import { SearchBox } from '@/components/SearchBox';
+import { SourceLink } from '@/components/SourceLink';
 import { TextLink } from '@/components/TextLink';
 import type { Passage } from '@/lib/retriever';
 import { QUERY_MAX } from '@/lib/schemas';
 import { currentRetriever } from '@/lib/tools';
+import { currentViewer, sourceAppDisplay } from '@/lib/viewer';
 
 /**
  * Die Suchseite. Dieselbe Suche wie das Tool `search`, nur mit mehr Treffern.
  * Lesen braucht hier keinen `getUser`: Die Seite erreicht nur, wen das
- * Gateway durchlaesst, und sie aendert nichts.
+ * Gateway durchlaesst, und sie aendert nichts. Was aus anderen Apps
+ * erscheint, entscheidet die signierte Liste der lesbaren Apps (ADR 0020).
  */
 export const dynamic = 'force-dynamic';
 
@@ -21,11 +24,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const raw = (await searchParams).q;
   const q = (Array.isArray(raw) ? raw[0] : raw)?.trim().slice(0, QUERY_MAX) ?? '';
 
+  const viewer = await currentViewer();
   let passages: Passage[] = [];
   let failed = false;
   if (q !== '') {
     try {
-      passages = await currentRetriever().search(q, UI_LIMIT);
+      passages = await currentRetriever().search(q, UI_LIMIT, viewer.visibility);
     } catch (error) {
       console.error('[knowledge] search:', error);
       failed = true;
@@ -38,7 +42,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         className="mb-0"
         eyebrow="Knowledge"
         title="Search"
-        description="Searches the stored documents and shows the matching sections with their source."
+        description="Searches the stored documents and the content of other apps, and shows the matching sections with their source."
         actions={
           <TextLink href="/documents/new" className="shrink-0 self-start text-sm">
             Add document
@@ -81,6 +85,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
                         {passage.documentTitle}
                       </TextLink>
                       <span>Section {passage.ord + 1}</span>
+                      {passage.sourceApp === null ? null : (
+                        <SourceLink
+                          {...sourceAppDisplay(viewer, passage.sourceApp, passage.sourcePath)}
+                        />
+                      )}
                       {passage.source === null ? null : (
                         <span className="[overflow-wrap:anywhere]">Source: {passage.source}</span>
                       )}

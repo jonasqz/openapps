@@ -53,6 +53,15 @@ const rows = await db.query('select id, title, created_at from items order by cr
 The client is pinned to your schema. Data from other apps only through a grant
 issued in the control plane — never through a second connection.
 
+## Where pages go to the shared search
+
+Every write in `src/lib/pages.ts` also queues the page in `search_outbox`, in
+the same transaction (`enqueuePages`, `enqueueSubtree` from
+`src/lib/search-sync.ts`), and calls `kickSearchSync()` after the commit. A new
+write function does the same. Delivery goes through the platform with
+`callAppTool` from `@openapps/sdk`; never call Knowledge directly and never
+let a failed delivery fail the save (ADR 0020).
+
 ## Where the UI comes from
 
 ```ts

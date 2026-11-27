@@ -284,7 +284,20 @@ export interface DeploymentBackend {
    * Middlewares (`ApplicationsController.php:1690`).
    */
   createApp(spec: BackendAppSpec): Promise<{ backendRef: string }>;
+  /**
+   * Setzt die Env einer **frisch angelegten** App vollstaendig. Nur direkt
+   * nach `createApp` aufrufen.
+   */
   setEnv(backendRef: string, env: Readonly<Record<string, string>>): Promise<void>;
+  /**
+   * Zieht die Env einer **bestehenden** App nach (ADR 0020): Schluessel, die
+   * fehlen oder einen anderen Wert haben, werden gesetzt; alle anderen
+   * bleiben, wie sie sind — auch solche, die `env` nicht nennt (etwa
+   * `DATABASE_URL`). Nichts wird entfernt. Ein zweiter Aufruf mit derselben
+   * Env aendert nichts und scheitert nicht. Wirft, wenn ein Schluessel nicht
+   * gesetzt werden konnte.
+   */
+  mergeEnv(backendRef: string, env: Readonly<Record<string, string>>): Promise<void>;
   deploy(request: BackendDeployRequest): Promise<BackendDeployResult>;
   status(backendRef: string): Promise<BackendStatus>;
   /** Auf die genannte Version zurueck. Muss unter 2 Minuten liefern (DoD 5). */

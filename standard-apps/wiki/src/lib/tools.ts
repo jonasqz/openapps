@@ -13,6 +13,7 @@ import {
   setFavorite,
   updatePage,
 } from './pages';
+import { backfillSearch, searchSyncStatus } from './search-sync';
 import {
   FavoritesListArgs,
   FavoritesSetArgs,
@@ -26,6 +27,8 @@ import {
   PagesSearchArgs,
   PagesTreeArgs,
   PagesUpdateArgs,
+  SearchBackfillArgs,
+  SearchStatusArgs,
 } from './schemas';
 
 /**
@@ -53,6 +56,14 @@ export const toolHandlers = {
     return listFavorites(ctx.user.id);
   },
   'favorites.set': async (args, ctx) => setFavorite(parseArgs(FavoritesSetArgs, args), ctx.user.id),
+  'search.backfill': async (args) => {
+    parseArgs(SearchBackfillArgs, args);
+    return backfillSearch();
+  },
+  'search.status': async (args) => {
+    parseArgs(SearchStatusArgs, args);
+    return searchSyncStatus();
+  },
 } satisfies Record<string, ToolHandler>;
 
 export type ToolName = keyof typeof toolHandlers;
@@ -71,4 +82,6 @@ export const toolSchemas = {
   'pages.restore': PagesRestoreArgs,
   'favorites.list': FavoritesListArgs,
   'favorites.set': FavoritesSetArgs,
+  'search.backfill': SearchBackfillArgs,
+  'search.status': SearchStatusArgs,
 } as const satisfies Record<ToolName, unknown>;

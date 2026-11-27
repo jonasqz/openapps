@@ -4,7 +4,7 @@
  * `pass` an das Backend uebergeben. Es gibt keinen Pfad, der das Gate umgeht.
  */
 
-import { appAuthSecret } from './app-secret';
+import { appAuthSecret, appCallSecret } from './app-secret';
 import { audited, record } from './audit';
 import { requireAppPermission } from './apps';
 import { appContainerPort } from './app-port';
@@ -162,7 +162,16 @@ export async function requestDeploy(
         throw new ReviewBlockedError(review.summary, deployment.id);
       }
 
-      const backendRef = await ensureBackendApp(ctx, app, existing);
+      // Scheitert das Vorbereiten (Backend anlegen, Env setzen oder
+      // nachziehen), startet nichts: Der Versuch endet als `failed`, die
+      // laufende Fassung bleibt live.
+      let backendRef: string;
+      try {
+        backendRef = await ensureBackendApp(ctx, app, existing);
+      } catch (cause) {
+        await ctx.deployments.patch(deployment.id, { status: 'failed' });
+        throw cause;
+      }
       const result = await ctx.backend.deploy({ backendRef, gitSha: input.gitSha });
 
       // Der zweite Lauf des Konfigurations-Lints, und der einzige, der etwas
@@ -529,6 +538,12 @@ async function ensureBackendApp(
 ): Promise<string> {
   const known = existing.find((d) => d.backendRef !== null)?.backendRef;
   if (known !== undefined && known !== null) {
+    // Die Env einer bestehenden App nachziehen (ADR 0020): Neue Schluessel der
+    // Plattform, etwa OPENAPPS_CALL_SECRET, kaemen sonst nie an. Ohne
+    // DATABASE_URL — die DSN wird nicht neu gezogen, weil das das Passwort
+    // der laufenden App rotierte. Scheitert das, bricht der Deploy hier ab,
+    // bevor die App mit halber Env startet; die laufende Fassung bleibt.
+    await ctx.backend.mergeEnv(known, platformEnvironment(ctx, app));
     // Auch bei einem bekannten Backend wird die Konfiguration neu geschrieben:
     // Der Port kann sich mit dem Manifest geaendert haben, und die Datei soll
     // nach jedem Deploy die Wahrheit sein.
@@ -590,11 +605,19 @@ function appEnvironment(
   app: App,
   dsn: string,
 ): Readonly<Record<string, string>> {
+  return { DATABASE_URL: dsn, ...platformEnvironment(ctx, app) };
+}
+
+/**
+ * Alles aus `appEnvironment` ausser `DATABASE_URL`: die Werte, die die
+ * Plattform bei jedem Deploy gefahrlos neu setzen kann, weil sie abgeleitet
+ * und nicht gezogen werden. Die DSN gehoert nicht dazu (`freshDsn`).
+ */
+function platformEnvironment(ctx: DomainContext, app: App): Readonly<Record<string, string>> {
   if (app.primaryDomain === null) {
     throw new ConflictError(`App "${app.name}" has no domain`);
   }
   return {
-    DATABASE_URL: dsn,
     DATABASE_SCHEMA: app.schemaName,
     OPENAPPS_APP_ID: appIdOf(app),
     OPENAPPS_APP_HOST: gatewayHost(app.primaryDomain),
@@ -609,6 +632,19 @@ function appEnvironment(
       appId: appIdOf(app),
       generation: app.authSecretGeneration,
     }),
+    // Aufrufe an andere Apps (ADR 0020): eigenes Secret, eigene Richtung.
+    // Ohne Freigabe kann die App damit nichts; jede Freigabe erteilt die
+    // Control Plane einzeln.
+    OPENAPPS_CALL_SECRET: appCallSecret({
+      masterSecret: ctx.authMasterSecret,
+      appId: appIdOf(app),
+      generation: app.authSecretGeneration,
+    }),
+    // Die Control Plane im Netz der Plattform, dieselbe Adresse wie ihr
+    // Router. Fehlt sie, gibt es keine Aufrufe von App zu App.
+    ...(ctx.gatewaySettings.controlPlane === undefined
+      ? {}
+      : { OPENAPPS_PLATFORM_URL: ctx.gatewaySettings.controlPlane.url }),
   };
 }
 

@@ -8,11 +8,14 @@
 openapi: 3.1.0
 info:
   title: Knowledge
-  version: 0.1.1
+  version: 0.2.1
   description: >-
-    The retrieval half of a RAG. Store documents, split them into sections and
-    find relevant passages with their source. The calling agent writes the
-    answer itself, from the returned passages and citing their sources.
+    The shared search of the platform and the retrieval half of a RAG. Store
+    documents, let other apps deliver their content (documents.upsert,
+    documents.remove), and find relevant passages with their source. The
+    calling agent writes the answer itself, from the returned passages and
+    citing their sources. Content from another app is only visible to callers
+    that may read that app.
 servers:
   # Every app lives under a path on the shared domain (ADR 0007).
   # `basePath` is the path the control plane sets per deployment in
@@ -29,15 +32,19 @@ paths:
       operationId: search
       summary: Find passages for a question
       description: >-
-        Searches the internal documents for passages on a question or keyword.
-        English full-text search: word forms are matched ("trips" finds
-        "trip"). Quotes search for a phrase, a leading minus excludes a word.
-        If the exact query finds too little, the search adds matches that
-        contain only some of the words. Every passage comes back with chunkId,
-        documentId, documentTitle and source; excerpt marks the matches with «
-        and ». Answer only from these passages and cite the source for every
-        statement (documentTitle, source and documentId/chunkId). An empty list
-        means the documents say nothing about it — do not guess.
+        Searches the internal documents and the content other apps delivered
+        (for example wiki pages) for passages on a question or keyword.
+        German and English full-text search: word forms are matched in both
+        languages ("trips" finds "trip", "erstatten" finds "erstattet").
+        Quotes search for a phrase, a leading minus excludes a word. If the
+        exact query finds too little, the search adds matches that contain only
+        some of the words. Every passage comes back with chunkId, documentId,
+        documentTitle, source, sourceApp and sourceUrl; excerpt marks the
+        matches with « and ». Content from an app the caller may not read is
+        never returned. Answer only from these passages and cite the source for
+        every statement (documentTitle, sourceApp/sourceUrl or source, and
+        documentId/chunkId). An empty list means the documents say nothing
+        about it — do not guess.
       x-openapps-verb: read
       requestBody:
         required: true
@@ -91,9 +98,10 @@ paths:
       operationId: listDocuments
       summary: List documents
       description: >-
-        Lists the stored documents without full text, newest first, at most
-        200. q filters by title or source (substring, case-insensitive). For
-        questions about content use search.
+        Lists the stored documents the caller can see, without full text,
+        newest first, at most 200. Documents from other apps carry sourceApp
+        and sourceUrl. q filters by title or source (substring,
+        case-insensitive). For questions about content use search.
       x-openapps-verb: read
       requestBody:
         required: false
@@ -124,7 +132,8 @@ paths:
       summary: Read a document
       description: >-
         Reads a document with full text. With includeChunks true the sections
-        are included in order. A deleted or unknown document returns 404.
+        are included in order. A deleted or unknown document, or one from an
+        app the caller may not read, returns 404.
       x-openapps-verb: read
       requestBody:
         required: true
@@ -159,7 +168,9 @@ paths:
       summary: Delete a document
       description: >-
         Soft-deletes a document. It and its sections no longer appear in
-        search, documents.list or documents.get.
+        search, documents.list or documents.get. A document delivered by
+        another app (sourceApp set) cannot be deleted here and returns 400; it
+        is removed in that app.
       x-openapps-verb: write
       requestBody:
         required: true
@@ -185,6 +196,73 @@ paths:
         '400': { description: The arguments do not match the tool }
         '401': { description: Not a valid call through the platform }
         '404': { description: The document does not exist or has already been deleted }
+  /tools/documents.upsert:
+    post:
+      operationId: upsertDocument
+      summary: Deliver or replace content from the calling app
+      description: >-
+        For apps only: stores or replaces the calling app's own document with
+        this key, and its sections, in one transaction. The source app is taken
+        from the verified identity of the caller, never from the arguments, so
+        an app can only replace its own content. path is the path inside the
+        calling app for the link back (for example /pages/<id>). updatedAt is
+        the state in the source app; an older state than the stored one is
+        ignored (status "stale"). A human or agent caller gets 400 and should
+        use documents.add.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpsertInput' }
+      responses:
+        '200':
+          description: Stored, replaced or kept because the stored state is newer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, key, status, chunkCount]
+                properties:
+                  id: { type: string, format: uuid }
+                  key: { type: string }
+                  status: { type: string, enum: [created, updated, stale] }
+                  chunkCount: { type: integer, minimum: 0 }
+        '400': { description: The arguments do not match the tool, or the caller is not an app }
+        '401': { description: Not a valid call through the platform }
+  /tools/documents.remove:
+    post:
+      operationId: removeDocument
+      summary: Remove content of the calling app
+      description: >-
+        For apps only: removes the calling app's own document with this key,
+        and its sections, for good. The source app is taken from the verified
+        identity of the caller, so an app can only remove its own content.
+        Idempotent: removed is false if there was nothing to remove.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              additionalProperties: false
+              properties:
+                key: { type: string, minLength: 1, maxLength: 200, pattern: '^[A-Za-z0-9._:/-]+$' }
+      responses:
+        '200':
+          description: Removed, or nothing to remove
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key, removed]
+                properties:
+                  key: { type: string }
+                  removed: { type: boolean }
+        '400': { description: The arguments do not match the tool, or the caller is not an app }
+        '401': { description: Not a valid call through the platform }
 components:
   schemas:
     SearchInput:
@@ -205,12 +283,16 @@ components:
           description: Maximum number of passages
     Passage:
       type: object
-      required: [chunkId, documentId, documentTitle, source, ord, score, excerpt, text]
+      required:
+        [chunkId, documentId, documentTitle, source, sourceApp, sourcePath, sourceUrl, ord, score, excerpt, text]
       properties:
         chunkId: { type: string, format: uuid }
         documentId: { type: string, format: uuid }
         documentTitle: { type: string }
         source: { type: [string, 'null'], description: Origin of the document, e.g. a URL }
+        sourceApp: { type: [string, 'null'], description: App the content comes from; null if stored in Knowledge }
+        sourcePath: { type: [string, 'null'], description: Path inside the source app }
+        sourceUrl: { type: [string, 'null'], format: uri, description: Link back to the source }
         ord: { type: integer, minimum: 0, description: Position of the section in the document }
         score: { type: number, description: Rank, only comparable within one response }
         excerpt: { type: string, description: Excerpt, matches marked with « and » }
@@ -223,13 +305,37 @@ components:
         title: { type: string, minLength: 1, maxLength: 200 }
         content: { type: string, minLength: 1, maxLength: 200000 }
         source: { type: string, maxLength: 500 }
+    UpsertInput:
+      type: object
+      required: [key, title, content]
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '^[A-Za-z0-9._:/-]+$'
+          description: Key of the content in the calling app, e.g. a page id
+        title: { type: string, minLength: 1, maxLength: 200 }
+        content: { type: string, minLength: 1, maxLength: 200000 }
+        source: { type: [string, 'null'], maxLength: 500, description: Readable origin shown with hits, e.g. the page path }
+        path:
+          type: [string, 'null']
+          maxLength: 500
+          description: Path inside the calling app for the link back, starting with /
+        updatedAt: { type: [string, 'null'], format: date-time, description: State in the source app }
     DocumentSummary:
       type: object
-      required: [id, title, source, charCount, chunkCount, createdBy, createdAt]
+      required:
+        [id, title, source, sourceApp, sourceKey, sourcePath, sourceUrl, charCount, chunkCount, createdBy, createdAt]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         source: { type: [string, 'null'] }
+        sourceApp: { type: [string, 'null'] }
+        sourceKey: { type: [string, 'null'] }
+        sourcePath: { type: [string, 'null'] }
+        sourceUrl: { type: [string, 'null'], format: uri }
         charCount: { type: integer }
         chunkCount: { type: integer }
         createdBy: { type: string }

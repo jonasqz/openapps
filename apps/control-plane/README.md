@@ -63,11 +63,32 @@ from the response — ADR 0004 names forgetting this step as the point where the
 model becomes worthless. `missingForwardAuthLabels()` is the basis for the label
 lint from the spec.
 
+Two more pairs with their own signatures follow: `X-Auth-Nav` and
+`X-Auth-Nav-Signature` for the shared sidebar (ADR 0017), and
+`X-Auth-Readable-Apps` and `X-Auth-Readable-Apps-Signature` with the apps the
+caller may read (ADR 0020). The readable apps are only filled for apps whose
+manifest requests `gatewayContext: ["readableApps"]`; for all others both are
+empty. All nine are removed from incoming requests.
+
+## App calls
+
+`POST /api/apps/<app>/tools/<tool>` lets one app call a tool of another app
+(ADR 0020). It accepts no session, only the signature of the calling app
+(`X-OpenApps-Caller`, `-Issued-At`, `-Signature`, made with its
+`OPENAPPS_CALL_SECRET`), and it is not in the list of public paths, so it is
+only reachable inside the platform network. The caller becomes the subject
+`app:<name>`; grant check, audit entry `call_app_tool` and forwarding are the
+same function the platform MCP uses for agents (`domain/app-tools.ts`,
+`infra/app-tool-invoker.ts`). The logic is in `src/lib/app-call.ts`, the tests
+in `tests/app-call.spec.ts`.
+
 ### The secret per app
 
 `OPENAPPS_AUTH_SECRET` differs per app and is **not stored** but derived:
 HKDF-SHA256 from `OPENAPPS_AUTH_MASTER_SECRET`, the app id and
-`apps.auth_secret_generation`. Consequences:
+`apps.auth_secret_generation`. `OPENAPPS_CALL_SECRET` is derived the same way
+with its own context, so the key for outgoing app calls is not the key of the
+gateway signature. Consequences:
 
 - No app secret lies in the database.
 - Rotating one app: increment the generation, redeploy.

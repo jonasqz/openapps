@@ -39,9 +39,17 @@ export class OperatorMcp {
   private constructor(private readonly client: Client) {}
 
   static async connect(): Promise<OperatorMcp> {
+    return OperatorMcp.connectWithToken(operatorToken());
+  }
+
+  /**
+   * Als ein anderer Agent, etwa einer, den der Test mit `create_agent`
+   * angelegt hat. Das Token bleibt im Prozess und wird nie ausgegeben.
+   */
+  static async connectWithToken(token: string): Promise<OperatorMcp> {
     const client = new Client({ name: 'openapps-e2e', version: '0.0.0' });
     const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
-      requestInit: { headers: { authorization: `Bearer ${operatorToken()}` } },
+      requestInit: { headers: { authorization: `Bearer ${token}` } },
     });
     // Das SDK (1.12.1) typisiert optionale Felder ohne `| undefined`; mit
     // `exactOptionalPropertyTypes` passt seine Klasse nicht zu seinem eigenen

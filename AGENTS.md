@@ -40,6 +40,31 @@ the MCP prompt `how_to_build_app` through the platform MCP.
 7. **Nothing bypasses the gateway.** No outbound network access except to the
    targets declared in the manifest.
 
+## Other apps and the shared search
+
+- **Call another app only through the platform:** `callAppTool(app, tool,
+args)` from `@openapps/sdk`. The call is signed with your app's own
+  `OPENAPPS_CALL_SECRET`, arrives as `app:<your-name>` and only goes through
+  with a grant `execute` on `<app>.<tool>`. Request that grant in
+  `requestedGrants` (`subjectKind: app`, `subjectId: <your-name>`), declare
+  `OPENAPPS_PLATFORM_URL` and `OPENAPPS_CALL_SECRET` in `env` and the control
+  plane in `egress`. Never call another app's container directly.
+- **Make content findable in the shared search (Knowledge):** deliver it with
+  `knowledge.documents.upsert` (`key` = your id, `title`, `content`, `path` =
+  link back inside your app, `updatedAt`) and remove it with
+  `knowledge.documents.remove`. Knowledge takes your app name from your
+  verified identity, so you can only replace your own content, and it only
+  shows it to callers who may read your app.
+- **Never let a save fail because of another app.** Write what you want to
+  deliver into an outbox table in the same transaction, deliver after the
+  commit, retry later, and offer a backfill tool. The wiki shows how
+  (`standard-apps/wiki/src/lib/search-sync.ts`).
+- **Showing content of other apps:** request
+  `gatewayContext: ["readableApps"]` in `app.json` and filter with
+  `getReadableApps` (or `ctx.readableApps` in a tool). `null` means: show
+  nothing that belongs to another app. This is the only way; do not check
+  permissions yourself.
+
 ## The path from empty to live
 
 1. `list_apps`: does the app already exist?

@@ -2,14 +2,20 @@ import { notFound } from 'next/navigation';
 import { Card, CardBody, CardHeader, DetailPattern, EmptyState, ErrorState } from '@openapps/ui';
 import { ToolNotFoundError } from '@openapps/sdk';
 import { DeleteDocumentButton } from '@/components/DeleteDocumentButton';
+import { SourceLink } from '@/components/SourceLink';
 import { TextLink } from '@/components/TextLink';
 import { getDocument, type Chunk, type DocumentDetail } from '@/lib/documents';
 import { GetArgs } from '@/lib/schemas';
+import { currentViewer, sourceAppDisplay } from '@/lib/viewer';
 
 /**
  * Dokument-Detail mit Abschnitten, dasselbe wie das Tool `documents.get` mit
  * `includeChunks: true`. Die Abschnitte tragen Anker `#section-<n>`, auf
  * die die Trefferliste der Suche zeigt.
+ *
+ * Ein Dokument aus einer App, die der Betrachter nicht lesen darf, ist hier
+ * nicht vorhanden (404), wie bei `documents.get` (ADR 0020). Dokumente einer
+ * Quell-App werden dort gepflegt, deshalb gibt es fuer sie kein Loeschen.
  */
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +25,12 @@ export default async function DocumentPage({ params }: { params: Params }) {
   const parsed = GetArgs.safeParse({ id: (await params).id, includeChunks: true });
   if (!parsed.success) notFound();
 
+  const viewer = await currentViewer();
   let document: DocumentDetail | undefined;
   let chunks: Chunk[] = [];
   let failed = false;
   try {
-    const result = await getDocument(parsed.data);
+    const result = await getDocument(parsed.data, viewer.visibility);
     document = result.document;
     chunks = result.chunks ?? [];
   } catch (error) {
@@ -46,11 +53,28 @@ export default async function DocumentPage({ params }: { params: Params }) {
         <DetailPattern
           title={document.title}
           eyebrow="Document"
-          actions={<DeleteDocumentButton id={document.id} title={document.title} />}
+          actions={
+            document.sourceApp === null ? (
+              <DeleteDocumentButton id={document.id} title={document.title} />
+            ) : (
+              <SourceLink
+                {...sourceAppDisplay(viewer, document.sourceApp, document.sourcePath)}
+                className="text-sm"
+              />
+            )
+          }
           sections={[
             {
               title: 'Details',
               fields: [
+                ...(document.sourceApp === null
+                  ? []
+                  : [
+                      {
+                        label: 'From',
+                        value: sourceAppDisplay(viewer, document.sourceApp, null).title,
+                      },
+                    ]),
                 { label: 'Source', value: document.source ?? '—', wide: true },
                 { label: 'Characters', value: document.charCount.toLocaleString('en-GB') },
                 { label: 'Sections', value: document.chunkCount },

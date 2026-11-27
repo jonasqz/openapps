@@ -122,6 +122,17 @@ export const egressTargetSchema = z
   });
 export type EgressTarget = z.infer<typeof egressTargetSchema>;
 
+/**
+ * Signierter Kontext, den die App vom Gateway zusaetzlich zur Identitaet
+ * anfordert (ADR 0020). Heute nur `readableApps`: die Apps, die der Aufrufer
+ * lesen darf, fuer eine App, die Inhalte anderer Apps zeigt (Knowledge). Ohne
+ * Anforderung setzt das Gateway die Header leer — die Kosten traegt nur, wer
+ * fragt. Eine Anforderung ist keine Freigabe: Die Liste nennt nur, was der
+ * Aufrufer ohnehin lesen darf.
+ */
+export const gatewayContextSchema = z.enum(['readableApps']);
+export type GatewayContext = z.infer<typeof gatewayContextSchema>;
+
 /** Die Quelle: Git-URL und Tag. Ein Branch ist keine Quelle — Deploys sind an einen Tag gebunden. */
 export const manifestSourceSchema = z
   .object({
@@ -149,6 +160,8 @@ export const appManifestSchema = z
     requestedGrants: z.array(requestedGrantSchema).default([]),
     env: z.array(envVarSchema).default([]),
     egress: z.array(egressTargetSchema).default([]),
+    /** Optional, damit aeltere Manifeste unveraendert gueltig bleiben. */
+    gatewayContext: z.array(gatewayContextSchema).max(8).optional(),
     source: manifestSourceSchema,
   })
   .strict()

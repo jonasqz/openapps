@@ -150,6 +150,87 @@ const shell = await loadShell(manifest); // { appName, appTitle, platform, user,
 Without Next.js, call `readShell(headers, manifest)` from `@openapps/sdk`
 with the request headers — same result, no framework.
 
+## Who is calling
+
+The platform tells an app who calls in the signed identity. `callerOf(user)`
+reads it, and tool handlers get it as `ctx.caller`:
+
+| Caller | `user.id`      | `user.email`              | `callerOf(user)`               |
+| ------ | -------------- | ------------------------- | ------------------------------ |
+| Human  | id from SSO    | the person's email        | `{ kind: 'human', id }`        |
+| Agent  | `agent:<name>` | `<name>@agents.invalid`   | `{ kind: 'agent', agent }`     |
+| App    | `app:<name>`   | `<name>@apps.invalid`     | `{ kind: 'app', app }`         |
+
+Both values have to match; `.invalid` can never be a sign-in domain. Use it to
+record who did something, or to accept a tool only from apps (Knowledge does
+that for `documents.upsert`). It is not a permission check: whether the
+caller may call the tool at all was decided by the platform.
+
+## Calling another app
+
+An app calls a tool of another app through the platform, never directly
+(ADR 0020):
+
+```ts
+import { AppCallError, callAppTool } from '@openapps/sdk';
+
+try {
+  await callAppTool('knowledge', 'documents.upsert', { key, title, content, path });
+} catch (error) {
+  if (error instanceof AppCallError && error.retryable) {
+    // keep it and try again later
+  }
+}
+```
+
+- The call goes to `POST <OPENAPPS_PLATFORM_URL>/api/apps/<app>/tools/<tool>`.
+  The control plane checks the signature of this app, the grant `execute` on
+  `<app>.<tool>` for `app:<name>` (default-deny), writes the audit log and
+  forwards the call. The target app sees the caller as `app:<name>`.
+- The credentials are the app's own: `OPENAPPS_CALL_SECRET`, set by the
+  control plane. The SDK signs caller, target app, tool, time and a SHA-256 of
+  the body (`openapps-app-call-v1`); the signature is valid for 60 seconds.
+  No user cookie, no operator token.
+- Timeout 10 s by default (`timeoutMs`). Errors are `AppCallError` with a
+  `code`: `not_configured`, `invalid_target`, `unreachable`, `timeout`,
+  `unauthorized`, `denied` (no grant), `invalid` (400 from the target),
+  `not_found`, `target_error`. `retryable` is false only for `invalid` and
+  `invalid_target`.
+- Neither the secret nor the platform address with credentials ever appears in
+  a message or a log line.
+- Request the grant in `app.json` (`requestedGrants` with `subjectKind: app`
+  and your own name as `subjectId`) and declare both env variables. The grant
+  itself is issued centrally with `grant`.
+
+Never let a user action fail because another app is unreachable: write what
+you want to deliver into an outbox in the same transaction and deliver after
+the commit (the wiki shows how, `standard-apps/wiki/src/lib/search-sync.ts`).
+
+## Readable apps
+
+An app that shows content of other apps (Knowledge) needs to know which apps
+the caller may read. It asks for it in `app.json` with
+`gatewayContext: ["readableApps"]`; the gateway then sends two more headers,
+with their own signature (ADR 0020):
+
+| Header                           | Content                                          |
+| -------------------------------- | ------------------------------------------------ |
+| `X-Auth-Readable-Apps`           | base64url of `{"v":1,"apps":["wiki", …]}`        |
+| `X-Auth-Readable-Apps-Signature` | HMAC-SHA256 over version, app id, host, user id, issued-at and the value |
+
+```ts
+import { getReadableApps } from '@openapps/sdk';
+
+const readable = getReadableApps(request.headers); // string[] or null
+```
+
+Tool handlers get the same as `ctx.readableApps`. It never throws. `null`
+means: the header is missing, empty, forged, issued for another person or app,
+or the identity has expired. Treat `null` as "show nothing that belongs to
+another app" and still answer normally. The list is a filter, not the
+navigation: it is not shortened for display and it counts apps without a
+domain. For apps that do not request it, both headers are empty.
+
 ## Postgres client
 
 ```ts
@@ -181,6 +262,7 @@ reads another app's data.
 | `SdkConfigurationError` | 500 | The app is misconfigured (missing or weak env). |
 | `ToolInputError` | 400 | The arguments of a tool call are invalid. |
 | `ToolNotFoundError` | 404 | The tool call refers to something that does not exist. |
+| `AppCallError` | varies | A call to another app failed; see `code`. |
 
 All inherit from `SdkError` and carry `status`, which an app can return
 unchanged as the HTTP status.
@@ -193,10 +275,14 @@ unchanged as the HTTP status.
 | `OPENAPPS_APP_ID` | no | App id in the signature material. |
 | `OPENAPPS_APP_HOST` | no | The app's own domain in the signature material. |
 | `OPENAPPS_APP_BASE_PATH` | no | The path the app lives under (`/<app>`); empty locally. Read by `loadShell`. |
+| `OPENAPPS_PLATFORM_URL` | no | Address of the control plane in the platform network. Read by `callAppTool`. |
+| `OPENAPPS_CALL_SECRET` | yes | The app's own key for calls to other apps. Read by `callAppTool`. |
 | `DATABASE_URL` | yes | Connection with the app's own DB role. |
 | `DATABASE_SCHEMA` | no | The app's own schema. |
 
-Every app declares these six in its `app.json` (AGENTS.md rule 5).
+Every app declares the first six in its `app.json` (AGENTS.md rule 5). An app
+that calls other apps also declares `OPENAPPS_PLATFORM_URL` and
+`OPENAPPS_CALL_SECRET`; the control plane sets them for every app.
 
 ## Scripts
 

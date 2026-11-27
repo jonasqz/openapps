@@ -95,6 +95,36 @@ On top of that come the app tools, named `<app-name>.<tool>`. Only the granted
 ones are registered, and only those may be called — the call checks a second
 time, because hiding is not enforcement.
 
+### Apps as subjects
+
+`grant` also takes `subjectKind: app`. That is how an app gets the right to
+call a tool of another app (ADR 0020), for example the wiki delivering pages
+to the shared search:
+
+```json
+{
+  "subjectKind": "app",
+  "subjectId": "wiki",
+  "verb": "execute",
+  "resourceKind": "tool",
+  "resourceId": "knowledge.documents.upsert"
+}
+```
+
+Apps do not use the MCP. They call
+`POST /api/apps/<app>/tools/<tool>` on the control plane with their own
+signature (`callAppTool` from `@openapps/sdk`). Grant check, audit entry
+(`call_app_tool`) and forwarding are the same function as for agents
+(`callAppTool` in the control plane domain), so both paths cannot drift.
+
+### Readable apps
+
+If the target app asks for `gatewayContext: ["readableApps"]` in its manifest
+(Knowledge does), the forwarded call carries the signed list of apps the
+agent may read (`X-Auth-Readable-Apps`). An agent with only `execute` on
+`knowledge.search` therefore sees no wiki hits; it also needs `read` on
+`app:wiki`.
+
 ## Prompts
 
 - `how_to_build_app` returns the content of `AGENTS.md`, read fresh on every
@@ -107,9 +137,9 @@ time, because hiding is not enforcement.
 
 ```
 src/tools.ts       the platform tools as data: name, schema, handler
-src/app-tools.ts   visibility and invocation of app tools
+src/app-tools.ts   visibility and invocation of app tools (from the control plane domain)
 src/identity.ts    one OAuth client per agent
-src/invoker.ts     forwarding to the app, through the gateway
+src/invoker.ts     forwarding to the app (from the control plane, shared with app calls)
 src/server.ts      thin wiring to the MCP SDK
 src/prompts.ts     the prompts
 src/index.ts       start over stdio

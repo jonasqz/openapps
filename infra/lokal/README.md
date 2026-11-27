@@ -39,6 +39,11 @@ The same as on the server:
   shown.
 - A second run creates nothing twice. A changed version of an app is deployed
   again.
+- It grants what an app requests in `app.json` **for itself as an app**
+  (`requestedGrants` with `subjectKind: app` and its own name), for example
+  the wiki's right to deliver pages to Knowledge (ADR 0020). Requests for
+  groups, people or agents stay requests. On a server nobody grants them
+  automatically; use `grant`.
 
 ## Connect an agent
 

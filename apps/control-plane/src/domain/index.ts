@@ -9,7 +9,7 @@ export * from './ports';
 export * from './naming';
 export { type DomainContext, type GatewaySettings, systemClock, uuidIds } from './context';
 export { can, requirePermission, grantMatches, subjectsOf } from './can';
-export { appAuthSecret, type AppSecretInput } from './app-secret';
+export { appAuthSecret, appCallSecret, type AppSecretInput } from './app-secret';
 export { appIdOf, gatewayHost } from './gateway-identity';
 export { appContainerPort, DEFAULT_APP_PORT } from './app-port';
 export {
@@ -45,6 +45,15 @@ export {
   NAV_SIGNATURE_HEADER,
   navHeaders,
   navHeadersForApp,
+  EMPTY_READABLE_APPS_HEADERS,
+  fitReadableApps,
+  READABLE_APPS_HEADER,
+  READABLE_APPS_HEADER_BUDGET,
+  READABLE_APPS_HEADERS,
+  READABLE_APPS_SIGNATURE_HEADER,
+  readableAppsHeaders,
+  readableAppsHeadersForApp,
+  type ReadableAppsHeaderInput,
   GROUPS_HEADER,
   ISSUED_AT_HEADER,
   SIGNATURE_HEADER,
@@ -61,6 +70,25 @@ export {
   platformNavFor,
   visibleAppsFor,
 } from './navigation';
+export { readableAppsFor, readableAppsForTarget, wantsReadableApps } from './readable-apps';
+export {
+  AGENT_CALLER_EMAIL_DOMAIN,
+  APP_CALLER_EMAIL_DOMAIN,
+  AppToolError,
+  callAppTool,
+  callerIdentityFor,
+  listAppTools,
+  type AppToolInvoker,
+  type AppToolRef,
+} from './app-tools';
+export {
+  CALLER_HEADER,
+  CALLER_ISSUED_AT_HEADER,
+  CALLER_SIGNATURE_HEADER,
+  UnauthenticatedCallerError,
+  verifyAppCaller,
+  type AppCallerInput,
+} from './app-callers';
 export {
   describeActor,
   type ActorDescription,

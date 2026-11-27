@@ -14,8 +14,9 @@
  *    eine App, die nicht auf diesem Host liegt → 403.
  * 2. Keine Session → 302 auf den Login.
  * 3. Keine Freigabe auf die App → 403.
- * 4. Sonst 200 mit den fuenf Identitaets-Headern aus Spec 3.1 und den zwei
- *    Nav-Headern der gemeinsamen Leiste (ADR 0017), notfalls leer.
+ * 4. Sonst 200 mit den fuenf Identitaets-Headern aus Spec 3.1, den zwei
+ *    Nav-Headern der gemeinsamen Leiste (ADR 0017) und den zwei Headern der
+ *    lesbaren Apps (ADR 0020), notfalls leer.
  *
  * Jede Antwort ausser 2xx heisst „nein". Auch ein Fehler in dieser Route heisst
  * „nein": es gibt keinen Pfad, auf dem ein Ausfall der Control Plane Apps
@@ -29,8 +30,11 @@ import {
   identityHeadersForApp,
   navHeadersForApp,
   platformNavFor,
+  readableAppsForTarget,
+  readableAppsHeadersForApp,
   recordAudit,
   EMPTY_NAV_HEADERS,
+  EMPTY_READABLE_APPS_HEADERS,
   type Actor,
 } from '../../../../domain';
 import { currentUser } from '../../../../lib/actor';
@@ -160,7 +164,8 @@ async function handle(request: Request): Promise<Response> {
       masterSecret: env.authMasterSecret,
     });
     const nav = await navigationHeaders(app, actor, identity, env);
-    return new Response(null, { status: 200, headers: { ...headers, ...nav } });
+    const readable = await readableHeaders(app, actor, identity, env);
+    return new Response(null, { status: 200, headers: { ...headers, ...nav, ...readable } });
   } catch {
     return deny('forward auth cannot decide');
   }
@@ -186,6 +191,27 @@ async function navigationHeaders(
   } catch (error) {
     console.error('[forward-auth] navigation not computed', error);
     return EMPTY_NAV_HEADERS;
+  }
+}
+
+/**
+ * Die zwei Header der lesbaren Apps (ADR 0020), nur fuer Apps, deren Manifest
+ * sie anfordert. Scheitert die Berechnung, gehen beide leer raus und die
+ * Entscheidung bleibt ein Ja: Die App zeigt dann nichts aus anderen Apps,
+ * also weniger, nie mehr.
+ */
+async function readableHeaders(
+  app: App,
+  actor: Actor,
+  identity: { readonly userId: string; readonly issuedAt: number },
+  env: { readonly authMasterSecret: string },
+): Promise<Readonly<Record<string, string>>> {
+  try {
+    const apps = await readableAppsForTarget(domainContext(), actor, app);
+    return readableAppsHeadersForApp({ app, identity, masterSecret: env.authMasterSecret, apps });
+  } catch (error) {
+    console.error('[forward-auth] readable apps not computed', error);
+    return EMPTY_READABLE_APPS_HEADERS;
   }
 }
 

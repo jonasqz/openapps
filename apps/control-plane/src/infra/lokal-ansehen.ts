@@ -32,6 +32,8 @@ import {
   GATEWAY_RESPONSE_HEADERS,
   identityHeadersForApp,
   navHeadersForApp,
+  readableAppsHeadersForApp,
+  wantsReadableApps,
   type App,
 } from '../domain';
 
@@ -42,8 +44,9 @@ export const ANSICHT_IDENTITY = {
 
 /** Header, die nie vom Browser an die App durchgehen. */
 const DROP_REQUEST_HEADERS = new Set([
-  // Identitaet und Navigation (ADR 0017): Sonst setzt der Browser eigene
-  // Links in die Leiste.
+  // Identitaet, Navigation (ADR 0017) und lesbare Apps (ADR 0020): Sonst
+  // setzt der Browser eigene Links in die Leiste oder eine eigene Liste
+  // lesbarer Apps in die Suche.
   ...GATEWAY_RESPONSE_HEADERS.map((h) => h.toLowerCase()),
   'host',
   'connection',
@@ -129,6 +132,11 @@ export function buildForward(params: {
   readonly now?: Date;
   /** Navigation der Leiste; ohne sie gehen beide Nav-Header leer raus. */
   readonly nav?: PlatformNav | null;
+  /**
+   * Lesbare Apps (ADR 0020), nur wenn das Manifest der App sie anfordert.
+   * Der Betrachter sieht wie in der Leiste alle Apps (siehe `ansichtNav`).
+   */
+  readonly readableApps?: readonly string[] | null;
 }): Forward {
   const { app } = params;
   if (app.primaryDomain === null) {
@@ -157,8 +165,15 @@ export function buildForward(params: {
     masterSecret: params.masterSecret,
     nav: params.nav ?? null,
   });
+  // Wie die Forward-Auth: immer gesetzt, leer ohne Anforderung im Manifest.
+  const readable = readableAppsHeadersForApp({
+    app,
+    identity,
+    masterSecret: params.masterSecret,
+    apps: wantsReadableApps(app) ? (params.readableApps ?? null) : null,
+  });
   const host = gatewayHost(app.primaryDomain);
-  Object.assign(headers, signed, nav, {
+  Object.assign(headers, signed, nav, readable, {
     'x-forwarded-host': host,
     'x-forwarded-proto': 'https',
   });
@@ -233,9 +248,14 @@ export function createAnsichtServer(options: {
     // Navigation pro Aufruf, wie die Forward-Auth. Scheitert sie, bleibt die
     // Leiste leer und die Seite kommt trotzdem.
     let nav: PlatformNav | null = null;
+    let readableApps: readonly string[] | null = null;
     try {
+      const all = await options.listApps();
+      // Der Betrachter hat keine echten Freigaben (Dateikopf); er sieht wie
+      // in der Leiste alle Apps, auch in der Suche.
+      readableApps = all.map((a) => a.name);
       nav = ansichtNav({
-        apps: await options.listApps(),
+        apps: all,
         ...(options.origin === undefined ? {} : { origin: options.origin }),
         ...(options.platformUrl === undefined ? {} : { platformUrl: options.platformUrl }),
       });
@@ -248,6 +268,7 @@ export function createAnsichtServer(options: {
       incoming: req.headers,
       masterSecret: options.masterSecret,
       nav,
+      readableApps,
     });
     const body = await readBody(req);
     const upstream = await fetch(forward.url, {

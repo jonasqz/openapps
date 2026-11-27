@@ -55,12 +55,14 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
       'page_links',
       'page_revisions',
       'pages',
+      'search_outbox',
+      'search_sync',
     ]);
-    expect(manifest.version).toBe('0.2.0');
-    expect(manifest.source.tag).toBe('wiki-v0.2.0');
+    expect(manifest.version).toBe('0.3.1');
+    expect(manifest.source.tag).toBe('wiki-v0.3.1');
   });
 
-  it('offers exactly the twelve tools of the wiki', () => {
+  it('offers exactly the fourteen tools of the wiki', () => {
     expect(manifest.offeredTools.map((tool) => tool.name).sort()).toEqual(
       [
         'favorites.list',
@@ -75,6 +77,8 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
         'pages.search',
         'pages.tree',
         'pages.update',
+        'search.backfill',
+        'search.status',
       ].sort(),
     );
   });
@@ -105,13 +109,31 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
       'pages.search': 'read',
       'pages.history': 'read',
       'favorites.list': 'read',
+      'search.status': 'read',
       'pages.create': 'write',
       'pages.update': 'write',
       'pages.move': 'write',
       'pages.archive': 'write',
       'pages.restore': 'write',
       'favorites.set': 'write',
+      'search.backfill': 'write',
     });
+  });
+
+  it('asks for exactly the two grants it needs on Knowledge, for itself as an app', () => {
+    const forApp = manifest.requestedGrants.filter((grant) => grant.subjectKind === 'app');
+    expect(forApp).toEqual([
+      expect.objectContaining({
+        subjectId: 'wiki',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'knowledge', name: 'documents.upsert' },
+      }),
+      expect.objectContaining({
+        subjectId: 'wiki',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'knowledge', name: 'documents.remove' },
+      }),
+    ]);
   });
 
   it('the server path in openapi.yaml is the app path', () => {

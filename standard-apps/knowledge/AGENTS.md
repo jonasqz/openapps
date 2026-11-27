@@ -6,7 +6,8 @@
 ## Where things live
 
 - `app.json` — manifest: tables `documents`, `chunks`; tools `search`,
-  `documents.add`, `documents.list`, `documents.get`, `documents.delete`.
+  `documents.add`, `documents.list`, `documents.get`, `documents.delete`,
+  `documents.upsert`, `documents.remove`; `gatewayContext: ["readableApps"]`.
 - `openapi.yaml` — every operation is `POST /tools/<toolname>` with an
   `operationId` and `x-openapps-verb`. A test checks that manifest, spec and
   handlers match.
@@ -17,7 +18,9 @@
 - `src/lib/tools.ts` — tool name → handler. A new tool goes here, into
   `app.json` and into `openapi.yaml`, otherwise the test fails.
 - `src/lib/retriever.ts` — the `Retriever` interface and the full-text
-  implementation.
+  implementation (English and German).
+- `src/lib/visibility.ts` — applies the signed list of readable apps. Every
+  reading function takes it as a required argument.
 - `src/lib/chunk.ts` — the splitting, a pure function.
 - `src/app/actions.ts` — the UI's server actions. Each one calls `getUser`
   first and then the same domain logic as the matching tool.
@@ -25,4 +28,6 @@
 ## What does not belong here
 
 No login, no permission checks, no reading of the `X-Auth-*` headers except
-through `getUser`. Who may do what is decided by the control plane.
+through `getUser` and `getReadableApps`. Who may do what is decided by the
+control plane. The source app of `documents.upsert` and `documents.remove`
+comes from `ctx.caller`, never from the arguments.

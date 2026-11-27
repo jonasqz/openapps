@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { QueryFn } from './db';
 import { createFulltextRetriever, mergePassages, orQueryText, type Passage } from './retriever';
+import { OWN_DOCUMENTS_ONLY } from './visibility';
 
 const passage = (chunkId: string): Passage => ({
   chunkId,
   documentId: 'd',
   documentTitle: 'T',
   source: null,
+  sourceApp: null,
+  sourcePath: null,
+  sourceUrl: null,
   ord: 0,
   score: 0.1,
   excerpt: 'e',
@@ -18,6 +22,8 @@ const row = (chunkId: string) => ({
   document_id: 'd',
   title: 'T',
   source: null,
+  source_app: null,
+  source_path: null,
   ord: 0,
   score: 0.123456,
   excerpt: '«e»',
@@ -77,7 +83,7 @@ describe('mergePassages', () => {
 describe('createFulltextRetriever', () => {
   it('fragt nur streng, wenn die strenge Anfrage genug liefert', async () => {
     const { fn, calls } = fakeQuery([[row('a'), row('b')]]);
-    const passages = await createFulltextRetriever(fn).search('Reise Hotel', 2);
+    const passages = await createFulltextRetriever(fn).search('Reise Hotel', 2, OWN_DOCUMENTS_ONLY);
     expect(passages.map((p) => p.chunkId)).toEqual(['a', 'b']);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.sql).toContain("websearch_to_tsquery('english', $1)");
@@ -86,25 +92,49 @@ describe('createFulltextRetriever', () => {
 
   it('ergänzt mit der ODER-Anfrage, schließt schon gefundene Abschnitte aus und entfernt Dubletten', async () => {
     const { fn, calls } = fakeQuery([[row('a')], [row('a'), row('b'), row('c')]]);
-    const passages = await createFulltextRetriever(fn).search('Reise Hotel', 3);
+    const passages = await createFulltextRetriever(fn).search('Reise Hotel', 3, OWN_DOCUMENTS_ONLY);
     expect(passages.map((p) => p.chunkId)).toEqual(['a', 'b', 'c']);
     expect(calls).toHaveLength(2);
     expect(calls[1]?.sql).toContain("to_tsquery('english', $1)");
     expect(calls[1]?.params[0]).toBe('reise:* | hotel:*');
     expect(calls[1]?.params[1]).toBe(2);
     expect(calls[1]?.params[3]).toEqual(['a']);
+    expect(calls[1]?.sql).toContain("to_tsquery('german', $1)");
+  });
+
+  it('fragt englisch und deutsch und nimmt den besseren Rang', async () => {
+    const { fn, calls } = fakeQuery([[], []]);
+    await createFulltextRetriever(fn).search('Reisekosten', 5, OWN_DOCUMENTS_ONLY);
+    expect(calls[0]?.sql).toContain("websearch_to_tsquery('german', $1)");
+    expect(calls[0]?.sql).toContain('c.tsv_de @@ q.de');
+    expect(calls[0]?.sql).toContain('greatest(');
+  });
+
+  it('filtert nach sichtbaren Quell-Apps in beiden Stufen, vor dem limit', async () => {
+    const { fn, calls } = fakeQuery([[], []]);
+    await createFulltextRetriever(fn).search('Reise', 5, { readableApps: ['wiki'] });
+    for (const call of calls) {
+      expect(call.sql).toContain('(d.source_app is null or d.source_app = any($5::text[]))');
+      expect(call.params[4]).toEqual(['wiki']);
+    }
+  });
+
+  it('ohne gueltige Liste nur Dokumente ohne Quell-App: leeres Array, nie null', async () => {
+    const { fn, calls } = fakeQuery([[], []]);
+    await createFulltextRetriever(fn).search('Reise', 5, { readableApps: null });
+    for (const call of calls) expect(call.params[4]).toEqual([]);
   });
 
   it('übergibt die Anfrage nur als Parameter, nie im SQL-Text', async () => {
     const evil = "x'); drop table documents; --";
     const { fn, calls } = fakeQuery([[], []]);
-    await createFulltextRetriever(fn).search(evil, 5);
+    await createFulltextRetriever(fn).search(evil, 5, OWN_DOCUMENTS_ONLY);
     for (const call of calls) expect(call.sql).not.toContain('drop table');
   });
 
   it('sucht nur in nicht gelöschten Dokumenten und markiert mit «»', async () => {
     const { fn, calls } = fakeQuery([[], []]);
-    await createFulltextRetriever(fn).search('Reise', 5);
+    await createFulltextRetriever(fn).search('Reise', 5, OWN_DOCUMENTS_ONLY);
     for (const call of calls) {
       expect(call.sql).toContain('d.deleted_at is null');
       expect(call.sql).toContain('ts_rank_cd');
@@ -116,12 +146,15 @@ describe('createFulltextRetriever', () => {
 
   it('liefert die Felder der Passage und rundet den Rang', async () => {
     const { fn } = fakeQuery([[row('a')]]);
-    const [first] = await createFulltextRetriever(fn).search('Reise', 1);
+    const [first] = await createFulltextRetriever(fn).search('Reise', 1, OWN_DOCUMENTS_ONLY);
     expect(first).toEqual({
       chunkId: 'a',
       documentId: 'd',
       documentTitle: 'T',
       source: null,
+      sourceApp: null,
+      sourcePath: null,
+      sourceUrl: null,
       ord: 0,
       score: 0.1235,
       excerpt: '«e»',

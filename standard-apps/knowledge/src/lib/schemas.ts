@@ -62,3 +62,67 @@ export type GetArgs = z.infer<typeof GetArgs>;
 
 export const DeleteArgs = z.object({ id: documentId }).strict();
 export type DeleteArgs = z.infer<typeof DeleteArgs>;
+
+/* -------------------------------------------------------------------------- */
+/* Inhalte anderer Apps (ADR 0020)                                             */
+/* -------------------------------------------------------------------------- */
+
+export const SOURCE_KEY_MAX = 200;
+export const SOURCE_PATH_MAX = 500;
+
+/**
+ * Schluessel in der Quell-App, etwa die Seiten-Id. Nur Zeichen, die in einer
+ * Id vorkommen; dieselbe Regel steht als Check in der Migration 0002.
+ */
+const sourceKey = z
+  .string()
+  .trim()
+  .min(1, 'key must not be empty')
+  .max(SOURCE_KEY_MAX)
+  .regex(/^[A-Za-z0-9._:/-]+$/, 'key may only contain letters, digits and . _ : / -');
+
+/**
+ * Pfad in der Quell-App fuer den Link zurueck: beginnt mit `/`, bleibt in der
+ * Quell-App. Kein Schema, kein `//` am Anfang (das waere eine fremde Domain),
+ * keine `.`- oder `..`-Segmente, die aus der Quell-App herausfuehren.
+ */
+export const SourcePath = z
+  .string()
+  .trim()
+  .max(SOURCE_PATH_MAX)
+  .regex(/^\/[A-Za-z0-9._~%/?=&#:@+,-]*$/, 'path must start with / and stay inside the app')
+  .refine((value) => !value.startsWith('//'), 'path must not start with //')
+  .refine(
+    (value) => !/(^|\/)\.\.?(\/|$|\?|#)/.test(value),
+    'path must not contain . or .. segments',
+  );
+
+export const UpsertArgs = z
+  .object({
+    key: sourceKey,
+    title: z.string().trim().min(1, 'title must not be empty').max(TITLE_MAX),
+    content: z
+      .string()
+      .max(CONTENT_MAX)
+      .refine((value) => value.trim() !== '', 'content must not be empty'),
+    // Frei lesbare Herkunft, die mit dem Treffer erscheint, etwa der Pfad der
+    // Seite im Wiki. Nicht die Quell-App: die kommt aus der Identitaet.
+    source: z
+      .string()
+      .trim()
+      .max(SOURCE_MAX)
+      .nullish()
+      .transform((value) => (value === undefined || value === null || value === '' ? null : value)),
+    path: SourcePath.nullish().transform((value) => value ?? null),
+    // Stand in der Quell-App. Ein aelterer Stand ueberschreibt keinen neueren.
+    updatedAt: z
+      .string()
+      .datetime({ offset: true, message: 'updatedAt must be an ISO 8601 timestamp' })
+      .nullish()
+      .transform((value) => value ?? null),
+  })
+  .strict();
+export type UpsertArgs = z.infer<typeof UpsertArgs>;
+
+export const RemoveArgs = z.object({ key: sourceKey }).strict();
+export type RemoveArgs = z.infer<typeof RemoveArgs>;

@@ -63,6 +63,31 @@ describe('lokales Deploy-Backend', () => {
     expect(env.DATABASE_URL).toBe('postgres://app_crm:geheim@db/x');
   });
 
+  it('zieht die Env nach: neue Schluessel dazu, DATABASE_URL und Beispieldaten bleiben (ADR 0020)', async () => {
+    const backend = createLokalBackend(config);
+    const { backendRef } = await backend.createApp(spec);
+    await backend.setEnv(backendRef, {
+      DATABASE_URL: 'postgres://app_crm:geheim@db/x',
+      OPENAPPS_APP_ID: 'crm',
+    });
+    await backend.mergeEnv(backendRef, {
+      OPENAPPS_APP_ID: 'crm',
+      OPENAPPS_CALL_SECRET: 'c'.repeat(64),
+    });
+    const path = join(config.runtimeDir, 'crm', 'env.json');
+    const env = JSON.parse(readFileSync(path, 'utf8')) as Record<string, string>;
+    expect(env).toEqual({
+      DATABASE_URL: 'postgres://app_crm:geheim@db/x',
+      OPENAPPS_APP_ID: 'crm',
+      OPENAPPS_SAMPLE_DATA: '1',
+      OPENAPPS_CALL_SECRET: 'c'.repeat(64),
+    });
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    // Ein zweiter Lauf mit derselben Env aendert nichts.
+    await backend.mergeEnv(backendRef, { OPENAPPS_CALL_SECRET: 'c'.repeat(64) });
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(env);
+  });
+
   it('nimmt keine App ohne lokale Quelle an', async () => {
     const backend = createLokalBackend(config);
     await expect(backend.createApp({ ...spec, appName: 'gibtsnicht' })).rejects.toThrow();
@@ -72,6 +97,9 @@ describe('lokales Deploy-Backend', () => {
     const backend = createLokalBackend(config);
     await expect(backend.setEnv('lokal:../../etc', {})).rejects.toThrow(/unknown local reference/);
     await expect(backend.setEnv('coolify:abc', {})).rejects.toThrow(/unknown local reference/);
+    await expect(backend.mergeEnv('lokal:../../etc', {})).rejects.toThrow(
+      /unknown local reference/,
+    );
   });
 
   it('gilt erst als gestartet, wenn die App Unsigniertes mit 401 ablehnt', async () => {

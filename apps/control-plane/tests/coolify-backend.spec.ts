@@ -269,3 +269,96 @@ describe('was Coolify der App selbst gegeben hat, zurueckgelesen', () => {
     }
   });
 });
+
+/**
+ * Nachziehen der Env (ADR 0020). Nur gegen gemockte Antworten geprueft: Wie
+ * Coolify auf einen POST mit vorhandenem Schluessel antwortet (409) und dass
+ * `PATCH /applications/{uuid}/envs` per `key` aktualisiert, ist aus der API
+ * geschlossen, nicht gegen eine laufende Instanz belegt.
+ */
+describe('Env einer bestehenden App nachziehen', () => {
+  function backendWith(listed: unknown[], failOn?: { method: string; status: number }) {
+    const calls: Call[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: unknown, init?: RequestInit): Promise<Response> => {
+      const method = init?.method ?? 'GET';
+      calls.push({
+        url: String(input),
+        method,
+        body:
+          init?.body === undefined
+            ? {}
+            : (JSON.parse(String(init.body)) as Record<string, unknown>),
+      });
+      if (failOn !== undefined && failOn.method === method) {
+        return new Response(JSON.stringify({ message: 'nope' }), { status: failOn.status });
+      }
+      const body = method === 'GET' ? listed : { uuid: 'env-x' };
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof globalThis.fetch;
+    return {
+      backend: createCoolifyBackend(config),
+      calls,
+      restore: () => {
+        globalThis.fetch = original;
+      },
+    };
+  }
+
+  it('setzt fehlende per POST, geaenderte per PATCH, gleiche und nicht genannte gar nicht', async () => {
+    const { backend, calls, restore } = backendWith([
+      { key: 'DATABASE_URL', value: 'postgres://alt', is_preview: false },
+      { key: 'OPENAPPS_APP_ID', value: 'wiki', is_preview: false },
+      { key: 'OPENAPPS_AUTH_SECRET', value: 'alt', is_preview: false },
+      // Vorschau-Variable mit demselben Namen zaehlt nicht als vorhanden.
+      { key: 'OPENAPPS_CALL_SECRET', value: 'x', is_preview: true },
+    ]);
+    try {
+      await backend.mergeEnv('app-uuid-1', {
+        OPENAPPS_APP_ID: 'wiki',
+        OPENAPPS_AUTH_SECRET: 'neu',
+        OPENAPPS_CALL_SECRET: 'secret',
+      });
+    } finally {
+      restore();
+    }
+    const writes = calls
+      .filter((c) => c.method !== 'GET')
+      .map((c) => `${c.method} ${String(c.body.key)}`)
+      .sort();
+    expect(writes).toEqual(['PATCH OPENAPPS_AUTH_SECRET', 'POST OPENAPPS_CALL_SECRET']);
+    expect(calls[0]?.method).toBe('GET');
+    expect(calls.some((c) => c.body.key === 'DATABASE_URL')).toBe(false);
+    for (const call of calls.filter((c) => c.method !== 'GET')) {
+      expect(call.url).toBe('https://coolify.test/api/v1/applications/app-uuid-1/envs');
+      expect(call.body.is_preview).toBe(false);
+    }
+  });
+
+  it('setzt einen Schluessel, dessen Wert Coolify nicht zeigt, zur Sicherheit per PATCH', async () => {
+    const { backend, calls, restore } = backendWith([{ key: 'OPENAPPS_CALL_SECRET' }]);
+    try {
+      await backend.mergeEnv('app-uuid-1', { OPENAPPS_CALL_SECRET: 'secret' });
+    } finally {
+      restore();
+    }
+    expect(calls.filter((c) => c.method !== 'GET').map((c) => c.method)).toEqual(['PATCH']);
+  });
+
+  it('scheitert laut, wenn ein Schluessel nicht gesetzt werden kann, ohne den Wert zu nennen', async () => {
+    const { backend, restore } = backendWith([], { method: 'POST', status: 422 });
+    try {
+      const error = await backend
+        .mergeEnv('app-uuid-1', { OPENAPPS_CALL_SECRET: 'geheimer-wert' })
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect(String((error as Error).message)).toContain('422');
+      expect(String((error as Error).message)).not.toContain('geheimer-wert');
+    } finally {
+      restore();
+    }
+  });
+});

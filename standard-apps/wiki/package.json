@@ -1,6 +1,6 @@
 {
   "name": "@openapps/app-wiki",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Standard app Wiki: knowledge pages with a tree, full-text search and history, for humans and agents.",

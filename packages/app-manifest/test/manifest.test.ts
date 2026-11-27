@@ -91,3 +91,21 @@ describe('appManifestJsonSchema', () => {
     expect(JSON.stringify(schema)).toContain('manifestVersion');
   });
 });
+
+describe('gatewayContext (ADR 0020)', () => {
+  it('ist optional: ein Manifest ohne das Feld bleibt gueltig', () => {
+    const result = validateAppManifest(validManifest());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.manifest.gatewayContext).toBeUndefined();
+  });
+
+  it('nimmt readableApps an', () => {
+    const result = validateAppManifest(validManifest({ gatewayContext: ['readableApps'] }));
+    expect(result.ok).toBe(true);
+  });
+
+  it('weist unbekannten Kontext ab, statt ihn still zu ignorieren', () => {
+    const result = validateAppManifest({ ...validManifest(), gatewayContext: ['allGrants'] });
+    expect(result.ok).toBe(false);
+  });
+});

@@ -40,6 +40,14 @@ interface CoolifyApplication {
   readonly domains?: string | null;
 }
 
+/** Eine Env-Variable, wie `GET /applications/{uuid}/envs` sie liefert. */
+interface CoolifyEnv {
+  readonly key?: string;
+  /** Fehlt ohne `read:sensitive` (ADR 0008); dann gilt der Wert als unbekannt. */
+  readonly value?: string | null;
+  readonly is_preview?: boolean;
+}
+
 interface CoolifyDeployment {
   readonly deployment_uuid?: string;
   readonly message?: string;
@@ -150,6 +158,45 @@ export function createCoolifyBackend(config: CoolifyConfig): DeploymentBackend {
       if (failed.length > 0) {
         throw new Error(
           `setting env failed (${failed.length}): ${failed
+            .map((f) => String(f.reason))
+            .join('; ')}`,
+        );
+      }
+    },
+
+    async mergeEnv(backendRef, env): Promise<void> {
+      // Erst lesen, dann gezielt: fehlende Schluessel per POST, geaenderte per
+      // PATCH, gleiche gar nicht. Ein POST auf einen vorhandenen Schluessel
+      // weist Coolify ab (nach unserem Stand mit 409 und dem Hinweis auf
+      // PATCH); deshalb wird nie blind gepostet. Nicht genannte Schluessel,
+      // etwa DATABASE_URL, fasst diese Funktion nicht an.
+      const listed = await call<readonly CoolifyEnv[]>(`/applications/${backendRef}/envs`, {
+        method: 'GET',
+      });
+      const existing = new Map<string, string | null>();
+      for (const entry of Array.isArray(listed) ? listed : []) {
+        // Vorschau-Variablen sind eine eigene Menge; wir setzen nur die echten.
+        if (typeof entry.key !== 'string' || entry.is_preview === true) continue;
+        existing.set(entry.key, typeof entry.value === 'string' ? entry.value : null);
+      }
+
+      const results = await Promise.allSettled(
+        Object.entries(env).map(async ([key, value]) => {
+          const body = { key, value, is_preview: false };
+          if (!existing.has(key)) {
+            await call(`/applications/${backendRef}/envs`, { method: 'POST', body });
+            return;
+          }
+          // Unbekannter Wert (ohne read:sensitive): sicherheitshalber setzen.
+          if (existing.get(key) === value) return;
+          await call(`/applications/${backendRef}/envs`, { method: 'PATCH', body });
+        }),
+      );
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      if (failed.length > 0) {
+        // Nur die Fehlermeldung des Backends, nie die Werte: Darunter sind Secrets.
+        throw new Error(
+          `updating env failed (${failed.length}): ${failed
             .map((f) => String(f.reason))
             .join('; ')}`,
         );

@@ -248,6 +248,16 @@
       },
       "default": []
     },
+    "gatewayContext": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "readableApps"
+        ]
+      },
+      "maxItems": 8
+    },
     "source": {
       "type": "object",
       "properties": {

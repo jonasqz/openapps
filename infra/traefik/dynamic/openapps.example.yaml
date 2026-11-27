@@ -67,6 +67,8 @@
           "X-Auth-Signature": ""
           "X-Auth-Nav": ""
           "X-Auth-Nav-Signature": ""
+          "X-Auth-Readable-Apps": ""
+          "X-Auth-Readable-Apps-Signature": ""
     "openapps-forward-auth":
       "forwardAuth":
         "address": "http://openapps-control-plane:3000/api/authz/forward"
@@ -78,6 +80,8 @@
           - "X-Auth-Signature"
           - "X-Auth-Nav"
           - "X-Auth-Nav-Signature"
+          - "X-Auth-Readable-Apps"
+          - "X-Auth-Readable-Apps-Signature"
         "trustForwardHeader": true
         "forwardBody": false
   "services":
