@@ -5,8 +5,13 @@ import {
   PagesCreateArgs,
   PagesGetArgs,
   PagesHistoryArgs,
+  FavoritesListArgs,
+  FavoritesSetArgs,
   PagesListArgs,
+  PagesMoveArgs,
+  PagesRestoreArgs,
   PagesSearchArgs,
+  PagesTreeArgs,
   PagesUpdateArgs,
   splitTags,
 } from './schemas';
@@ -94,6 +99,52 @@ describe('tool arguments — what an agent can get wrong', () => {
       expect(PagesListArgs.safeParse(input).success).toBe(false);
     }
     expect(PagesListArgs.safeParse({}).success).toBe(true);
+  });
+});
+
+describe('new tools in 0.2.0 — arguments', () => {
+  const OTHER = '6f1c2a4e-1b7d-4c2a-9e51-0a0000000002';
+
+  it('pages.move: parentId is required, a UUID or null, never the page itself', () => {
+    expect(PagesMoveArgs.safeParse({ id: ID }).success).toBe(false);
+    expect(PagesMoveArgs.safeParse({ id: ID, parentId: undefined }).success).toBe(false);
+    expect(PagesMoveArgs.parse({ id: ID, parentId: null })).toEqual({ id: ID, parentId: null });
+    expect(PagesMoveArgs.parse({ id: ID, parentId: OTHER })).toEqual({ id: ID, parentId: OTHER });
+    const self = PagesMoveArgs.safeParse({ id: ID, parentId: ID });
+    expect(self.success).toBe(false);
+    expect(self.error?.issues[0]?.message).toMatch(/own parent/);
+    for (const parentId of ['', 'top', 0, false, [OTHER]]) {
+      expect(PagesMoveArgs.safeParse({ id: ID, parentId }).success).toBe(false);
+    }
+    expect(PagesMoveArgs.safeParse({ id: ID, parentId: null, position: 1 }).success).toBe(false);
+  });
+
+  it('pages.restore: revisionId is a positive number as a string', () => {
+    expect(PagesRestoreArgs.parse({ id: ID, revisionId: '42' })).toEqual({ id: ID, revisionId: '42' });
+    for (const revisionId of ['0', '-1', '01', '1.5', '1e3', ' 1', 42, '', '9'.repeat(19)]) {
+      expect(PagesRestoreArgs.safeParse({ id: ID, revisionId }).success).toBe(false);
+    }
+  });
+
+  it('pages.tree: only an optional rootId', () => {
+    expect(PagesTreeArgs.parse({})).toEqual({});
+    expect(PagesTreeArgs.safeParse({ rootId: ID }).success).toBe(true);
+    expect(PagesTreeArgs.safeParse({ rootId: 'x' }).success).toBe(false);
+  });
+
+  it('pages.list: sort and limit are bounded', () => {
+    expect(PagesListArgs.parse({ sort: 'updated', limit: 5 })).toEqual({ sort: 'updated', limit: 5 });
+    for (const input of [{ sort: 'title; drop' }, { limit: 501 }, { limit: 0 }, { limit: 2.5 }]) {
+      expect(PagesListArgs.safeParse(input).success).toBe(false);
+    }
+  });
+
+  it('favorites: favorite must be a boolean, and nobody picks another owner', () => {
+    expect(FavoritesSetArgs.safeParse({ id: ID, favorite: true }).success).toBe(true);
+    expect(FavoritesSetArgs.safeParse({ id: ID }).success).toBe(false);
+    expect(FavoritesSetArgs.safeParse({ id: ID, favorite: 'true' }).success).toBe(false);
+    expect(FavoritesSetArgs.safeParse({ id: ID, favorite: true, userId: 'usr_other' }).success).toBe(false);
+    expect(FavoritesListArgs.safeParse({ userId: 'usr_other' }).success).toBe(false);
   });
 });
 

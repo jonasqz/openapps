@@ -5,7 +5,15 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createApp, describeActor, grant, type ActorDescription, type Actor } from '../src/domain';
+import {
+  createApp,
+  describeActor,
+  grant,
+  revoke,
+  type ActorDescription,
+  type Actor,
+  type DomainContext,
+} from '../src/domain';
 import { GET } from '../src/app/api/me/route';
 import { resetSessionReader, setSessionReader } from '../src/lib/actor';
 import { setDomainContext } from '../src/lib/runtime';
@@ -67,7 +75,7 @@ describe('describeActor', () => {
     expect(me.isAdmin).toBe(false);
   });
 
-  it('nimmt Apps ueber eine Gruppen-Freigabe mit, ohne sie als eigene Freigabe zu zeigen', async () => {
+  it('zeigt eine Freigabe ueber die eigene Gruppe, mit der Gruppe als Herkunft', async () => {
     const harness = await setup();
     await grant(harness.ctx, {
       actor: admin,
@@ -77,8 +85,99 @@ describe('describeActor', () => {
     });
     const me = await describeActor(harness.ctx, lena);
     expect(me.apps.map((a) => a.name)).toEqual(['crm']);
-    expect(me.grants).toEqual([]);
+    expect(me.grants).toHaveLength(1);
+    expect(me.grants[0]).toMatchObject({
+      subject: { kind: 'group', id: 'team' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'crm' },
+      via: { kind: 'group', group: 'team' },
+    });
     expect(me.email).toBeNull();
+  });
+
+  it('zeigt keine Freigabe einer fremden Gruppe und keine eines anderen Nutzers', async () => {
+    const harness = await setup();
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'group', id: 'sales' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'crm' },
+    });
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'user', id: 'u-tom' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'wiki' },
+    });
+    // Ein Agent mit demselben Namen wie die Person ist ein anderes Subjekt.
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'agent', id: 'u-lena' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'wiki' },
+    });
+    const me = await describeActor(harness.ctx, lena);
+    expect(me.grants).toEqual([]);
+    expect(me.apps).toEqual([]);
+  });
+
+  it('verschluckt nichts: dasselbe Recht direkt und ueber Gruppen steht je einmal da', async () => {
+    const harness = await setup();
+    const both: Actor = { kind: 'user', id: 'u-lena', groups: ['team', 'sales'] };
+    for (const subject of [
+      { kind: 'user', id: 'u-lena' },
+      { kind: 'group', id: 'team' },
+      { kind: 'group', id: 'sales' },
+    ] as const) {
+      await grant(harness.ctx, {
+        actor: admin,
+        subject,
+        verb: 'read',
+        resource: { kind: 'app', id: 'wiki' },
+      });
+    }
+    const me = await describeActor(harness.ctx, both);
+    expect(me.grants.map((g) => g.via)).toEqual([
+      { kind: 'direct' },
+      { kind: 'group', group: 'team' },
+      { kind: 'group', group: 'sales' },
+    ]);
+    expect(new Set(me.grants.map((g) => g.id)).size).toBe(3);
+    // Die App selbst steht trotzdem nur einmal in der Liste.
+    expect(me.apps.map((a) => a.name)).toEqual(['wiki']);
+  });
+
+  it('zeigt eine Gruppe nur einmal, auch wenn sie doppelt in der Session steht', async () => {
+    const harness = await setup();
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'group', id: 'team' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'crm' },
+    });
+    const twice: Actor = { kind: 'user', id: 'u-lena', groups: ['team', 'team'] };
+    const me = await describeActor(harness.ctx, twice);
+    expect(me.grants).toHaveLength(1);
+  });
+
+  it('zeigt widerrufene Freigaben nicht als Zugang, weder direkt noch ueber die Gruppe', async () => {
+    const harness = await setup();
+    const direct = await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'user', id: 'u-lena' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'wiki' },
+    });
+    const viaGroup = await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'group', id: 'team' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'crm' },
+    });
+    await revoke(harness.ctx, { actor: admin, grantId: direct.id });
+    await revoke(harness.ctx, { actor: admin, grantId: viaGroup.id });
+    const me = await describeActor(harness.ctx, lena);
+    expect(me.grants).toEqual([]);
   });
 
   it('meldet Mitglieder von platform-admins als Admin mit allen Apps', async () => {
@@ -100,13 +199,47 @@ describe('describeActor', () => {
     expect(me.agent).toBeNull();
   });
 
-  it('schreibt genau einen Audit-Eintrag pro Aufruf, auf den Aufrufer', async () => {
+  it('schreibt genau einen Audit-Eintrag pro Aufruf, als whoami und nicht als list_grants', async () => {
     const harness = await setup();
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'group', id: 'team' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'crm' },
+    });
     const before = harness.store.auditEntries.length;
-    await describeActor(harness.ctx, lena);
+    await describeActor(harness.ctx, lena, { correlationId: 'req-1' });
     const added = harness.store.auditEntries.slice(before);
     expect(added).toHaveLength(1);
-    expect(added[0]).toMatchObject({ actor: { kind: 'user', id: 'u-lena' }, outcome: 'allowed' });
+    expect(added[0]).toMatchObject({
+      actor: { kind: 'user', id: 'u-lena' },
+      action: 'whoami',
+      resource: null,
+      outcome: 'allowed',
+      correlationId: 'req-1',
+      detail: { grants: 1, direct: 0, viaGroup: 1, apps: 1 },
+    });
+    expect(added.some((e) => e.action === 'list_grants')).toBe(false);
+  });
+
+  it('protokolliert einen Fehler beim Lesen als whoami mit outcome error und wirft weiter', async () => {
+    const harness = await setup();
+    const broken: DomainContext = {
+      ...harness.ctx,
+      grants: {
+        ...harness.ctx.grants,
+        listForSubjects: () => Promise.reject(new Error('database unavailable')),
+      },
+    };
+    const before = harness.store.auditEntries.length;
+    await expect(describeActor(broken, lena)).rejects.toThrow('database unavailable');
+    const added = harness.store.auditEntries.slice(before);
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({
+      action: 'whoami',
+      outcome: 'error',
+      reason: 'database unavailable',
+    });
   });
 });
 
@@ -154,5 +287,33 @@ describe('GET /api/me', () => {
     });
     expect(me.apps.map((a) => a.name)).toEqual(['wiki']);
     expect(me.grants).toHaveLength(1);
+    expect(me.grants[0]?.via).toEqual({ kind: 'direct' });
+  });
+
+  it('liefert Freigaben ueber die Gruppen der Session mit, fremde nicht', async () => {
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'group', id: 'team' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'crm' },
+    });
+    await grant(harness.ctx, {
+      actor: admin,
+      subject: { kind: 'group', id: 'sales' },
+      verb: 'read',
+      resource: { kind: 'app', id: 'wiki' },
+    });
+    setSessionReader({
+      read: () =>
+        Promise.resolve({ userId: 'u-lena', email: 'lena@example.com', groups: ['team'] }),
+    });
+    const response = await GET(new Request('https://control-plane.example.com/api/me'));
+    expect(response.status).toBe(200);
+    const { me } = (await response.json()) as { me: ActorDescription };
+    expect(me.grants.map((g) => `${g.verb} ${g.resource.kind}:${g.resource.id}`)).toEqual([
+      'read app:crm',
+    ]);
+    expect(me.grants[0]?.via).toEqual({ kind: 'group', group: 'team' });
+    expect(me.apps.map((a) => a.name)).toEqual(['crm']);
   });
 });

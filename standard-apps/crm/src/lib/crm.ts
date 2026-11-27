@@ -1,6 +1,6 @@
 import { ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { query, withTransaction, type Query } from './db';
-import { OPEN_STAGES, STAGE_LABELS, type ActivityKind, type Stage } from './domain';
+import { CLOSED_STAGES, OPEN_STAGES, type ActivityKind, type Stage } from './domain';
 import { summarizePipeline, type PipelineSummary, type StageAggregate } from './pipeline';
 import type {
   ActivitiesListArgs,
@@ -12,9 +12,16 @@ import type {
   ContactUpdateArgs,
   DealCreateArgs,
   DealsListArgs,
+  DealUpdateArgs,
   DealUpdateStageArgs,
+  NextStepCompleteArgs,
+  NextStepCreateArgs,
+  NextStepsListArgs,
 } from './schemas';
 import { likePattern } from './search';
+import { planStageChange } from './stages';
+
+export { stageChangeSubject } from './stages';
 
 /**
  * Datenzugriff des CRM. Jede Funktion bekommt schon gepruefte Argumente (aus
@@ -65,8 +72,42 @@ export interface Deal {
   /** JJJJ-MM-TT oder null. */
   expectedClose: string | null;
   owner: string | null;
+  /** Zeitpunkt des Abschlusses (won/lost), sonst null. Pflegt die Datenbank. */
+  closedAt: string | null;
+  /** Grund fuer won/lost; null bei offenen Deals und bei Altbestand. */
+  closeReason: string | null;
+  /** Der frueheste offene naechste Schritt am Deal, sonst null. */
+  nextStep: DealNextStep | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DealNextStep {
+  id: string;
+  title: string;
+  /** JJJJ-MM-TT. */
+  dueOn: string;
+  overdue: boolean;
+}
+
+export interface NextStep {
+  id: string;
+  title: string;
+  /** JJJJ-MM-TT. */
+  dueOn: string;
+  /** Offen und vor heute (Europe/Berlin) faellig. */
+  overdue: boolean;
+  dealId: string | null;
+  dealTitle: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  contactId: string | null;
+  contactName: string | null;
+  owner: string | null;
+  doneAt: string | null;
+  doneBy: string | null;
+  createdBy: string;
+  createdAt: string;
 }
 
 export interface Activity {
@@ -126,8 +167,32 @@ interface DealRow extends Record<string, unknown> {
   stage: Stage;
   expected_close: string | null;
   owner: string | null;
+  closed_at: Date | null;
+  close_reason: string | null;
+  next_step_id: string | null;
+  next_step_title: string | null;
+  next_step_due_on: string | null;
+  next_step_overdue: boolean | null;
   created_at: Date;
   updated_at: Date;
+}
+
+interface NextStepRow extends Record<string, unknown> {
+  id: string;
+  title: string;
+  due_on: string;
+  overdue: boolean;
+  deal_id: string | null;
+  deal_title: string | null;
+  company_id: string | null;
+  company_name: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
+  owner: string | null;
+  done_at: Date | null;
+  done_by: string | null;
+  created_by: string;
+  created_at: Date;
 }
 
 interface ActivityRow extends Record<string, unknown> {
@@ -180,8 +245,37 @@ const toDeal = (row: DealRow): Deal => ({
   stage: row.stage,
   expectedClose: row.expected_close,
   owner: row.owner,
+  closedAt: row.closed_at === null ? null : row.closed_at.toISOString(),
+  closeReason: row.close_reason,
+  nextStep:
+    row.next_step_id === null || row.next_step_title === null || row.next_step_due_on === null
+      ? null
+      : {
+          id: row.next_step_id,
+          title: row.next_step_title,
+          dueOn: row.next_step_due_on,
+          overdue: row.next_step_overdue === true,
+        },
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
+});
+
+const toNextStep = (row: NextStepRow): NextStep => ({
+  id: row.id,
+  title: row.title,
+  dueOn: row.due_on,
+  overdue: row.overdue,
+  dealId: row.deal_id,
+  dealTitle: row.deal_title,
+  companyId: row.company_id,
+  companyName: row.company_name,
+  contactId: row.contact_id,
+  contactName: row.contact_name,
+  owner: row.owner,
+  doneAt: row.done_at === null ? null : row.done_at.toISOString(),
+  doneBy: row.done_by,
+  createdBy: row.created_by,
+  createdAt: row.created_at.toISOString(),
 });
 
 const toActivity = (row: ActivityRow): Activity => ({
@@ -208,14 +302,43 @@ const CONTACT_SELECT = `
     from contacts p
     left join companies c on c.id = p.company_id`;
 
+/**
+ * Der heutige Kalendertag in Europe/Berlin, dieselbe Zeitzone wie die Anzeige
+ * (src/lib/format.ts). Ein Schritt "heute faellig" ist noch nicht ueberfaellig.
+ */
+const TODAY = `(now() at time zone 'Europe/Berlin')::date`;
+
 const DEAL_SELECT = `
   select d.id, d.title, d.company_id, c.name as company_name, d.contact_id, p.name as contact_name,
          d.value_cents::text as value_cents, d.stage,
          to_char(d.expected_close, 'YYYY-MM-DD') as expected_close,
-         d.owner, d.created_at, d.updated_at
+         d.owner, d.closed_at, d.close_reason,
+         ns.id as next_step_id, ns.title as next_step_title,
+         to_char(ns.due_on, 'YYYY-MM-DD') as next_step_due_on,
+         (ns.due_on < ${TODAY}) as next_step_overdue,
+         d.created_at, d.updated_at
     from deals d
     join companies c on c.id = d.company_id
-    left join contacts p on p.id = d.contact_id`;
+    left join contacts p on p.id = d.contact_id
+    left join lateral (
+      select s.id, s.title, s.due_on
+        from next_steps s
+       where s.deal_id = d.id and s.done_at is null
+       order by s.due_on, s.created_at, s.id
+       limit 1
+    ) ns on true`;
+
+const NEXT_STEP_SELECT = `
+  select s.id, s.title, to_char(s.due_on, 'YYYY-MM-DD') as due_on,
+         (s.done_at is null and s.due_on < ${TODAY}) as overdue,
+         s.deal_id, d.title as deal_title,
+         s.company_id, c.name as company_name,
+         s.contact_id, p.name as contact_name,
+         s.owner, s.done_at, s.done_by, s.created_by, s.created_at
+    from next_steps s
+    left join deals d on d.id = s.deal_id
+    left join companies c on c.id = s.company_id
+    left join contacts p on p.id = s.contact_id`;
 
 const ACTIVITY_SELECT = `
   select a.id, a.kind, a.subject, a.body,
@@ -229,6 +352,7 @@ const ACTIVITY_SELECT = `
     left join deals d on d.id = a.deal_id`;
 
 const OPEN_STAGE_LIST = OPEN_STAGES.map((stage) => `'${stage}'`).join(', ');
+const CLOSED_STAGE_LIST = CLOSED_STAGES.map((stage) => `'${stage}'`).join(', ');
 
 // --- Fehler der Datenbank in Meldungen fuer Aufrufer ------------------------
 
@@ -245,6 +369,9 @@ const FOREIGN_KEY_FIELDS: Readonly<Record<string, { field: string; message: stri
   activities_company_id_fkey: { field: 'companyId', message: 'This company does not exist.' },
   activities_contact_id_fkey: { field: 'contactId', message: 'This contact does not exist.' },
   activities_deal_id_fkey: { field: 'dealId', message: 'This deal does not exist.' },
+  next_steps_deal_id_fkey: { field: 'dealId', message: 'This deal does not exist.' },
+  next_steps_company_id_fkey: { field: 'companyId', message: 'This company does not exist.' },
+  next_steps_contact_id_fkey: { field: 'contactId', message: 'This contact does not exist.' },
 };
 
 /**
@@ -323,17 +450,20 @@ export interface CompanyDetail {
   contacts: Contact[];
   deals: Deal[];
   activities: Activity[];
+  /** Offene naechste Schritte der Firma, ihrer Kontakte und Deals. */
+  nextSteps: NextStep[];
 }
 
 export async function getCompany(id: string): Promise<CompanyDetail> {
   const company = await getCompanyById(id);
   if (company === null) throw new ToolNotFoundError('Company not found.');
-  const [contacts, deals, activities] = await Promise.all([
+  const [contacts, deals, activities, nextSteps] = await Promise.all([
     listContacts({ companyId: id, limit: 200 }),
     listDeals({ companyId: id, limit: 200 }),
     listActivities({ companyId: id, limit: 20 }),
+    listNextSteps({ companyId: id, status: 'open', limit: 200 }),
   ]);
-  return { company, contacts, deals, activities };
+  return { company, contacts, deals, activities, nextSteps };
 }
 
 export async function createCompany(args: CompanyCreateArgs): Promise<Company> {
@@ -372,16 +502,19 @@ export interface ContactDetail {
   contact: Contact;
   deals: Deal[];
   activities: Activity[];
+  /** Offene naechste Schritte am Kontakt. */
+  nextSteps: NextStep[];
 }
 
 export async function getContact(id: string): Promise<ContactDetail> {
   const contact = await getContactById(query, id);
   if (contact === null) throw new ToolNotFoundError('Contact not found.');
-  const [dealRows, activities] = await Promise.all([
-    query<DealRow>(`${DEAL_SELECT} where d.contact_id = $1 order by d.created_at desc limit 200`, [id]),
+  const [deals, activities, nextSteps] = await Promise.all([
+    listDeals({ contactId: id, limit: 200 }),
     listActivities({ contactId: id, limit: 20 }),
+    listNextSteps({ contactId: id, status: 'open', limit: 200 }),
   ]);
-  return { contact, deals: dealRows.map(toDeal), activities };
+  return { contact, deals, activities, nextSteps };
 }
 
 export async function createContact(args: ContactCreateArgs): Promise<Contact> {
@@ -433,13 +566,28 @@ export async function updateContact(args: ContactUpdateArgs): Promise<Contact> {
 // --- Deals ------------------------------------------------------------------
 
 export async function listDeals(args: DealsListArgs): Promise<Deal[]> {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  const add = (value: unknown, clause: (p: string) => string): void => {
+    params.push(value);
+    where.push(clause(`$${params.length}`));
+  };
+  if (args.q !== undefined) {
+    add(likePattern(args.q), (p) => `(d.title ilike ${p} or c.name ilike ${p} or p.name ilike ${p})`);
+  }
+  if (args.stage !== undefined) add(args.stage, (p) => `d.stage = ${p}`);
+  if (args.status === 'open') where.push(`d.stage in (${OPEN_STAGE_LIST})`);
+  if (args.status === 'closed') where.push(`d.stage in (${CLOSED_STAGE_LIST})`);
+  if (args.companyId !== undefined) add(args.companyId, (p) => `d.company_id = ${p}`);
+  if (args.contactId !== undefined) add(args.contactId, (p) => `d.contact_id = ${p}`);
+  if (args.owner !== undefined) add(args.owner, (p) => `d.owner = ${p}`);
+  params.push(args.limit);
   const rows = await query<DealRow>(
     `${DEAL_SELECT}
-      where ($1::text is null or d.stage = $1)
-        and ($2::uuid is null or d.company_id = $2)
-      order by d.expected_close asc nulls last, d.created_at desc
-      limit $3`,
-    [args.stage ?? null, args.companyId ?? null, args.limit],
+      ${where.length === 0 ? '' : `where ${where.join(' and ')}`}
+      order by d.expected_close asc nulls last, d.created_at desc, d.id
+      limit $${params.length}`,
+    params,
   );
   return rows.map(toDeal);
 }
@@ -450,18 +598,21 @@ async function getDealById(q: Query, id: string): Promise<Deal | null> {
   return row === undefined ? null : toDeal(row);
 }
 
-export async function createDeal(args: DealCreateArgs, callerId: string): Promise<Deal> {
-  if (args.contactId !== undefined) {
-    const contact = await getContactById(query, args.contactId);
-    if (contact === null) {
-      const message = 'This contact does not exist.';
-      throw new ToolInputError(message, [{ path: ['contactId'], message }]);
-    }
-    if (contact.companyId !== null && contact.companyId !== args.companyId) {
-      const message = `The contact belongs to a different company (${contact.companyName ?? contact.companyId}).`;
-      throw new ToolInputError(message, [{ path: ['contactId'], message }]);
-    }
+/** Ein Kontakt am Deal muss existieren und zur Firma des Deals gehoeren. */
+async function assertContactFitsCompany(contactId: string, companyId: string): Promise<void> {
+  const contact = await getContactById(query, contactId);
+  if (contact === null) {
+    const message = 'This contact does not exist.';
+    throw new ToolInputError(message, [{ path: ['contactId'], message }]);
   }
+  if (contact.companyId !== null && contact.companyId !== companyId) {
+    const message = `The contact belongs to a different company (${contact.companyName ?? contact.companyId}).`;
+    throw new ToolInputError(message, [{ path: ['contactId'], message }]);
+  }
+}
+
+export async function createDeal(args: DealCreateArgs, callerId: string): Promise<Deal> {
+  if (args.contactId !== undefined) await assertContactFitsCompany(args.contactId, args.companyId);
 
   return translated(async () => {
     const rows = await query<{ id: string }>(
@@ -485,15 +636,64 @@ export async function createDeal(args: DealCreateArgs, callerId: string): Promis
   });
 }
 
+export interface DealDetail {
+  deal: Deal;
+  activities: Activity[];
+  nextSteps: NextStep[];
+}
+
+export async function getDeal(id: string): Promise<DealDetail> {
+  const deal = await getDealById(query, id);
+  if (deal === null) throw new ToolNotFoundError('Deal not found.');
+  const [activities, nextSteps] = await Promise.all([
+    listActivities({ dealId: id, limit: 50 }),
+    listNextSteps({ dealId: id, status: 'all', limit: 200 }),
+  ]);
+  return { deal, activities, nextSteps };
+}
+
+const DEAL_COLUMN_OF: Readonly<Record<string, string>> = {
+  title: 'title',
+  valueCents: 'value_cents',
+  expectedClose: 'expected_close',
+  owner: 'owner',
+  contactId: 'contact_id',
+};
+
+/** Bearbeitet einen Deal ohne Stage. Die Stage aendert nur updateDealStage. */
+export async function updateDeal(args: DealUpdateArgs): Promise<Deal> {
+  const current = await getDealById(query, args.id);
+  if (current === null) throw new ToolNotFoundError('Deal not found.');
+  if (typeof args.contactId === 'string') await assertContactFitsCompany(args.contactId, current.companyId);
+
+  const sets: string[] = [];
+  const params: unknown[] = [args.id];
+  for (const [field, column] of Object.entries(DEAL_COLUMN_OF)) {
+    const value = args[field as keyof DealUpdateArgs];
+    if (value === undefined) continue;
+    params.push(value);
+    // Spaltennamen kommen aus der festen Liste oben, nie aus der Eingabe.
+    const cast = column === 'expected_close' ? '::date' : '';
+    sets.push(`${column} = $${params.length}${cast}`);
+  }
+  if (sets.length === 0) throw new ToolInputError('Nothing to change.');
+
+  return translated(async () => {
+    const rows = await query<{ id: string }>(
+      `update deals set ${sets.join(', ')} where id = $1 returning id`,
+      params,
+    );
+    firstOrThrow(rows, 'Deal');
+    const deal = await getDealById(query, args.id);
+    if (deal === null) throw new ToolNotFoundError('Deal not found.');
+    return deal;
+  });
+}
+
 export interface StageChange {
   deal: Deal;
   changed: boolean;
   activity: Activity | null;
-}
-
-/** Text der automatischen Aktivitaet. Rein, damit er testbar ist. */
-export function stageChangeSubject(from: Stage, to: Stage): string {
-  return `Stage: ${STAGE_LABELS[from]} → ${STAGE_LABELS[to]}`;
 }
 
 /**
@@ -501,45 +701,48 @@ export function stageChangeSubject(from: Stage, to: Stage): string {
  * Transaktion: ein Stage-Wechsel ohne Eintrag im Verlauf darf es nicht geben.
  * `for update` haelt zwei gleichzeitige Wechsel auseinander, sonst stuende im
  * Verlauf zweimal dieselbe alte Stage.
+ *
+ * Die Regeln (Grund bei won/lost, kein Eintrag bei gleicher Stage) stehen in
+ * src/lib/stages.ts; closed_at setzt der Trigger aus 0003_deal_close.sql.
  */
 export async function updateDealStage(
   args: DealUpdateStageArgs,
   callerId: string,
 ): Promise<StageChange> {
-  return withTransaction(async (q) => {
-    const current = await q<{ stage: Stage; company_id: string; contact_id: string | null }>(
-      'select stage, company_id, contact_id from deals where id = $1 for update',
-      [args.id],
-    );
-    const row = firstOrThrow(current, 'Deal');
+  return translated(() =>
+    withTransaction(async (q) => {
+      const current = await q<{ stage: Stage; company_id: string; contact_id: string | null }>(
+        'select stage, company_id, contact_id from deals where id = $1 for update',
+        [args.id],
+      );
+      const row = firstOrThrow(current, 'Deal');
+      const plan = planStageChange(row.stage, args.stage, args.note);
 
-    if (row.stage === args.stage) {
+      if (!plan.changed) {
+        const deal = await getDealById(q, args.id);
+        if (deal === null) throw new ToolNotFoundError('Deal not found.');
+        return { deal, changed: false, activity: null };
+      }
+
+      await q('update deals set stage = $2, close_reason = $3 where id = $1', [
+        args.id,
+        args.stage,
+        plan.closeReason,
+      ]);
+      const inserted = await q<{ id: string }>(
+        `insert into activities (kind, subject, body, contact_id, company_id, deal_id, created_by)
+         values ('note', $1, $2, $3, $4, $5, $6)
+         returning id`,
+        [plan.subject, args.note ?? null, row.contact_id, row.company_id, args.id, callerId],
+      );
+      const activityId = firstOrThrow(inserted, 'Activity').id;
+
       const deal = await getDealById(q, args.id);
       if (deal === null) throw new ToolNotFoundError('Deal not found.');
-      return { deal, changed: false, activity: null };
-    }
-
-    await q('update deals set stage = $2 where id = $1', [args.id, args.stage]);
-    const inserted = await q<{ id: string }>(
-      `insert into activities (kind, subject, body, contact_id, company_id, deal_id, created_by)
-       values ('note', $1, $2, $3, $4, $5, $6)
-       returning id`,
-      [
-        stageChangeSubject(row.stage, args.stage),
-        args.note ?? null,
-        row.contact_id,
-        row.company_id,
-        args.id,
-        callerId,
-      ],
-    );
-    const activityId = firstOrThrow(inserted, 'Activity').id;
-
-    const deal = await getDealById(q, args.id);
-    if (deal === null) throw new ToolNotFoundError('Deal not found.');
-    const activities = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [activityId]);
-    return { deal, changed: true, activity: toActivity(firstOrThrow(activities, 'Activity')) };
-  });
+      const activities = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [activityId]);
+      return { deal, changed: true, activity: toActivity(firstOrThrow(activities, 'Activity')) };
+    }),
+  );
 }
 
 // --- Aktivitaeten -----------------------------------------------------------
@@ -575,28 +778,39 @@ export async function listActivities(args: ActivitiesListArgs): Promise<Activity
   return rows.map(toActivity);
 }
 
+/**
+ * Firma eines Eintrags: angegeben, sonst vom Deal, sonst vom Kontakt. So
+ * erscheint er im Verlauf der Firma, auch wenn der Aufrufer sie nicht nennt.
+ * Ein unbekannter Deal oder Kontakt ist ein 404.
+ */
+async function companyFor(
+  q: Query,
+  companyId: string | undefined,
+  dealId: string | undefined,
+  contactId: string | undefined,
+): Promise<string | null> {
+  if (companyId !== undefined) return companyId;
+  if (dealId !== undefined) {
+    const deal = firstOrThrow(
+      await q<{ company_id: string }>('select company_id from deals where id = $1', [dealId]),
+      'Deal',
+    );
+    return deal.company_id;
+  }
+  if (contactId !== undefined) {
+    const contact = firstOrThrow(
+      await q<{ company_id: string | null }>('select company_id from contacts where id = $1', [contactId]),
+      'Contact',
+    );
+    return contact.company_id;
+  }
+  return null;
+}
+
 export async function logActivity(args: ActivityLogArgs, callerId: string): Promise<Activity> {
   return translated(() =>
     withTransaction(async (q) => {
-      let companyId = args.companyId ?? null;
-      // Firma aus Deal oder Kontakt uebernehmen, damit die Aktivitaet im
-      // Verlauf der Firma erscheint, auch wenn der Aufrufer sie nicht nennt.
-      if (companyId === null && args.dealId !== undefined) {
-        const deal = firstOrThrow(
-          await q<{ company_id: string }>('select company_id from deals where id = $1', [args.dealId]),
-          'Deal',
-        );
-        companyId = deal.company_id;
-      }
-      if (companyId === null && args.contactId !== undefined) {
-        const contact = firstOrThrow(
-          await q<{ company_id: string | null }>('select company_id from contacts where id = $1', [
-            args.contactId,
-          ]),
-          'Contact',
-        );
-        companyId = contact.company_id;
-      }
+      const companyId = await companyFor(q, args.companyId, args.dealId, args.contactId);
 
       const inserted = await q<{ id: string }>(
         `insert into activities (kind, subject, body, contact_id, company_id, deal_id, happened_at, created_by)
@@ -619,6 +833,164 @@ export async function logActivity(args: ActivityLogArgs, callerId: string): Prom
     }),
   );
 }
+
+// --- Naechste Schritte -----------------------------------------------------
+
+export async function listNextSteps(args: NextStepsListArgs): Promise<NextStep[]> {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (args.status === 'open') where.push('s.done_at is null');
+  if (args.status === 'overdue') where.push(`s.done_at is null and s.due_on < ${TODAY}`);
+  if (args.status === 'done') where.push('s.done_at is not null');
+  if (args.dealId !== undefined) {
+    params.push(args.dealId);
+    where.push(`s.deal_id = $${params.length}`);
+  }
+  if (args.contactId !== undefined) {
+    params.push(args.contactId);
+    where.push(`s.contact_id = $${params.length}`);
+  }
+  if (args.owner !== undefined) {
+    params.push(args.owner);
+    where.push(`s.owner = $${params.length}`);
+  }
+  if (args.companyId !== undefined) {
+    params.push(args.companyId);
+    const p = `$${params.length}`;
+    // Wie bei den Aktivitaeten: auch Schritte an Deals und Kontakten der Firma.
+    where.push(`(s.company_id = ${p}
+                 or s.deal_id in (select id from deals where company_id = ${p})
+                 or s.contact_id in (select id from contacts where company_id = ${p}))`);
+  }
+  params.push(args.limit);
+  // Offene zuerst, nach Faelligkeit; erledigte danach, zuletzt erledigte oben.
+  const rows = await query<NextStepRow>(
+    `${NEXT_STEP_SELECT}
+      ${where.length === 0 ? '' : `where ${where.join(' and ')}`}
+      order by (s.done_at is not null),
+               case when s.done_at is null then s.due_on end asc,
+               s.done_at desc, s.created_at, s.id
+      limit $${params.length}`,
+    params,
+  );
+  return rows.map(toNextStep);
+}
+
+async function getNextStepById(q: Query, id: string): Promise<NextStep | null> {
+  const rows = await q<NextStepRow>(`${NEXT_STEP_SELECT} where s.id = $1`, [id]);
+  const row = rows[0];
+  return row === undefined ? null : toNextStep(row);
+}
+
+export async function createNextStep(args: NextStepCreateArgs, callerId: string): Promise<NextStep> {
+  return translated(() =>
+    withTransaction(async (q) => {
+      const companyId = await companyFor(q, args.companyId, args.dealId, args.contactId);
+      const inserted = await q<{ id: string }>(
+        `insert into next_steps (title, due_on, deal_id, company_id, contact_id, owner, created_by)
+         values ($1, $2::date, $3, $4, $5, $6, $7)
+         returning id`,
+        [
+          args.title,
+          args.dueOn,
+          args.dealId ?? null,
+          companyId,
+          args.contactId ?? null,
+          args.owner ?? callerId,
+          callerId,
+        ],
+      );
+      const step = await getNextStepById(q, firstOrThrow(inserted, 'Next step').id);
+      if (step === null) throw new Error('Next step not readable after create');
+      return step;
+    }),
+  );
+}
+
+export interface NextStepChange {
+  nextStep: NextStep;
+  changed: boolean;
+  activity: Activity | null;
+}
+
+/** Betreff der Aktivitaet beim Erledigen oder Wiedereroeffnen, hoechstens 200 Zeichen. */
+export function nextStepSubject(prefix: 'Done' | 'Reopened', title: string): string {
+  const subject = `${prefix}: ${title}`;
+  return subject.length <= 200 ? subject : `${subject.slice(0, 199)}…`;
+}
+
+/**
+ * Erledigt (`done = true`) oder oeffnet einen Schritt wieder und schreibt im
+ * selben Zug einen Eintrag in den Verlauf. Ist der Schritt schon im
+ * Zielzustand, aendert sich nichts (`changed: false`) — ein wiederholter
+ * Aufruf erzeugt keinen zweiten Eintrag.
+ */
+export async function setNextStepDone(
+  id: string,
+  done: boolean,
+  note: string | undefined,
+  callerId: string,
+): Promise<NextStepChange> {
+  return translated(() =>
+    withTransaction(async (q) => {
+      const current = firstOrThrow(
+        await q<{
+          title: string;
+          done_at: Date | null;
+          deal_id: string | null;
+          company_id: string | null;
+          contact_id: string | null;
+        }>(
+          'select title, done_at, deal_id, company_id, contact_id from next_steps where id = $1 for update',
+          [id],
+        ),
+        'Next step',
+      );
+
+      if ((current.done_at !== null) === done) {
+        const step = await getNextStepById(q, id);
+        if (step === null) throw new ToolNotFoundError('Next step not found.');
+        return { nextStep: step, changed: false, activity: null };
+      }
+
+      await q(
+        done
+          ? 'update next_steps set done_at = now(), done_by = $2 where id = $1'
+          : 'update next_steps set done_at = null, done_by = null where id = $1',
+        done ? [id, callerId] : [id],
+      );
+      const inserted = await q<{ id: string }>(
+        `insert into activities (kind, subject, body, contact_id, company_id, deal_id, created_by)
+         values ('note', $1, $2, $3, $4, $5, $6)
+         returning id`,
+        [
+          nextStepSubject(done ? 'Done' : 'Reopened', current.title),
+          note ?? null,
+          current.contact_id,
+          current.company_id,
+          current.deal_id,
+          callerId,
+        ],
+      );
+      const activities = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [
+        firstOrThrow(inserted, 'Activity').id,
+      ]);
+      const step = await getNextStepById(q, id);
+      if (step === null) throw new ToolNotFoundError('Next step not found.');
+      return {
+        nextStep: step,
+        changed: true,
+        activity: toActivity(firstOrThrow(activities, 'Activity')),
+      };
+    }),
+  );
+}
+
+export const completeNextStep = (args: NextStepCompleteArgs, callerId: string) =>
+  setNextStepDone(args.id, true, args.note, callerId);
+
+export const reopenNextStep = (id: string, callerId: string) =>
+  setNextStepDone(id, false, undefined, callerId);
 
 // --- Pipeline ---------------------------------------------------------------
 

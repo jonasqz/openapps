@@ -29,5 +29,8 @@ export type {
   ShellTheme,
   ShellUser,
 } from './types.ts';
+export { ThemeScript } from './ThemeScript.tsx';
+export { sectionMatches, sectionNav, withBasePath, withoutBasePath } from './sections.ts';
+export type { AppSection } from './sections.ts';
 export { CommandPalette, filterCommands } from './CommandPalette.tsx';
 export type { CommandItem, CommandPaletteProps } from './CommandPalette.tsx';

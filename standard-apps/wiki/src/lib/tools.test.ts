@@ -50,18 +50,30 @@ function operations(): Map<string, { path: string; verb: string }> {
 describe('tool mapping — manifest, OpenAPI and route match', () => {
   it('the manifest passes the real schema of the platform', () => {
     expect(manifest.name).toBe('wiki');
-    expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual(['page_revisions', 'pages']);
+    expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual([
+      'page_favorites',
+      'page_links',
+      'page_revisions',
+      'pages',
+    ]);
+    expect(manifest.version).toBe('0.2.0');
+    expect(manifest.source.tag).toBe('wiki-v0.2.0');
   });
 
-  it('offers exactly the seven tools of the wiki', () => {
+  it('offers exactly the twelve tools of the wiki', () => {
     expect(manifest.offeredTools.map((tool) => tool.name).sort()).toEqual(
       [
+        'favorites.list',
+        'favorites.set',
         'pages.archive',
         'pages.create',
         'pages.get',
         'pages.history',
         'pages.list',
+        'pages.move',
+        'pages.restore',
         'pages.search',
+        'pages.tree',
         'pages.update',
       ].sort(),
     );
@@ -88,12 +100,17 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
     const verbs = Object.fromEntries(manifest.offeredTools.map((tool) => [tool.name, tool.verb]));
     expect(verbs).toEqual({
       'pages.list': 'read',
+      'pages.tree': 'read',
       'pages.get': 'read',
       'pages.search': 'read',
       'pages.history': 'read',
+      'favorites.list': 'read',
       'pages.create': 'write',
       'pages.update': 'write',
+      'pages.move': 'write',
       'pages.archive': 'write',
+      'pages.restore': 'write',
+      'favorites.set': 'write',
     });
   });
 
@@ -178,6 +195,20 @@ describe('tool route — signature first, then arguments', () => {
       ['pages.archive', {}],
       ['pages.history', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', limit: 9999 }],
       ['pages.list', { unknown: 1 }],
+      ['pages.list', { sort: 'random' }],
+      ['pages.list', { limit: 0 }],
+      ['pages.tree', { rootId: '../etc' }],
+      ['pages.tree', { depth: 3 }],
+      // parentId fehlt: Absicht unklar, kein stilles „nach oben“.
+      ['pages.move', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001' }],
+      ['pages.move', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', parentId: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001' }],
+      ['pages.move', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', parentId: 'root' }],
+      ['pages.restore', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001' }],
+      ['pages.restore', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', revisionId: 5 }],
+      ['pages.restore', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', revisionId: '1; drop table pages' }],
+      ['favorites.list', { userId: 'someone-else' }],
+      ['favorites.set', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001' }],
+      ['favorites.set', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', favorite: 'yes' }],
     ];
     for (const [tool, args] of cases) {
       const response = await call(tool, args, signed());

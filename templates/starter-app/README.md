@@ -13,10 +13,11 @@ directory into a new repo.
 - `seeds/0001_sample.sql` — sample data, loaded locally only
 - `src/app/api/items/` — the route handlers for the two operations
 - `src/app/page.tsx` — a list with empty and error state
-- `src/app/layout.tsx`, `src/lib/shell.ts`, `src/components/Shell.tsx` — the
-  shared platform sidebar (`PlatformShell` from `@openapps/ui`). The platform
+- `src/app/layout.tsx` — the shared platform sidebar: `loadShell(manifest)`
+  from `@openapps/sdk/next` reads user and navigation on the server,
+  `NextPlatformShell` from `@openapps/ui/next` renders it. The platform
   brings user, app list, settings and sign-out; the app only lists its own
-  sections in `src/components/Shell.tsx`
+  sections in `SECTIONS` in the same file
 - `AGENTS.md` — the order in which an agent works here
 - `next.config.js` — the `basePath` from `OPENAPPS_APP_BASE_PATH`: the app
   lives under `https://<domain>/<app-name>`, not on its own subdomain
@@ -29,7 +30,7 @@ directory into a new repo.
    app-name>` — it is the path the app lives under
 4. replace the example table `items` with your tables, in `app.json`,
    `openapi.yaml` and a **new** migration
-5. list your pages as sections in `SECTIONS` in `src/components/Shell.tsx`
+5. list your pages as sections in `SECTIONS` in `src/app/layout.tsx`
 
 ## Locally
 

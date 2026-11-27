@@ -34,6 +34,9 @@ const HOLZBAU = '0a000000-0000-4000-8000-000000000002';
 const KOEHLER = '0b000000-0000-4000-8000-000000000001';
 const LINDNER = '0b000000-0000-4000-8000-000000000003';
 const PORTAL = '0d000000-0000-4000-8000-000000000001';
+const MAINTENANCE = '0d000000-0000-4000-8000-000000000002';
+const SCHEDULING = '0d000000-0000-4000-8000-000000000003';
+const STEP_PORTAL = '0e000000-0000-4000-8000-000000000001';
 
 describe.skipIf(!enabled)('CRM against Postgres', () => {
   // Erst nach dem Setzen der Env laden: der Pool liest sie beim ersten Gebrauch.
@@ -67,9 +70,15 @@ describe.skipIf(!enabled)('CRM against Postgres', () => {
     const seeds = join(process.cwd(), 'seeds');
     const sample = { OPENAPPS_SAMPLE_DATA: '1' };
     const first = await runMigrations(db.appPool(), dir);
-    expect(first.applied).toEqual(['0001_crm.sql', '0002_english_values.sql']);
+    expect(first.applied).toEqual([
+      '0001_crm.sql',
+      '0002_english_values.sql',
+      '0003_deal_close.sql',
+      '0004_next_steps.sql',
+    ]);
     expect((await runSeeds(db.appPool(), seeds, sample))?.applied).toEqual([
       'seed/0001_beispieldaten.sql',
+      'seed/0002_next_steps.sql',
     ]);
     const second = await runMigrations(db.appPool(), dir);
     expect(second.applied).toEqual([]);
@@ -177,11 +186,13 @@ describe.skipIf(!enabled)('CRM against Postgres', () => {
       note: 'Contract awarded',
     })) as {
       changed: boolean;
-      deal: { stage: string };
+      deal: { stage: string; closedAt: string | null; closeReason: string | null };
       activity: { subject: string; body: string; createdBy: string; companyId: string };
     };
     expect(changed.changed).toBe(true);
     expect(changed.deal.stage).toBe('won');
+    expect(changed.deal.closeReason).toBe('Contract awarded');
+    expect(changed.deal.closedAt).not.toBeNull();
     expect(changed.activity).toMatchObject({
       subject: 'Stage: Proposal → Won',
       body: 'Contract awarded',
@@ -189,7 +200,7 @@ describe.skipIf(!enabled)('CRM against Postgres', () => {
       companyId: STADTWERKE,
     });
 
-    const same = (await run('deals.update_stage', { id: PORTAL, stage: 'won' })) as {
+    const same = (await run('deals.update_stage', { id: PORTAL, stage: 'won', note: 'Again' })) as {
       changed: boolean;
       activity: unknown;
     };
@@ -256,5 +267,166 @@ describe.skipIf(!enabled)('CRM against Postgres', () => {
       "select column_name from information_schema.columns where table_schema = current_schema() and table_name = 'companies' and column_name in ('industry', 'branche')",
     );
     expect(rows.map((row) => row.column_name)).toEqual(['industry']);
+  });
+
+  it('gives sample deals that were closed before 0003 a close time', async () => {
+    const closed = (await run('deals.list', { status: 'closed' })) as {
+      deals: { stage: string; closedAt: string | null }[];
+    };
+    expect(closed.deals.length).toBeGreaterThan(0);
+    for (const deal of closed.deals) {
+      expect(['won', 'lost']).toContain(deal.stage);
+      expect(deal.closedAt).not.toBeNull();
+    }
+  });
+
+  it('rejects closing without a reason before touching the database', async () => {
+    const error = await run('deals.update_stage', { id: MAINTENANCE, stage: 'lost' }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ToolInputError);
+    const detail = (await run('deals.get', { id: MAINTENANCE })) as { deal: { stage: string } };
+    expect(detail.deal.stage).toBe('qualified');
+  });
+
+  it('clears close time and reason when a deal is reopened', async () => {
+    await run('deals.update_stage', { id: MAINTENANCE, stage: 'lost', note: 'No budget' });
+    const reopened = (await run('deals.update_stage', { id: MAINTENANCE, stage: 'proposal' })) as {
+      deal: { closedAt: string | null; closeReason: string | null };
+      activity: { subject: string };
+    };
+    expect(reopened.deal).toMatchObject({ closedAt: null, closeReason: null });
+    expect(reopened.activity.subject).toBe('Stage: Lost → Proposal');
+  });
+
+  it('keeps close time and stage consistent in the database, whatever writes', async () => {
+    // Der Trigger setzt closed_at selbst und raeumt den Grund beim Oeffnen weg.
+    const rows = await db.query<{ closed_at: Date | null; close_reason: string | null }>(
+      "insert into deals (title, company_id, stage, close_reason) values ('x', $1, 'won', 'r') returning closed_at, close_reason",
+      [STADTWERKE],
+    );
+    expect(rows[0]?.closed_at).toBeInstanceOf(Date);
+    const reopened = await db.query<{ closed_at: Date | null; close_reason: string | null }>(
+      "update deals set stage = 'lead' where title = 'x' and company_id = $1 returning closed_at, close_reason",
+      [STADTWERKE],
+    );
+    expect(reopened[0]).toEqual({ closed_at: null, close_reason: null });
+    await expect(
+      db.query("update deals set close_reason = '' where title = 'x' and company_id = $1", [STADTWERKE]),
+    ).resolves.toBeDefined();
+    await db.query("delete from deals where title = 'x' and company_id = $1", [STADTWERKE]);
+  });
+
+  it('updates a deal but never its stage, and keeps the contact within the company', async () => {
+    const updated = (await run('deals.update', {
+      id: SCHEDULING,
+      valueCents: 1_000_000,
+      expectedClose: null,
+      owner: 'agent:sales',
+    })) as { deal: { valueCents: number; expectedClose: string | null; owner: string; stage: string } };
+    expect(updated.deal).toMatchObject({
+      valueCents: 1_000_000,
+      expectedClose: null,
+      owner: 'agent:sales',
+      stage: 'lead',
+    });
+    const error = await run('deals.update', { id: SCHEDULING, contactId: KOEHLER }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ToolInputError);
+    const missing = await run('deals.update', {
+      id: '0d000000-0000-4000-8000-0000000000ff',
+      title: 'x',
+    }).catch((e: unknown) => e);
+    expect(missing).toBeInstanceOf(ToolNotFoundError);
+  });
+
+  it('finds deals by search text and owner', async () => {
+    const byText = (await run('deals.list', { q: 'northvale' })) as { deals: { companyId: string }[] };
+    expect(byText.deals.length).toBeGreaterThan(0);
+    expect(byText.deals.every((deal) => deal.companyId === STADTWERKE)).toBe(true);
+    const byOwner = (await run('deals.list', { owner: 'agent:sales' })) as { deals: { id: string }[] };
+    expect(byOwner.deals.map((deal) => deal.id)).toContain(SCHEDULING);
+  });
+
+  it('lists overdue next steps and shows the earliest open one on the deal', async () => {
+    const overdue = (await run('next_steps.list', { status: 'overdue' })) as {
+      nextSteps: { id: string; overdue: boolean }[];
+    };
+    expect(overdue.nextSteps.map((step) => step.id)).toContain(STEP_PORTAL);
+    expect(overdue.nextSteps.every((step) => step.overdue)).toBe(true);
+
+    const deal = (await run('deals.get', { id: PORTAL })) as {
+      deal: { nextStep: { id: string; overdue: boolean } | null };
+    };
+    expect(deal.deal.nextStep).toMatchObject({ id: STEP_PORTAL, overdue: true });
+  });
+
+  it('completes a next step once, with one activity, and reopens it', async () => {
+    const before = (await run('activities.list', { dealId: PORTAL })) as { activities: unknown[] };
+    const done = (await run('next_steps.complete', { id: STEP_PORTAL, note: 'Reached her' })) as {
+      changed: boolean;
+      nextStep: { doneBy: string; doneAt: string | null; overdue: boolean };
+      activity: { subject: string; body: string; dealId: string };
+    };
+    expect(done.changed).toBe(true);
+    expect(done.nextStep).toMatchObject({ doneBy: 'agent:test', overdue: false });
+    expect(done.activity).toMatchObject({
+      subject: 'Done: Follow up on the proposal',
+      body: 'Reached her',
+      dealId: PORTAL,
+    });
+
+    const again = (await run('next_steps.complete', { id: STEP_PORTAL })) as {
+      changed: boolean;
+      activity: unknown;
+    };
+    expect(again).toMatchObject({ changed: false, activity: null });
+
+    const after = (await run('activities.list', { dealId: PORTAL })) as { activities: unknown[] };
+    expect(after.activities.length).toBe(before.activities.length + 1);
+
+    const reopened = (await run('next_steps.reopen', { id: STEP_PORTAL })) as {
+      changed: boolean;
+      nextStep: { doneAt: string | null; doneBy: string | null };
+      activity: { subject: string };
+    };
+    expect(reopened.changed).toBe(true);
+    expect(reopened.nextStep).toMatchObject({ doneAt: null, doneBy: null });
+    expect(reopened.activity.subject).toBe('Reopened: Follow up on the proposal');
+  });
+
+  it('creates a next step, takes the company from the deal, and reports unknown ids', async () => {
+    const created = (await run('next_steps.create', {
+      title: 'Send contract draft',
+      dueOn: '2030-01-15',
+      dealId: SCHEDULING,
+    })) as { nextStep: { companyId: string; owner: string; overdue: boolean } };
+    expect(created.nextStep).toMatchObject({ companyId: HOLZBAU, owner: 'agent:test', overdue: false });
+
+    const company = (await run('companies.get', { id: HOLZBAU })) as {
+      nextSteps: { title: string }[];
+    };
+    expect(company.nextSteps.map((step) => step.title)).toContain('Send contract draft');
+
+    const unknownDeal = await run('next_steps.create', {
+      title: 'x',
+      dueOn: '2030-01-15',
+      dealId: '0d000000-0000-4000-8000-0000000000ff',
+    }).catch((e: unknown) => e);
+    expect(unknownDeal).toBeInstanceOf(ToolNotFoundError);
+    const unknownStep = await run('next_steps.complete', {
+      id: '0e000000-0000-4000-8000-0000000000ff',
+    }).catch((e: unknown) => e);
+    expect(unknownStep).toBeInstanceOf(ToolNotFoundError);
+  });
+
+  it('lets the database reject a next step without a reference or a half-done one', async () => {
+    await expect(
+      db.query("insert into next_steps (title, due_on, created_by) values ('x', current_date, 'y')"),
+    ).rejects.toMatchObject({ code: '23514' });
+    await expect(
+      db.query('update next_steps set done_at = now() where id = $1', [STEP_PORTAL]),
+    ).rejects.toMatchObject({ code: '23514' });
   });
 });

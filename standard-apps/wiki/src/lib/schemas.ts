@@ -20,6 +20,12 @@ export const LIMITS = {
   historyLimitMax: 200,
   historyLimitDefault: 50,
   listMax: 500,
+  /** Hoechstzahl Knoten, die pages.tree auf einmal liefert. */
+  treeMax: 500,
+  /** Hoechstzahl Seitenlinks, die je Seite fuer Rueckverweise gespeichert werden. */
+  linksMax: 500,
+  /** Hoechstzahl Rueckverweise, die pages.get mitliefert. */
+  backlinksMax: 100,
 } as const;
 
 export const PageId = z.string().uuid('expected a page id (UUID)');
@@ -52,11 +58,19 @@ export const Tags = z
   .max(LIMITS.tagsMax, `at most ${LIMITS.tagsMax} tags`)
   .transform((tags) => [...new Set(tags)]);
 
+/**
+ * `sort` und `limit` sind optional ohne Default, damit bestehende Aufrufer
+ * (`listPages({})`) gueltig bleiben; der Default steht in `listPages`.
+ */
 export const PagesListArgs = z
   .object({
     q: z.string().trim().max(LIMITS.queryMax).optional(),
     parentId: PageId.optional(),
     tag: Tag.optional(),
+    sort: z.enum(['title', 'updated'], {
+      errorMap: () => ({ message: "sort must be 'title' or 'updated'" }),
+    }).optional(),
+    limit: z.number().int().min(1).max(LIMITS.listMax).optional(),
   })
   .strict();
 export type PagesListArgs = z.infer<typeof PagesListArgs>;
@@ -142,6 +156,62 @@ export const PagesHistoryArgs = z
   })
   .strict();
 export type PagesHistoryArgs = z.infer<typeof PagesHistoryArgs>;
+
+/**
+ * `parentId` ist Pflicht, damit die Absicht eindeutig ist: `null` heisst
+ * „nach oben“, nicht „vergessen“.
+ */
+export const PagesMoveArgs = z
+  .object({
+    id: PageId,
+    // `null` heisst oberste Ebene. Fehlt das Feld, meldet zod „Required“.
+    parentId: PageId.nullable(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.parentId === value.id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['parentId'],
+        message: 'A page cannot be its own parent',
+      });
+    }
+  });
+export type PagesMoveArgs = z.infer<typeof PagesMoveArgs>;
+
+export const PagesTreeArgs = z
+  .object({
+    rootId: PageId.optional(),
+  })
+  .strict();
+export type PagesTreeArgs = z.infer<typeof PagesTreeArgs>;
+
+/**
+ * Revisionen haben eine fortlaufende Nummer (bigint). Als Zeichenkette, weil
+ * JSON-Zahlen ab 2^53 ungenau werden; `pages.history` liefert sie ebenso.
+ */
+export const RevisionId = z
+  .string()
+  .regex(/^[1-9]\d{0,17}$/, 'expected a revision id from pages.history (digits as a string)');
+
+export const PagesRestoreArgs = z
+  .object({
+    id: PageId,
+    revisionId: RevisionId,
+  })
+  .strict();
+export type PagesRestoreArgs = z.infer<typeof PagesRestoreArgs>;
+
+export const FavoritesListArgs = z.object({}).strict();
+export type FavoritesListArgs = z.infer<typeof FavoritesListArgs>;
+
+export const FavoritesSetArgs = z
+  .object({
+    id: PageId,
+    favorite: z.boolean({ required_error: 'favorite is required: true adds, false removes' }),
+  })
+  .strict();
+export type FavoritesSetArgs = z.infer<typeof FavoritesSetArgs>;
 
 /**
  * Tags aus einem Formularfeld: durch Komma getrennt. Leere Stuecke fallen weg,

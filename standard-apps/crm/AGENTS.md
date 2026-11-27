@@ -29,6 +29,10 @@ check in `migrations/0002_english_values.sql`. Do not rename them in code;
 people see the labels from `src/lib/domain.ts`. Changing a
 value needs a new migration and a new spec, in that order.
 
+Won and lost need a reason (`src/lib/stages.ts`); `closed_at` is set by a
+trigger in `migrations/0003_deal_close.sql`, not by code. Next step statuses
+(`open`, `overdue`, `done`, `all`) are filter values only, not stored.
+
 ## Where your path comes from
 
 The app is reachable at `https://<domain>/<app-name>`, not on its own

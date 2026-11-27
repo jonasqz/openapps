@@ -30,12 +30,11 @@ export function ActivityForm({
   initial: { companyId: string; contactId: string; dealId: string };
 }): JSX.Element {
   const router = useRouter();
+  // Zurueck zu dem Datensatz, an dem die Aktivitaet haengt: Deal vor Kontakt vor Firma.
   const { onSubmit, formError } = useActionSubmit(logActivityAction, (_id, values) => {
-    const firma =
-      text(values, 'companyId') ||
-      companyOf[text(values, 'dealId')] ||
-      companyOf[text(values, 'contactId')] ||
-      '';
+    if (text(values, 'dealId') !== '') return `/deals/${text(values, 'dealId')}`;
+    if (text(values, 'contactId') !== '') return `/contacts/${text(values, 'contactId')}`;
+    const firma = text(values, 'companyId') || companyOf[text(values, 'contactId')] || '';
     return firma === '' ? '/' : `/companies/${firma}`;
   });
 

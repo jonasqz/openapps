@@ -9,10 +9,11 @@
 openapi: 3.1.0
 info:
   title: CRM
-  version: 0.1.2
+  version: 0.2.0
   description: >-
-    Lean CRM for humans and agents. Companies, contacts, deals with a
-    pipeline, and activities. Amounts are whole euro cents, dates
+    CRM for humans and agents. Companies, contacts, a deal pipeline with
+    stages and close reasons, a timeline of activities, and next steps with
+    due dates. Amounts are whole euro cents, dates
     YYYY-MM-DD, timestamps ISO 8601. Ids are UUIDs.
 servers:
   # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
@@ -71,7 +72,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [company, contacts, deals, activities]
+                required: [company, contacts, deals, activities, nextSteps]
                 properties:
                   company: { $ref: '#/components/schemas/Company' }
                   contacts:
@@ -84,6 +85,10 @@ paths:
                     type: array
                     maxItems: 20
                     items: { $ref: '#/components/schemas/Activity' }
+                  nextSteps:
+                    type: array
+                    description: Open next steps of the company, its contacts and deals, by due date.
+                    items: { $ref: '#/components/schemas/NextStep' }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -167,7 +172,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [contact, deals, activities]
+                required: [contact, deals, activities, nextSteps]
                 properties:
                   contact: { $ref: '#/components/schemas/Contact' }
                   deals:
@@ -177,6 +182,10 @@ paths:
                     type: array
                     maxItems: 20
                     items: { $ref: '#/components/schemas/Activity' }
+                  nextSteps:
+                    type: array
+                    description: Open next steps of the contact, by due date.
+                    items: { $ref: '#/components/schemas/NextStep' }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -252,7 +261,7 @@ paths:
   /tools/deals.list:
     post:
       operationId: listDeals
-      summary: List deals, optionally by stage and company
+      summary: List deals with search and filters
       x-openapps-verb: read
       requestBody:
         required: false
@@ -262,8 +271,12 @@ paths:
               type: object
               additionalProperties: false
               properties:
+                q: { type: string, maxLength: 200, description: Searches deal title, company name and contact name. }
                 stage: { $ref: '#/components/schemas/Stage' }
+                status: { $ref: '#/components/schemas/DealStatus' }
                 companyId: { type: string, format: uuid }
+                contactId: { type: string, format: uuid }
+                owner: { type: string, maxLength: 200, description: Exact user id, e.g. agent:sales. }
                 limit: { $ref: '#/components/schemas/Limit' }
       responses:
         '200':
@@ -279,6 +292,38 @@ paths:
                     items: { $ref: '#/components/schemas/Deal' }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/deals.get:
+    post:
+      operationId: getDeal
+      summary: A deal with its timeline and next steps
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IdArgs' }
+      responses:
+        '200':
+          description: The deal with everything that belongs to it
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deal, activities, nextSteps]
+                properties:
+                  deal: { $ref: '#/components/schemas/Deal' }
+                  activities:
+                    type: array
+                    maxItems: 50
+                    items: { $ref: '#/components/schemas/Activity' }
+                  nextSteps:
+                    type: array
+                    description: Open steps first by due date, then done steps, latest first.
+                    items: { $ref: '#/components/schemas/NextStep' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /tools/deals.create:
     post:
@@ -298,7 +343,11 @@ paths:
                 companyId: { type: string, format: uuid }
                 contactId: { type: string, format: uuid, description: Must belong to the company. }
                 valueCents: { $ref: '#/components/schemas/Cents' }
-                stage: { $ref: '#/components/schemas/Stage' }
+                stage:
+                  type: string
+                  enum: [lead, qualified, proposal]
+                  default: lead
+                  description: Only open stages. Close a deal with deals.update_stage and a reason.
                 expectedClose: { type: string, format: date }
                 owner: { type: string, maxLength: 200, description: Defaults to the caller. }
       responses:
@@ -314,10 +363,52 @@ paths:
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /tools/deals.update:
+    post:
+      operationId: updateDeal
+      summary: Update a deal (everything except the stage)
+      description: >-
+        Only the fields you pass change. null or empty text clears
+        expectedClose, owner, contactId. The stage changes only through
+        deals.update_stage.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              minProperties: 2
+              properties:
+                id: { type: string, format: uuid }
+                title: { type: string, minLength: 1, maxLength: 200 }
+                valueCents: { $ref: '#/components/schemas/Cents' }
+                expectedClose: { type: [string, 'null'], format: date }
+                owner: { type: [string, 'null'], maxLength: 200 }
+                contactId: { type: [string, 'null'], format: uuid, description: Must belong to the deal's company. }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deal]
+                properties:
+                  deal: { $ref: '#/components/schemas/Deal' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /tools/deals.update_stage:
     post:
       operationId: updateDealStage
-      summary: Set the stage of a deal, with an automatic activity
+      summary: Move a deal to a stage, with an automatic activity
+      description: >-
+        won and lost need a note, the reason; it is stored as closeReason and
+        closedAt is set. Moving back to an open stage clears both.
       x-openapps-verb: write
       requestBody:
         required: true
@@ -330,7 +421,7 @@ paths:
               properties:
                 id: { type: string, format: uuid }
                 stage: { $ref: '#/components/schemas/Stage' }
-                note: { type: string, maxLength: 2000, description: The reason; goes into the body of the activity. }
+                note: { type: string, maxLength: 2000, description: 'The reason. Required for won and lost. Goes into the body of the activity.' }
       responses:
         '200':
           description: >-
@@ -423,6 +514,116 @@ paths:
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /tools/next_steps.list:
+    post:
+      operationId: listNextSteps
+      summary: List next steps, open ones by due date
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                status: { $ref: '#/components/schemas/NextStepStatus' }
+                dealId: { type: string, format: uuid }
+                companyId: { type: string, format: uuid, description: Also finds steps on the company's deals and contacts. }
+                contactId: { type: string, format: uuid }
+                owner: { type: string, maxLength: 200, description: Exact user id. }
+                limit: { $ref: '#/components/schemas/Limit' }
+      responses:
+        '200':
+          description: Next steps
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nextSteps]
+                properties:
+                  nextSteps:
+                    type: array
+                    items: { $ref: '#/components/schemas/NextStep' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/next_steps.create:
+    post:
+      operationId: createNextStep
+      summary: Plan a next step with a due date
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, dueOn]
+              anyOf:
+                - required: [dealId]
+                - required: [companyId]
+                - required: [contactId]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                dueOn: { type: string, format: date }
+                dealId: { type: string, format: uuid }
+                companyId: { type: string, format: uuid, description: If missing, it is taken from the deal or contact. }
+                contactId: { type: string, format: uuid }
+                owner: { type: string, maxLength: 200, description: Defaults to the caller. }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nextStep]
+                properties:
+                  nextStep: { $ref: '#/components/schemas/NextStep' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/next_steps.complete:
+    post:
+      operationId: completeNextStep
+      summary: Mark a next step as done, with an automatic activity
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+                note: { type: string, maxLength: 2000, description: The outcome; goes into the body of the activity. }
+      responses:
+        '200': { $ref: '#/components/responses/NextStepChanged' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/next_steps.reopen:
+    post:
+      operationId: reopenNextStep
+      summary: Reopen a next step that was marked done
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IdArgs' }
+      responses:
+        '200': { $ref: '#/components/responses/NextStepChanged' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /tools/pipeline.summary:
     post:
       operationId: getPipelineSummary
@@ -485,6 +686,22 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    NextStepChanged:
+      description: >-
+        The step after the call. changed is false and activity is null if the
+        step was already in that state.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [nextStep, changed, activity]
+            properties:
+              nextStep: { $ref: '#/components/schemas/NextStep' }
+              changed: { type: boolean }
+              activity:
+                oneOf:
+                  - { $ref: '#/components/schemas/Activity' }
+                  - { type: 'null' }
   schemas:
     Error:
       type: object
@@ -521,6 +738,16 @@ components:
         Deal stage. lead, qualified and proposal are open; won and lost are
         closed.
       enum: [lead, qualified, proposal, won, lost]
+    DealStatus:
+      type: string
+      description: open = lead, qualified, proposal; closed = won, lost.
+      enum: [open, closed]
+    NextStepStatus:
+      type: string
+      description: >-
+        open = not done (default); overdue = not done and due before today
+        (Europe/Berlin); done; all.
+      enum: [open, overdue, done, all]
     ActivityKind:
       type: string
       description: >-
@@ -560,7 +787,7 @@ components:
         updatedAt: { type: string, format: date-time }
     Deal:
       type: object
-      required: [id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner, createdAt, updatedAt]
+      required: [id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner, closedAt, closeReason, nextStep, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -572,8 +799,40 @@ components:
         stage: { $ref: '#/components/schemas/Stage' }
         expectedClose: { type: [string, 'null'], format: date }
         owner: { type: [string, 'null'] }
+        closedAt: { type: [string, 'null'], format: date-time, description: Set while the deal is won or lost. }
+        closeReason: { type: [string, 'null'], description: Why the deal was won or lost. }
+        nextStep:
+          description: The earliest open next step of the deal, or null.
+          oneOf:
+            - type: object
+              required: [id, title, dueOn, overdue]
+              properties:
+                id: { type: string, format: uuid }
+                title: { type: string }
+                dueOn: { type: string, format: date }
+                overdue: { type: boolean }
+            - { type: 'null' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    NextStep:
+      type: object
+      required: [id, title, dueOn, overdue, dealId, dealTitle, companyId, companyName, contactId, contactName, owner, doneAt, doneBy, createdBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        dueOn: { type: string, format: date }
+        overdue: { type: boolean, description: Not done and due before today (Europe/Berlin). }
+        dealId: { type: [string, 'null'], format: uuid }
+        dealTitle: { type: [string, 'null'] }
+        companyId: { type: [string, 'null'], format: uuid }
+        companyName: { type: [string, 'null'] }
+        contactId: { type: [string, 'null'], format: uuid }
+        contactName: { type: [string, 'null'] }
+        owner: { type: [string, 'null'] }
+        doneAt: { type: [string, 'null'], format: date-time }
+        doneBy: { type: [string, 'null'] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
     Activity:
       type: object
       required: [id, kind, subject, body, contactId, contactName, companyId, companyName, dealId, dealTitle, happenedAt, createdBy, createdAt]

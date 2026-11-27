@@ -63,3 +63,10 @@ export function parseEuroToCents(input: string): number | null {
   if (value > BigInt(MAX_VALUE_CENTS)) return null;
   return Number(value);
 }
+
+/** Cent -> Text fuer ein Eingabefeld, das `parseEuroToCents` wieder liest: "12,500.50". */
+export function formatEuroInput(cents: number): string {
+  const euros = BigInt(Math.trunc(cents / 100)).toLocaleString('en-GB');
+  const rest = String(cents % 100).padStart(2, '0');
+  return rest === '00' ? euros : `${euros}.${rest}`;
+}

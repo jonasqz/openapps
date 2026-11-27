@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { Markdown } from '@/components/Markdown';
 import { Snippet, splitSnippet } from '@/components/Snippet';
-import { parseInline, parseMarkdown, safeHref } from './markdown';
+import { extractPageLinks, parseInline, parseMarkdown, safeHref } from './markdown';
 
 const render = (source: string): string => renderToStaticMarkup(createElement(Markdown, { source }));
 
@@ -185,5 +185,70 @@ describe('search snippet', () => {
 
   it('leaves unclosed marks as text', () => {
     expect(splitSnippet('a « b')).toEqual([{ text: 'a « b', hit: false }]);
+  });
+});
+
+describe('page links — [text](page:<uuid>)', () => {
+  const ID = '6f1c2a4e-1b7d-4c2a-9e51-0a0000000002';
+
+  it('renders an internal link to /pages/<uuid>, without target=_blank', () => {
+    const html = render(`See [Onboarding](page:${ID}).`);
+    expect(html).toContain(`href="/pages/${ID}"`);
+    expect(html).not.toContain('target="_blank"');
+    expect(html).toContain('Onboarding');
+  });
+
+  it('normalises the id to lowercase', () => {
+    expect(parseInline(`[x](PAGE:${ID.toUpperCase()})`)).toEqual([
+      { type: 'pagelink', id: ID, children: [{ type: 'text', text: 'x' }] },
+    ]);
+  });
+
+  it.each([
+    'page:javascript:alert(1)',
+    'page:../../admin',
+    'page:/etc/passwd',
+    `page:${ID}/../x`,
+    `page:${ID}?x=1`,
+    `page:${ID}#a`,
+    'page:',
+    'page:6f1c2a4e-1b7d-4c2a-9e51-0a000000000',
+    `page:%36f1c2a4e-1b7d-4c2a-9e51-0a0000000002`,
+  ])('renders %j as text, never as a link', (url) => {
+    const html = render(`[label](${url})`);
+    expect(html).not.toContain('<a');
+    expect(html).toContain('label');
+  });
+
+  it('extracts linked page ids once, in order, and ignores code', () => {
+    const other = '6f1c2a4e-1b7d-4c2a-9e51-0a0000000003';
+    const source = [
+      `# [Head](page:${ID})`,
+      '',
+      `Text **[bold](page:${other})** and [again](page:${ID}).`,
+      '',
+      `- [ ] [task](page:${other})`,
+      '',
+      '```',
+      '[in code](page:6f1c2a4e-1b7d-4c2a-9e51-0a0000000009)',
+      '```',
+      '',
+      '`[inline](page:6f1c2a4e-1b7d-4c2a-9e51-0a0000000008)`',
+      '',
+      '[external](https://example.test)',
+    ].join('\n');
+    expect(extractPageLinks(source)).toEqual([ID, other]);
+    expect(extractPageLinks(source, 1)).toEqual([ID]);
+  });
+});
+
+describe('checklist rendering', () => {
+  it('shows boxes as display only, with a text for screen readers', () => {
+    const html = render('- [x] shipped\n- [ ] <script>alert(1)</script>');
+    expect(html).not.toContain('<input');
+    expect(html).not.toContain('<script');
+    expect(html).toContain('Done: ');
+    expect(html).toContain('Open: ');
+    expect(html).toContain('line-through');
   });
 });

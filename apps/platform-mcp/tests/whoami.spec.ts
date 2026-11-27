@@ -15,7 +15,7 @@ import {
   type DomainContext,
 } from '@openapps/control-plane/domain';
 import { platformTools, runTool, whoamiTool } from '../src/tools';
-import { admin, createHarness, seedBootstrapGrants } from './helpers';
+import { admin, createHarness, seedBootstrapGrants, type Harness } from './helpers';
 
 const manifestFor = (name: string): AppManifest => ({
   manifestVersion: 1,
@@ -35,6 +35,10 @@ const manifestFor = (name: string): AppManifest => ({
 const praktikant: Actor = { kind: 'agent', id: 'praktikant' };
 
 async function setup(): Promise<DomainContext> {
+  return (await setupHarness()).ctx;
+}
+
+async function setupHarness(): Promise<Harness & { readonly ctx: DomainContext }> {
   const harness = createHarness();
   await seedBootstrapGrants(harness);
   // Ohne Domain stuende keine App in der Liste; die MCP-Huelle setzt keine.
@@ -55,7 +59,15 @@ async function setup(): Promise<DomainContext> {
     verb: 'read',
     resource: { kind: 'app', id: 'crm' },
   });
-  return ctx;
+  // Eine Gruppen-Freigabe: Ein Agent ist in keiner Gruppe, sie darf bei ihm
+  // nie auftauchen.
+  await grant(ctx, {
+    actor: admin,
+    subject: { kind: 'group', id: 'team' },
+    verb: 'read',
+    resource: { kind: 'app', id: 'crm' },
+  });
+  return { ...harness, ctx };
 }
 
 describe('whoami', () => {
@@ -81,6 +93,38 @@ describe('whoami', () => {
     });
     expect(me.apps.map((app) => app.name)).toEqual(['wiki']);
     expect(me.grants.map((g) => `${g.subject.id}:${g.resource.id}`)).toEqual(['praktikant:wiki']);
+    expect(me.grants[0]?.via).toEqual({ kind: 'direct' });
+  });
+
+  it('zeigt einem Menschen Freigaben ueber seine Gruppe mit Herkunft, keine fremden', async () => {
+    const ctx = await setup();
+    const lena: Actor = { kind: 'user', id: 'u-lena', groups: ['team'] };
+    const result = await runTool(whoamiTool, { ctx, actor: lena }, {});
+    expect(result.ok).toBe(true);
+    const { me } = result.value as { me: ActorDescription };
+    expect(me.grants.map((g) => ({ resource: g.resource.id, via: g.via }))).toEqual([
+      { resource: 'crm', via: { kind: 'group', group: 'team' } },
+    ]);
+    expect(me.apps.map((app) => app.name)).toEqual(['crm']);
+  });
+
+  it('protokolliert den Aufruf als whoami, nicht als list_grants', async () => {
+    const { ctx, store } = await setupHarness();
+    const before = store.auditEntries.length;
+    const result = await runTool(
+      whoamiTool,
+      { ctx, actor: praktikant, correlationId: 'mcp-session-1' },
+      {},
+    );
+    expect(result.ok).toBe(true);
+    const added = store.auditEntries.slice(before);
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({
+      actor: { kind: 'agent', id: 'praktikant' },
+      action: 'whoami',
+      outcome: 'allowed',
+      correlationId: 'mcp-session-1',
+    });
   });
 
   it('liefert einem Agent ganz ohne Freigabe leere Listen statt eines Fehlers', async () => {

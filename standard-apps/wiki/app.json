@@ -2,12 +2,12 @@
   "manifestVersion": 1,
   "name": "wiki",
   "displayName": "Wiki",
-  "description": "Knowledge pages like in Notion: a page tree, Markdown, full-text search and a history of every change. For humans and agents alike.",
+  "description": "Notes and documents for humans and agents: nested pages with a page tree, a Markdown editor with preview, links between pages with backlinks, favorites, full-text search and a history of every change with restore.",
   "category": "knowledge",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "wiki-v0.1.3"
+    "tag": "wiki-v0.2.0"
   },
   "requiredTables": [
     {
@@ -16,51 +16,89 @@
     },
     {
       "name": "page_revisions",
-      "description": "History: the state of every page after every change, with author (human or agent) and timestamp. Never modified."
+      "description": "History: the state of every page after every change (create, edit, move, restore, archive), with parent page, author (human or agent) and timestamp. Never modified."
+    },
+    {
+      "name": "page_favorites",
+      "description": "Favorites: which person or agent marked which page, and when."
+    },
+    {
+      "name": "page_links",
+      "description": "Links between pages ([text](page:<id>) in the content), kept in step with the content; the source of backlinks."
     }
   ],
   "offeredTools": [
     {
       "name": "pages.list",
-      "description": "Lists wiki pages without content, sorted by title, never archived ones. Arguments, all optional: q = text that must appear in the title; parentId = UUID, only direct subpages of that page; tag = only pages with this tag. Returns {pages: [{id, parentId, title, tags, updatedAt, updatedBy}], truncated}. truncated=true means more than 500 pages; narrow the filter. To search the content use pages.search, for the text use pages.get.",
+      "description": "Lists non-archived pages without content. Optional: q (text in the title), parentId (only direct subpages), tag, sort ('title' default, or 'updated' = recently edited first), limit (1 to 500, default 500). Returns {pages: [{id, parentId, title, tags, updatedAt, updatedBy}], truncated}; truncated=true means more pages match. For the hierarchy use pages.tree, to search content pages.search.",
       "operationId": "listPages",
       "verb": "read"
     },
     {
+      "name": "pages.tree",
+      "description": "The page tree without content. Optional: rootId (UUID) returns that page with all its subpages; without it you get every non-archived page from the top level down. Returns {tree: [{id, title, updatedAt, children: [...]}], truncated}. At most 500 pages, cut level by level; if truncated=true, ask again with a rootId further down. Unknown rootId: 404.",
+      "operationId": "getPageTree",
+      "verb": "read"
+    },
+    {
       "name": "pages.get",
-      "description": "Reads a page in full. Argument: id (UUID from pages.list or pages.search). Returns {id, parentId, title, contentMd (Markdown), tags, createdAt, createdBy, updatedAt, updatedBy, archivedAt (null or timestamp), parent ({id, title} or null), children ([{id, title}], non-archived subpages)}. Unknown id: error 404.",
+      "description": "Reads a page in full. Argument: id (UUID). Returns {id, parentId, title, contentMd (Markdown), tags, createdAt, createdBy, updatedAt, updatedBy, archivedAt, parent ({id, title} or null), children (live subpages), path (ancestors, top first, for breadcrumbs), backlinks (live pages that link here)}. Unknown id: 404.",
       "operationId": "getPage",
       "verb": "read"
     },
     {
       "name": "pages.search",
-      "description": "Full-text search in title and content of non-archived pages, Postgres English dictionary: English word forms match (request finds requests), other languages only exactly, stop words like the are ignored. Arguments: query (search text; \"exact phrase\", -word excludes, or combines), limit (optional, 1 to 50, default 10). Returns {hits: [{id, parentId, title, tags, updatedAt, rank, snippet}]}, best hit first; snippet is a one-line excerpt with hits in «…». Fetch the full text with pages.get.",
+      "description": "Full-text search in title and content of non-archived pages, Postgres English dictionary: English word forms match (request finds requests), stop words like the are ignored. Arguments: query (\"exact phrase\", -word excludes, or combines), limit (optional, 1 to 50, default 10). Returns {hits: [{id, parentId, title, tags, updatedAt, rank, snippet}]}, best first; snippet marks hits with «…».",
       "operationId": "searchPages",
       "verb": "read"
     },
     {
       "name": "pages.create",
-      "description": "Creates a new page and writes the first history entry. Arguments: title (1 to 200 characters), contentMd (Markdown, may be empty), parentId (optional, UUID of a non-archived page; the new page becomes its subpage), tags (optional, list of short words, at most 20). Returns the new page like pages.get. Check with pages.search first whether the page already exists.",
+      "description": "Creates a page and the first history entry. Arguments: title (1 to 200 characters), contentMd (Markdown, may be empty), parentId (optional, a non-archived page; the new page becomes its subpage), tags (optional, at most 20 short words). Link to another page with [text](page:<id>). Returns the page like pages.get. Check with pages.search first whether the page exists.",
       "operationId": "createPage",
       "verb": "write"
     },
     {
       "name": "pages.update",
-      "description": "Changes a page and writes a history entry with you as the author. Arguments: id, plus at least one of: title; contentMd (replaces the whole content); appendMd (appends Markdown at the end after a blank line, the rest stays; not together with contentMd); tags (replaces all tags). To add to a page use appendMd instead of rewriting the content. Returns the page like pages.get. Archived pages: error 400.",
+      "description": "Changes a page and writes a history entry with you as author. Arguments: id plus at least one of: title; contentMd (replaces all content); appendMd (appends after a blank line; not with contentMd); tags (replaces all). To add to a page prefer appendMd. Link to another page with [text](page:<id>). Returns the page like pages.get. Archived pages: 400. To change the parent use pages.move.",
       "operationId": "updatePage",
       "verb": "write"
     },
     {
+      "name": "pages.move",
+      "description": "Moves a page with all its subpages. Arguments: id; parentId = UUID of the new parent page, or null for the top level (required, so the intent is explicit). Rejected with 400: the page itself or one of its own subpages as parent (that would be a cycle), an archived page or parent. Unknown page or parent: 404. Writes a history entry 'move'. Returns the page like pages.get.",
+      "operationId": "movePage",
+      "verb": "write"
+    },
+    {
       "name": "pages.archive",
-      "description": "Archives a page: it disappears from pages.list and pages.search and stays readable with pages.get and pages.history. Cannot be undone through the tools. Argument: id. If the page has non-archived subpages, you get error 400 with their names; archive the subpages first. Returns {id, archivedAt}. Archiving again changes nothing.",
+      "description": "Archives a page: it disappears from pages.list, pages.tree and pages.search and stays readable with pages.get and pages.history. Cannot be undone through the tools. Argument: id. With non-archived subpages you get 400 with their names; archive or move them first. Returns {id, archivedAt}. Archiving again changes nothing.",
       "operationId": "archivePage",
       "verb": "write"
     },
     {
       "name": "pages.history",
-      "description": "History of a page, newest change first, also for archived pages. Arguments: id, limit (optional, 1 to 200, default 50). Returns {pageId, title, revisions: [{id, change (create, update or archive), title, contentMd, tags, editedBy, editedAt}]}. Each revision is the state after the change; editedBy is a person id or agent:<name>.",
+      "description": "History of a page, newest first, also for archived pages. Arguments: id, limit (optional, 1 to 200, default 50). Returns {pageId, title, revisions: [{id, change (create, update, move, restore or archive), parentId, title, contentMd, tags, editedBy, editedAt}]}. Each revision is the state after the change; editedBy is a person id or agent:<name>. Use a revision id with pages.restore.",
       "operationId": "getPageHistory",
       "verb": "read"
+    },
+    {
+      "name": "pages.restore",
+      "description": "Restores title, content and tags of a page to an earlier revision and writes a new history entry 'restore'; nothing is deleted, the parent stays. Arguments: id; revisionId (the id string from pages.history). Archived page: 400. Unknown page or revision of another page: 404. Returns the page like pages.get. If the page already matches the revision, nothing is written.",
+      "operationId": "restorePage",
+      "verb": "write"
+    },
+    {
+      "name": "favorites.list",
+      "description": "Your own favorite pages (the caller's, person or agent), non-archived, sorted by title. No arguments. Returns {pages: [{id, parentId, title, tags, updatedAt, updatedBy}]}.",
+      "operationId": "listFavorites",
+      "verb": "read"
+    },
+    {
+      "name": "favorites.set",
+      "description": "Adds a page to your own favorites or removes it. Arguments: id; favorite (true adds, false removes). Idempotent. An archived page cannot be added (400) but can be removed. Unknown page: 404. Returns {id, favorite}.",
+      "operationId": "setFavorite",
+      "verb": "write"
     }
   ],
   "requestedGrants": [

@@ -1,0 +1,19 @@
+{
+  "name": "@openapps/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests (Playwright) for the risky paths against the running local stack (infra/lokal).",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "lint": "prettier --check \"**/*.{ts,json,md}\""
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.12.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.10.5",
+    "prettier": "3.4.2",
+    "typescript": "5.7.2"
+  }
+}

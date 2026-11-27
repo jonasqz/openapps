@@ -82,3 +82,10 @@ die Control Plane, und Apps enthalten keinen Rechte-Code (CLAUDE.md 3).
 - **Die Navigation in die Identitäts-Signatur aufnehmen:** Das änderte das
   Signatur-Format, und alle Apps müssten gleichzeitig neu ausgerollt werden.
   Verworfen zugunsten einer eigenen Signatur.
+
+## Nachtrag (27.11.2026)
+
+Die Anbindung einer App an die Leiste liegt nicht mehr als Kopie in jeder
+App, sondern als `loadShell` in `@openapps/sdk/next` und `NextPlatformShell`
+in `@openapps/ui/next` (ADR 0019). An den Headern und ihrer Signatur aendert
+das nichts.

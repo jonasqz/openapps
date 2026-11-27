@@ -251,13 +251,50 @@ The showcase (`showcase/`) shows all components, all five patterns and the
 ## PlatformShell
 
 The shared sidebar of every app (ADR 0017). The platform data comes from the
-gateway; the app only passes its own sections:
+gateway; the app only passes its own sections.
+
+In a Next.js app (App Router) use `NextPlatformShell` from `@openapps/ui/next`
+(ADR 0019). It takes a flat table of sections, marks the current page via
+`usePathname` and navigates inside the app with the Next router. `next` is an
+optional peer dependency, needed only for this subpath:
 
 ```tsx
-import { PlatformShell, themeScript } from '@openapps/ui';
+// src/app/layout.tsx (server component)
+import { loadShell } from '@openapps/sdk/next';
+import { ThemeScript } from '@openapps/ui';
+import { NextPlatformShell, type AppSection } from '@openapps/ui/next';
+import manifest from '../../app.json';
 
-// In <head>, so a stored theme applies before the first paint:
-<script dangerouslySetInnerHTML={{ __html: themeScript }} />
+const SECTIONS = [
+  { id: 'pipeline', label: 'Pipeline', path: '/', match: ['/', '/deals'] },
+  { id: 'companies', label: 'Companies', path: '/companies' },
+] as const satisfies readonly AppSection[];
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const shell = await loadShell(manifest);
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head><ThemeScript /></head>
+      <body className="bg-bg text-fg antialiased">
+        <NextPlatformShell {...shell} sections={SECTIONS}>{children}</NextPlatformShell>
+      </body>
+    </html>
+  );
+}
+```
+
+`path` is the path inside the app without the base path; `match` (default
+`[path]`) lists the paths under which the entry is current — `/` only
+exactly, everything else including subpages. Without Next, use
+`sectionNav(sections, pathname, basePath)` and pass the result to
+`PlatformShell` directly:
+
+```tsx
+import { PlatformShell, ThemeScript } from '@openapps/ui';
+
+// In <head>, so a stored theme applies before the first paint
+// (the raw string is exported as `themeScript`):
+<ThemeScript />
 
 <PlatformShell
   platform={navigation}          // from getNavigation() in @openapps/sdk, or null

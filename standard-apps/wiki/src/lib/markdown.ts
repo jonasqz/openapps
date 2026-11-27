@@ -7,11 +7,14 @@
  * Text escapet.
  *
  * Unterstuetzt: Ueberschriften (`#` bis `######`), Absaetze, Listen (`-`, `*`,
- * `+`, `1.`), Zitate (`>`), Trennlinien, Code-Bloecke (```), Inline-Code,
- * Fett (`**`), Kursiv (`*`, `_`) und Links `[Text](URL)`.
+ * `+`, `1.`), Checklisten (`- [ ]`, `- [x]`), Zitate (`>`), Trennlinien,
+ * Code-Bloecke (```), Inline-Code, Fett (`**`), Kursiv (`*`, `_`), Links
+ * `[Text](URL)` und Links auf andere Wiki-Seiten `[Text](page:<uuid>)`.
  *
- * Links nur mit http(s). Alles andere (`javascript:`, `data:`, relative Pfade,
- * `//host`) wird als Text gezeigt, nicht als Link.
+ * Links nur mit http(s) oder als `page:` mit einer UUID. Alles andere
+ * (`javascript:`, `data:`, relative Pfade, `//host`) wird als Text gezeigt,
+ * nicht als Link. Ein Seitenlink traegt nur die geprueften UUID weiter, nie die
+ * rohe Zeichenkette — der Renderer baut den Pfad selbst.
  */
 
 export type Inline =
@@ -19,12 +22,20 @@ export type Inline =
   | { type: 'strong'; children: Inline[] }
   | { type: 'em'; children: Inline[] }
   | { type: 'code'; text: string }
-  | { type: 'link'; href: string; children: Inline[] };
+  | { type: 'link'; href: string; children: Inline[] }
+  | { type: 'pagelink'; id: string; children: Inline[] };
 
 export type Block =
   | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: Inline[] }
   | { type: 'paragraph'; children: Inline[] }
-  | { type: 'list'; ordered: boolean; start: number; items: Inline[][] }
+  | {
+      type: 'list';
+      ordered: boolean;
+      start: number;
+      items: Inline[][];
+      /** Je Punkt: `null` ohne Kaestchen, sonst ob abgehakt (`- [x]`). */
+      checked: Array<boolean | null>;
+    }
   | { type: 'quote'; children: Inline[] }
   | { type: 'code'; lang: string; text: string }
   | { type: 'hr' };
@@ -53,12 +64,27 @@ export function safeHref(raw: string): string | undefined {
   return url.href;
 }
 
+/** `page:` plus UUID, gross oder klein geschrieben. */
+const PAGE_LINK = /^page:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/**
+ * Gibt die Seiten-Id zurueck, wenn die URL ein Wiki-Seitenlink ist
+ * (`page:<uuid>`), sonst `undefined`. Immer klein geschrieben, damit dieselbe
+ * Seite nicht zweimal als Rueckverweis zaehlt.
+ */
+export function pageLinkId(raw: string): string | undefined {
+  const match = PAGE_LINK.exec(raw.trim());
+  return match?.[1]?.toLowerCase();
+}
+
 const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/;
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*#*[ \t]*$/;
 const HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const QUOTE = /^ {0,3}>[ \t]?(.*)$/;
 const BULLET = /^ {0,3}[-*+][ \t]+(.*)$/;
 const ORDERED = /^ {0,3}(\d{1,9})[.)][ \t]+(.*)$/;
+/** Kaestchen am Anfang eines Listenpunkts: `[ ]` offen, `[x]` erledigt. */
+const TASK = /^\[([ xX])\](?:[ \t]+(.*))?$/;
 
 const isBlank = (line: string): boolean => line.trim() === '';
 
@@ -154,11 +180,19 @@ export function parseMarkdown(source: string): Block[] {
         items[items.length - 1]?.push(current.trim());
         i += 1;
       }
+      const texts = items.map((parts) => parts.join(' ').trim());
+      const checked = texts.map((text) => {
+        const task = TASK.exec(text);
+        return task === null ? null : (task[1] ?? ' ') !== ' ';
+      });
       blocks.push({
         type: 'list',
         ordered: isOrdered,
         start,
-        items: items.map((parts) => parseInline(parts.join(' ').trim())),
+        items: texts.map((text, index) =>
+          parseInline(checked[index] === null ? text : (TASK.exec(text)?.[2] ?? '')),
+        ),
+        checked,
       });
       continue;
     }
@@ -282,8 +316,11 @@ function parseInlineAt(text: string, depth: number, noClose: Map<string, number>
       if (link !== undefined) {
         flush();
         const label = parseInlineAt(link.label, depth + 1, new Map());
-        const href = safeHref(link.url);
-        if (href === undefined) {
+        const pageId = pageLinkId(link.url);
+        const href = pageId === undefined ? safeHref(link.url) : undefined;
+        if (pageId !== undefined) {
+          out.push({ type: 'pagelink', id: pageId, children: label });
+        } else if (href === undefined) {
           // Kein sicherer Link: Beschriftung bleibt sichtbar, die URL nicht
           // klickbar. So geht kein Inhalt verloren, aber nichts wird ausgefuehrt.
           out.push(...label);
@@ -348,4 +385,30 @@ function readLink(
   const url = text.slice(middle + 2, close);
   if (/\s/.test(url.trim()) || url.length > 2048) return undefined;
   return { label, url, end: close + 1 };
+}
+
+/**
+ * Die Ids aller Wiki-Seiten, auf die ein Markdown-Text verlinkt, in der
+ * Reihenfolge ihres ersten Vorkommens, ohne Dubletten. Code-Bloecke und
+ * Inline-Code zaehlen nicht — dort ist `page:…` nur Text. Hoechstens `max`.
+ */
+export function extractPageLinks(source: string, max = Number.POSITIVE_INFINITY): string[] {
+  const found = new Set<string>();
+  const visit = (nodes: readonly Inline[]): void => {
+    for (const node of nodes) {
+      if (found.size >= max) return;
+      if (node.type === 'pagelink') found.add(node.id);
+      if (node.type === 'strong' || node.type === 'em' || node.type === 'link' || node.type === 'pagelink') {
+        visit(node.children);
+      }
+    }
+  };
+  for (const block of parseMarkdown(source)) {
+    if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'quote') {
+      visit(block.children);
+    } else if (block.type === 'list') {
+      for (const item of block.items) visit(item);
+    }
+  }
+  return [...found];
 }

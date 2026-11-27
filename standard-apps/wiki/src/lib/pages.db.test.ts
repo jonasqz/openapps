@@ -7,12 +7,19 @@ import {
   archivePage,
   createPage,
   getPage,
+  isFavorite,
+  listFavorites,
   listPages,
+  movePage,
   pageHistory,
+  pageTree,
+  restorePage,
   searchPages,
+  setFavorite,
   updatePage,
 } from './pages';
-import { PagesCreateArgs, PagesUpdateArgs } from './schemas';
+import { PagesCreateArgs, PagesMoveArgs, PagesUpdateArgs } from './schemas';
+import { flattenTree } from './tree';
 
 /**
  * Gegen eine echte Datenbank. Laeuft nur, wenn `WIKI_TEST_DATABASE_URL` und
@@ -34,6 +41,8 @@ const AGENT = 'agent:editor';
 
 const create = (input: unknown, actor = HUMAN) => createPage(PagesCreateArgs.parse(input), actor);
 const update = (input: unknown, actor = AGENT) => updatePage(PagesUpdateArgs.parse(input), actor);
+const move = (id: string, parentId: string | null, actor = AGENT) =>
+  movePage(PagesMoveArgs.parse({ id, parentId }), actor);
 
 describe.skipIf(!enabled)('Wiki against Postgres', () => {
   beforeAll(async () => {
@@ -50,7 +59,13 @@ describe.skipIf(!enabled)('Wiki against Postgres', () => {
   it('runs migrations a second time without effect', async () => {
     const result = await runMigrations(appPool(), join(MIGRATIONS));
     expect(result.applied).toEqual([]);
-    expect(result.skipped).toEqual(['0001_wiki.sql', '0002_english_search.sql']);
+    expect(result.skipped).toEqual([
+      '0001_wiki.sql',
+      '0002_english_search.sql',
+      '0003_history_moves_restores.sql',
+      '0004_favorites.sql',
+      '0005_page_links.sql',
+    ]);
   });
 
   it('shows the sample pages as a tree, each with a first history entry', async () => {
@@ -165,6 +180,204 @@ describe.skipIf(!enabled)('Wiki against Postgres', () => {
     await expect(
       create({ title: 'Orphan', contentMd: '', parentId: missing }),
     ).rejects.toBeInstanceOf(ToolNotFoundError);
+  });
+
+  it('backfilled the parent of every existing revision', async () => {
+    const { pages } = await listPages({ q: 'Onboarding' });
+    const onboarding = pages[0];
+    expect(onboarding?.parentId).not.toBeNull();
+    const history = await pageHistory({ id: onboarding?.id ?? '', limit: 5 });
+    expect(history.revisions[0]?.parentId).toBe(onboarding?.parentId);
+  });
+
+  it('sample links in the seed match what the code reads from the content', async () => {
+    const { pages } = await listPages({ q: 'First-day checklist' });
+    const checklist = await getPage({ id: pages[0]?.id ?? '' });
+    const { extractPageLinks } = await import('./markdown');
+    const stored = await query<{ target_id: string }>(
+      'select target_id from page_links where source_id = $1 order by target_id',
+      [checklist.id],
+    );
+    expect(stored.map((row) => row.target_id)).toEqual([...extractPageLinks(checklist.contentMd)].sort());
+    const leave = (await listPages({ q: 'Leave policy' })).pages[0];
+    expect((await getPage({ id: leave?.id ?? '' })).backlinks.map((ref) => ref.id)).toEqual([checklist.id]);
+  });
+
+  it('move: under another page, to the top level, with breadcrumbs and history', async () => {
+    const root = await create({ title: 'Test move root', contentMd: '' });
+    const middle = await create({ title: 'Test move middle', contentMd: '', parentId: root.id });
+    const leaf = await create({ title: 'Test move leaf', contentMd: '' });
+
+    const moved = await move(leaf.id, middle.id);
+    expect(moved.parentId).toBe(middle.id);
+    expect(moved.path.map((ref) => ref.id)).toEqual([root.id, middle.id]);
+    expect(moved.updatedBy).toBe(AGENT);
+
+    const top = await move(leaf.id, null, HUMAN);
+    expect(top.parentId).toBeNull();
+    expect(top.path).toEqual([]);
+
+    const history = await pageHistory({ id: leaf.id, limit: 10 });
+    expect(history.revisions.map((revision) => [revision.change, revision.parentId])).toEqual([
+      ['move', null],
+      ['move', middle.id],
+      ['create', null],
+    ]);
+
+    // Dasselbe Ziel noch einmal: keine neue Revision.
+    await move(leaf.id, null);
+    expect((await pageHistory({ id: leaf.id, limit: 10 })).revisions).toHaveLength(3);
+  });
+
+  it('move: never into its own subtree, not even deep down', async () => {
+    const a = await create({ title: 'Test cycle a', contentMd: '' });
+    const b = await create({ title: 'Test cycle b', contentMd: '', parentId: a.id });
+    const c = await create({ title: 'Test cycle c', contentMd: '', parentId: b.id });
+
+    await expect(move(a.id, b.id)).rejects.toThrow(/own subpages/);
+    await expect(move(a.id, c.id)).rejects.toBeInstanceOf(ToolInputError);
+    // Nichts wurde geschrieben.
+    expect((await getPage({ id: a.id })).parentId).toBeNull();
+    expect((await pageHistory({ id: a.id, limit: 5 })).revisions.map((r) => r.change)).toEqual(['create']);
+
+    // Ein Ast weiter oben ist erlaubt: c unter a.
+    expect((await move(c.id, a.id)).parentId).toBe(a.id);
+  });
+
+  it('move: two crossing moves at the same time cannot build a cycle', async () => {
+    const x = await create({ title: 'Test race x', contentMd: '' });
+    const y = await create({ title: 'Test race y', contentMd: '' });
+    const results = await Promise.allSettled([move(x.id, y.id), move(y.id, x.id)]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected?.status === 'rejected' ? rejected.reason : undefined).toBeInstanceOf(ToolInputError);
+    const [px, py] = await Promise.all([getPage({ id: x.id }), getPage({ id: y.id })]);
+    expect(px.parentId === y.id && py.parentId === x.id).toBe(false);
+  });
+
+  it('move: not under an archived or unknown page, and archived pages stay put', async () => {
+    const gone = await create({ title: 'Test move archived parent', contentMd: '' });
+    await archivePage({ id: gone.id }, AGENT);
+    const page = await create({ title: 'Test move victim', contentMd: '' });
+    await expect(move(page.id, gone.id)).rejects.toThrow(/archived/);
+    await expect(move(page.id, '00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(
+      ToolNotFoundError,
+    );
+    await expect(move(gone.id, page.id)).rejects.toThrow(/archived/);
+  });
+
+  it('tree: full tree and subtree, without archived pages', async () => {
+    const root = await create({ title: 'Test tree root', contentMd: '' });
+    const child = await create({ title: 'Test tree child', contentMd: '', parentId: root.id });
+    const archived = await create({ title: 'Test tree archived', contentMd: '', parentId: root.id });
+    await archivePage({ id: archived.id }, AGENT);
+
+    const sub = await pageTree({ rootId: root.id });
+    expect(sub.truncated).toBe(false);
+    expect(sub.tree).toHaveLength(1);
+    expect(sub.tree[0]?.children.map((node) => node.id)).toEqual([child.id]);
+
+    const full = await pageTree({});
+    const ids = flattenTree(full.tree).map((node) => node.id);
+    expect(ids).toContain(child.id);
+    expect(ids).not.toContain(archived.id);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    await expect(pageTree({ rootId: '00000000-0000-4000-8000-000000000000' })).rejects.toBeInstanceOf(
+      ToolNotFoundError,
+    );
+  });
+
+  it('restore: earlier state comes back as a new revision, nothing is lost', async () => {
+    const page = await create({ title: 'Test restore', contentMd: 'Version one', tags: ['one'] });
+    await update({ id: page.id, title: 'Test restore renamed', contentMd: 'Version two', tags: [] });
+    const history = await pageHistory({ id: page.id, limit: 10 });
+    const first = history.revisions.find((revision) => revision.change === 'create');
+
+    const restored = await restorePage({ id: page.id, revisionId: first?.id ?? '' }, HUMAN);
+    expect(restored.title).toBe('Test restore');
+    expect(restored.contentMd).toBe('Version one');
+    expect(restored.tags).toEqual(['one']);
+
+    const after = await pageHistory({ id: page.id, limit: 10 });
+    expect(after.revisions.map((revision) => [revision.change, revision.editedBy])).toEqual([
+      ['restore', HUMAN],
+      ['update', AGENT],
+      ['create', HUMAN],
+    ]);
+
+    // Schon auf diesem Stand: keine weitere Revision.
+    await restorePage({ id: page.id, revisionId: first?.id ?? '' }, HUMAN);
+    expect((await pageHistory({ id: page.id, limit: 10 })).revisions).toHaveLength(3);
+  });
+
+  it('restore: only revisions of the same page, never on archived pages', async () => {
+    const a = await create({ title: 'Test restore a', contentMd: 'a' });
+    const b = await create({ title: 'Test restore b', contentMd: 'b' });
+    const revisionOfB = (await pageHistory({ id: b.id, limit: 1 })).revisions[0]?.id ?? '';
+    await expect(restorePage({ id: a.id, revisionId: revisionOfB }, HUMAN)).rejects.toBeInstanceOf(
+      ToolNotFoundError,
+    );
+    expect((await getPage({ id: a.id })).contentMd).toBe('a');
+    await expect(restorePage({ id: a.id, revisionId: '999999999999' }, HUMAN)).rejects.toBeInstanceOf(
+      ToolNotFoundError,
+    );
+
+    await archivePage({ id: b.id }, AGENT);
+    await expect(restorePage({ id: b.id, revisionId: revisionOfB }, HUMAN)).rejects.toThrow(/archived/);
+  });
+
+  it('backlinks follow the content: added, removed, restored, hidden when archived', async () => {
+    const target = await create({ title: 'Test link target', contentMd: '' });
+    const source = await create({
+      title: 'Test link source',
+      contentMd: `See [target](page:${target.id}) and [nothing](page:00000000-0000-4000-8000-000000000000) and [me](page:TARGET).`,
+    });
+    expect((await getPage({ id: target.id })).backlinks).toEqual([{ id: source.id, title: 'Test link source' }]);
+
+    // Ein Link auf sich selbst zaehlt nicht.
+    await update({ id: target.id, contentMd: `[self](page:${target.id})` });
+    expect((await getPage({ id: target.id })).backlinks.map((ref) => ref.id)).toEqual([source.id]);
+
+    await update({ id: source.id, contentMd: 'No links any more. `[code](page:' + target.id + ')`' });
+    expect((await getPage({ id: target.id })).backlinks).toEqual([]);
+
+    const first = (await pageHistory({ id: source.id, limit: 10 })).revisions.find((r) => r.change === 'create');
+    await restorePage({ id: source.id, revisionId: first?.id ?? '' }, HUMAN);
+    expect((await getPage({ id: target.id })).backlinks.map((ref) => ref.id)).toEqual([source.id]);
+
+    // Archivierte Quellen zeigen nicht mehr als Rueckverweis.
+    await archivePage({ id: source.id }, AGENT);
+    expect((await getPage({ id: target.id })).backlinks).toEqual([]);
+  });
+
+  it('favorites belong to the caller only, are idempotent and skip archived pages', async () => {
+    const page = await create({ title: 'Test favorite', contentMd: '' });
+    await setFavorite({ id: page.id, favorite: true }, HUMAN);
+    await setFavorite({ id: page.id, favorite: true }, HUMAN);
+    expect((await listFavorites(HUMAN)).pages.filter((p) => p.id === page.id)).toHaveLength(1);
+    expect(await isFavorite(HUMAN, page.id)).toBe(true);
+    // Ein anderer Aufrufer sieht die Favoriten der Person nicht.
+    expect((await listFavorites(AGENT)).pages.some((p) => p.id === page.id)).toBe(false);
+    expect(await isFavorite(AGENT, page.id)).toBe(false);
+
+    await archivePage({ id: page.id }, AGENT);
+    expect((await listFavorites(HUMAN)).pages.some((p) => p.id === page.id)).toBe(false);
+    await expect(setFavorite({ id: page.id, favorite: true }, AGENT)).rejects.toThrow(/archived/);
+    await expect(setFavorite({ id: page.id, favorite: false }, HUMAN)).resolves.toEqual({
+      id: page.id,
+      favorite: false,
+    });
+    await expect(
+      setFavorite({ id: '00000000-0000-4000-8000-000000000000', favorite: true }, HUMAN),
+    ).rejects.toBeInstanceOf(ToolNotFoundError);
+  });
+
+  it('recently edited: newest change first, bounded by limit', async () => {
+    const page = await create({ title: 'Test recent', contentMd: '' });
+    const { pages, truncated } = await listPages({ sort: 'updated', limit: 1 });
+    expect(pages.map((p) => p.id)).toEqual([page.id]);
+    expect(truncated).toBe(true);
   });
 
   it('keeps the revisions even if someone tries to delete around the code', async () => {

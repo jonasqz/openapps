@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation';
 import type { JSX } from 'react';
 import { FormPattern, type SelectOption } from '@openapps/ui';
 import { updateDealStageAction } from '@/app/actions';
-import { STAGE_LABELS, STAGES } from '@/lib/domain';
-import { useActionSubmit } from './useActionSubmit';
+import { isStage, needsReason, REASON_REQUIRED, STAGE_LABELS, STAGES } from '@/lib/domain';
+import { text, useActionSubmit } from './useActionSubmit';
 
 const STAGE_OPTIONS: SelectOption[] = STAGES.map((stage) => ({
   value: stage,
@@ -21,12 +21,12 @@ export function StageForm({
   dealId: string;
 }): JSX.Element {
   const router = useRouter();
-  const { onSubmit, formError } = useActionSubmit(updateDealStageAction, () => '/');
+  const { onSubmit, formError } = useActionSubmit(updateDealStageAction, (id) => `/deals/${id}`);
 
   return (
     <FormPattern
       title="Change stage"
-      description="Each change is added to the history as a note, together with the reason."
+      description="Each change is added to the timeline as a note. Won and lost need the reason."
       initialValues={{ id: dealId }}
       fields={[
         {
@@ -45,7 +45,18 @@ export function StageForm({
           placeholder: 'Choose a stage',
           required: true,
         },
-        { name: 'note', label: 'Reason', kind: 'text' },
+        {
+          name: 'note',
+          label: 'Reason',
+          kind: 'text',
+          hint: 'Required for won and lost.',
+          validate: (value, values) => {
+            const stage = text(values, 'stage');
+            return isStage(stage) && needsReason(stage) && String(value).trim() === ''
+              ? REASON_REQUIRED
+              : undefined;
+          },
+        },
       ]}
       submitLabel="Set stage"
       onCancel={() => router.back()}

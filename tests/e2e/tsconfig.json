@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src", "specs", "playwright.config.ts"],
+  "exclude": ["node_modules", "playwright-report", "test-results"]
+}

@@ -1,0 +1,45 @@
+# Browser-Tests gegen den lokalen Stapel (tests/e2e). Nur von Hand: Der Stapel
+# baut Control Plane, Postgres und ein Image je App, und das Review-Gate laesst
+# gitleaks und semgrep laufen. Fuer jeden Push ist das zu langsam.
+name: E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # Nie parallel bauen: Jeder Build installiert den ganzen Workspace.
+      COMPOSE_PARALLEL_LIMIT: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Local stack
+        run: |
+          ./infra/lokal/einrichten.sh
+          ./infra/lokal/apps-ausrollen.sh
+      - run: pnpm --filter @openapps/e2e exec playwright install --with-deps chromium
+      - run: pnpm e2e
+      - name: Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report
+          retention-days: 7
+      - name: Logs of the stack
+        if: failure()
+        run: ./infra/lokal/lokal.sh logs --no-color --tail 200 control-plane ansehen traefik
+      - name: Clean up
+        if: always()
+        run: ./infra/lokal/lokal.sh down -v

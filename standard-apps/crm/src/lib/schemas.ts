@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { ACTIVITY_KINDS, MAX_VALUE_CENTS, STAGES } from './domain';
+import {
+  ACTIVITY_KINDS,
+  DEAL_STATUSES,
+  MAX_VALUE_CENTS,
+  needsReason,
+  NEXT_STEP_STATUSES,
+  REASON_REQUIRED,
+  STAGES,
+  type Stage,
+} from './domain';
 
 /**
  * Die Argumente jedes Tools. Jedes Schema ist `strict`: Ein unbekannter
@@ -164,10 +173,32 @@ export type ContactUpdateArgs = z.infer<typeof ContactUpdateArgs>;
 
 // --- Deals ----------------------------------------------------------------
 
+export const dealStatus = z.enum(DEAL_STATUSES, {
+  errorMap: () => ({ message: `expected one of: ${DEAL_STATUSES.join(', ')}` }),
+});
+
 export const DealsListArgs = z
-  .object({ stage: z.preprocess(blankToUndefined, stage.optional()), companyId: optionalUuid, limit })
+  .object({
+    q: query,
+    stage: z.preprocess(blankToUndefined, stage.optional()),
+    status: z.preprocess(blankToUndefined, dealStatus.optional()),
+    companyId: optionalUuid,
+    contactId: optionalUuid,
+    owner: optionalText(200),
+    limit,
+  })
   .strict();
 export type DealsListArgs = z.infer<typeof DealsListArgs>;
+
+/**
+ * Neue Deals starten offen. Won und lost brauchen einen Grund, und den nimmt
+ * nur deals.update_stage an — so gibt es keinen Abschluss ohne Grund.
+ */
+export const openStage = z.enum(['lead', 'qualified', 'proposal'], {
+  errorMap: () => ({
+    message: 'expected one of: lead, qualified, proposal; create the deal open, then close it with deals.update_stage and a note',
+  }),
+}) satisfies z.ZodType<Stage>;
 
 export const DealCreateArgs = z
   .object({
@@ -175,16 +206,43 @@ export const DealCreateArgs = z
     companyId: uuid,
     contactId: optionalUuid,
     valueCents,
-    stage: z.preprocess(blankToUndefined, stage.default('lead')),
+    stage: z.preprocess(blankToUndefined, openStage.default('lead')),
     expectedClose: z.preprocess(blankToUndefined, isoDate.optional()),
     owner: optionalText(200),
   })
   .strict();
 export type DealCreateArgs = z.infer<typeof DealCreateArgs>;
 
+const DEAL_UPDATE_FIELDS = ['title', 'valueCents', 'expectedClose', 'owner', 'contactId'] as const;
+
+/**
+ * Bearbeiten ohne Stage: Die Stage aendert nur deals.update_stage, damit jeder
+ * Wechsel im Verlauf steht. Ein `stage` hier ist ein unbekannter Schluessel.
+ */
+export const DealUpdateArgs = z
+  .object({
+    id: uuid,
+    title: z.preprocess(blankToUndefined, requiredText(200).optional()),
+    valueCents: valueCents.optional(),
+    expectedClose: z.preprocess(blankToNull, isoDate.nullable().optional()),
+    owner: clearableText(200),
+    contactId: clearableUuid,
+  })
+  .strict()
+  .refine((value) => DEAL_UPDATE_FIELDS.some((field) => value[field] !== undefined), {
+    message: `provide at least one of ${DEAL_UPDATE_FIELDS.join(', ')}; the stage changes only through deals.update_stage`,
+  });
+export type DealUpdateArgs = z.infer<typeof DealUpdateArgs>;
+
+/** Grund ist Pflicht bei won und lost (src/lib/stages.ts). */
 export const DealUpdateStageArgs = z
   .object({ id: uuid, stage, note: optionalText(2000) })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (needsReason(value.stage) && value.note === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['note'], message: REASON_REQUIRED });
+    }
+  });
 export type DealUpdateStageArgs = z.infer<typeof DealUpdateStageArgs>;
 
 // --- Aktivitaeten ---------------------------------------------------------
@@ -217,6 +275,44 @@ export const ActivitiesListArgs = z
   .object({ contactId: optionalUuid, companyId: optionalUuid, dealId: optionalUuid, limit })
   .strict();
 export type ActivitiesListArgs = z.infer<typeof ActivitiesListArgs>;
+
+// --- Naechste Schritte ----------------------------------------------------
+
+export const nextStepStatus = z.enum(NEXT_STEP_STATUSES, {
+  errorMap: () => ({ message: `expected one of: ${NEXT_STEP_STATUSES.join(', ')}` }),
+});
+
+export const NextStepsListArgs = z
+  .object({
+    status: z.preprocess(blankToUndefined, nextStepStatus.default('open')),
+    dealId: optionalUuid,
+    companyId: optionalUuid,
+    contactId: optionalUuid,
+    owner: optionalText(200),
+    limit,
+  })
+  .strict();
+export type NextStepsListArgs = z.infer<typeof NextStepsListArgs>;
+
+export const NextStepCreateArgs = z
+  .object({
+    title: requiredText(200),
+    dueOn: isoDate,
+    dealId: optionalUuid,
+    companyId: optionalUuid,
+    contactId: optionalUuid,
+    owner: optionalText(200),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.dealId !== undefined || value.companyId !== undefined || value.contactId !== undefined,
+    { message: 'provide at least one of dealId, companyId, contactId' },
+  );
+export type NextStepCreateArgs = z.infer<typeof NextStepCreateArgs>;
+
+export const NextStepCompleteArgs = z.object({ id: uuid, note: optionalText(2000) }).strict();
+export type NextStepCompleteArgs = z.infer<typeof NextStepCompleteArgs>;
 
 // --- Pipeline -------------------------------------------------------------
 

@@ -1,0 +1,23 @@
+#!/bin/sh
+# pre-commit: Secrets in den gestagten Aenderungen blocken, bevor sie ins Repo
+# und damit (das Repo ist oeffentlich) ins Netz gehen.
+# Aktiviert ueber `git config core.hooksPath .githooks` (pnpm install -> prepare).
+# Die eigentliche Pruefung steht in scripts/secrets-check.mjs.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+
+if command -v node >/dev/null 2>&1; then
+  exec node "$root/scripts/secrets-check.mjs" --staged
+fi
+
+# Kein Node im PATH (etwa in manchen Git-GUIs): gitleaks direkt, sonst blocken.
+if command -v gitleaks >/dev/null 2>&1; then
+  config=""
+  [ -f "$root/.gitleaks.toml" ] && config="--config=$root/.gitleaks.toml"
+  # `protect --staged` ist ab gitleaks 8.19 veraltet, funktioniert aber weiter.
+  exec gitleaks protect --staged --redact --no-banner --verbose --source "$root" $config
+fi
+
+echo "pre-commit: neither node nor gitleaks found in PATH, cannot check for secrets." >&2
+echo "Install gitleaks (macOS: brew install gitleaks) or make node available, then commit again." >&2
+exit 1

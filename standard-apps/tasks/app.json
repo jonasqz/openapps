@@ -2,9 +2,9 @@
   "manifestVersion": 1,
   "name": "tasks",
   "displayName": "Tasks",
-  "description": "Team tasks with title, assignee, due date and completion status. For people and agents.",
+  "description": "Team tasks with status, assignee, due date, priority, projects, comments and history. For people and agents.",
   "category": "internal",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "source": {
     "git": "https://lokal.invalid/tasks",
     "tag": "lokal"
@@ -12,26 +12,74 @@
   "requiredTables": [
     {
       "name": "tasks",
-      "description": "Team tasks: title, assignee, due date, completed yes/no, creator and timestamps."
+      "description": "Team tasks: title, description, status (todo, in_progress, done), priority, assignee email, due date, project, who completed it, creator and timestamps."
+    },
+    {
+      "name": "projects",
+      "description": "Projects that group tasks: name (unique, case-insensitive), description, creator."
+    },
+    {
+      "name": "task_comments",
+      "description": "Comments on a task: body, author, timestamp."
+    },
+    {
+      "name": "task_events",
+      "description": "History of a task: who changed which field from what to what, and when."
     }
   ],
   "offeredTools": [
     {
       "name": "tasks.list",
-      "description": "Lists tasks: open ones first, then by due date (tasks without a date last), then newest. Arguments, all optional: completed (true/false, only completed or only open tasks), assignee (name of the person, case-insensitive, exact match), limit (1 to 200, default 50). Returns { tasks: [{ id, title, assignee, dueDate (YYYY-MM-DD or null), completed, completedAt, completedBy, createdBy, createdAt }] }. You need the id for tasks.complete.",
+      "description": "Lists tasks, in progress first, then to do, done last; open ones by due date. Optional filters: mine (true = assigned to you, use it for 'my open tasks' with completed false), assignee (email), unassigned, status (todo, in_progress, done), completed, overdue, projectId, query (text in title or description), limit (1-200, default 50). Returns { tasks } with id, status, assignee, dueDate, overdue, priority, projectName.",
       "operationId": "listTasks",
       "verb": "read"
     },
     {
+      "name": "tasks.get",
+      "description": "Returns one task with its comments and its history. Argument: id (UUID from tasks.list). Returns { task, comments: [{ id, body, author, createdAt }], history: [{ kind, from, to, actor, createdAt }] }. An unknown id returns 404.",
+      "operationId": "getTask",
+      "verb": "read"
+    },
+    {
       "name": "tasks.create",
-      "description": "Creates an open task. Arguments: title (required, 1 to 200 characters), assignee (required, name of the person responsible), dueDate (optional, YYYY-MM-DD). The caller is stored as createdBy. Returns { task } with the new id. Check with tasks.list first whether the task already exists.",
+      "description": "Creates a task. Arguments: title (required, 1-200 chars), description, assignee (email), dueDate (YYYY-MM-DD), priority (low, medium, high; default medium), status (default todo), projectId (UUID from projects.list). The caller is stored as creator. Returns { task }. Check with tasks.list (query) first whether it already exists.",
       "operationId": "createTask",
       "verb": "write"
     },
     {
+      "name": "tasks.update",
+      "description": "Changes a task. Arguments: id, plus at least one of title, description, assignee (email or null), dueDate (YYYY-MM-DD or null), priority, status (todo, in_progress, done), projectId (UUID or null). Optional expectedStatus: only change if the status is still this one. Every change lands in the history. Returns { task, changed, previousStatus }.",
+      "operationId": "updateTask",
+      "verb": "write"
+    },
+    {
+      "name": "tasks.assign",
+      "description": "Assigns a task to a person by email, or unassigns it with assignee null. Arguments: id (UUID from tasks.list), assignee. The person does not get notified by this app. Returns { task, changed, previousStatus }; changed is false if the task already had this assignee.",
+      "operationId": "assignTask",
+      "verb": "write"
+    },
+    {
       "name": "tasks.complete",
-      "description": "Marks a task as completed and records who completed it and when. Argument: id (UUID from tasks.list). If it is already completed, nothing changes (changed: false). An unknown id returns 404. Returns { task, changed }.",
+      "description": "Sets a task to done and records who completed it and when. Argument: id. If it is already done, nothing changes (changed: false). Returns { task, changed, previousStatus }. To undo, call tasks.update with status previousStatus and expectedStatus done.",
       "operationId": "completeTask",
+      "verb": "write"
+    },
+    {
+      "name": "tasks.comment",
+      "description": "Adds a comment to a task. Arguments: id (UUID of the task), body (1-5000 chars, plain text). The caller is stored as author. Comments cannot be edited or deleted. Returns { comment }. An unknown id returns 404.",
+      "operationId": "commentTask",
+      "verb": "write"
+    },
+    {
+      "name": "projects.list",
+      "description": "Lists all projects by name with counts: openCount, overdueCount, doneCount. No arguments. Returns { projects: [{ id, name, description, openCount, overdueCount, doneCount, createdBy, createdAt }] }. You need the id for projectId in tasks.create, tasks.update and tasks.list.",
+      "operationId": "listProjects",
+      "verb": "read"
+    },
+    {
+      "name": "projects.create",
+      "description": "Creates a project to group tasks. Arguments: name (required, 1-100 chars, unique ignoring case), description (up to 1000 chars). Returns { project }. If the name already exists, it returns 400 with a hint; use projects.list to get the existing id.",
+      "operationId": "createProject",
       "verb": "write"
     }
   ],

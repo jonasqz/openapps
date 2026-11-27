@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseAppManifest } from '@openapps/app-manifest';
 import {
@@ -64,11 +64,28 @@ describe('Manifest', () => {
     expect(manifest.name).toBe('tasks');
   });
 
-  it('nennt jede Tabelle aus der Migration', () => {
+  it('nennt jede Tabelle aus den Migrationen', () => {
     const manifest = parseAppManifest(JSON.parse(manifestText));
-    const sql = readFileSync(new URL('../../migrations/0001_tasks.sql', import.meta.url), 'utf8');
-    const created = [...sql.matchAll(/^create table (\w+)/gm)].map((match) => match[1]);
+    const dir = new URL('../../migrations/', import.meta.url);
+    const created = readdirSync(dir)
+      .filter((name) => name.endsWith('.sql'))
+      .flatMap((name) =>
+        [...readFileSync(new URL(name, dir), 'utf8').matchAll(/^create table (\w+)/gm)].map((match) => match[1]),
+      );
     expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual(created.sort());
+  });
+
+  it('steht auf Version 0.2.0 und behaelt die lokale Quelle', () => {
+    const manifest = parseAppManifest(JSON.parse(manifestText));
+    expect(manifest.version).toBe('0.2.0');
+    expect(manifest.source.tag).toBe('lokal');
+  });
+
+  it('haelt jede Tool-Beschreibung englisch und ohne Umlaute', () => {
+    const manifest = parseAppManifest(JSON.parse(manifestText));
+    for (const tool of manifest.offeredTools) {
+      expect(tool.description, tool.name).not.toMatch(/[äöüÄÖÜß]/);
+    }
   });
 });
 
@@ -77,7 +94,17 @@ describe('Tool-Zuordnung', () => {
   const operations = specOperations(openapiText);
 
   it('nutzt genau die verlangten Tool-Namen, auch im Manifest', () => {
-    const expected = ['tasks.complete', 'tasks.create', 'tasks.list'];
+    const expected = [
+      'projects.create',
+      'projects.list',
+      'tasks.assign',
+      'tasks.comment',
+      'tasks.complete',
+      'tasks.create',
+      'tasks.get',
+      'tasks.list',
+      'tasks.update',
+    ];
     expect([...TOOL_NAMES].sort()).toEqual(expected);
     expect(manifest.offeredTools.map((tool) => tool.name).sort()).toEqual(expected);
   });
@@ -92,9 +119,10 @@ describe('Tool-Zuordnung', () => {
     expect(operations.length).toBe(manifest.offeredTools.length);
   });
 
-  it('beschreibt nur list als read, alles andere als write', () => {
+  it('beschreibt nur list und get als read, alles, was schreibt, als write', () => {
     for (const tool of manifest.offeredTools) {
-      expect(tool.verb, tool.name).toBe(tool.name.endsWith('.list') ? 'read' : 'write');
+      const reads = tool.name.endsWith('.list') || tool.name.endsWith('.get');
+      expect(tool.verb, tool.name).toBe(reads ? 'read' : 'write');
     }
   });
 });
@@ -157,29 +185,86 @@ describe('Tool-Route mit den Handlern von tasks', () => {
     expect(response.status).toBe(401);
   });
 
+  const ID = '0d000000-0000-4000-8000-000000000001';
+
   it('antwortet auf falsche Argumente mit 400 und Hinweis, bevor die Datenbank gefragt wird', async () => {
     const cases: [string, unknown][] = [
-      ['tasks.create', { title: 'X' }],
-      ['tasks.create', { title: '   ', assignee: 'Alex' }],
-      ['tasks.create', { title: 'X', assignee: 'Alex', dueDate: '01.12.2026' }],
-      ['tasks.create', { title: 'X', assignee: 'Alex', dueDate: '2026-02-30' }],
-      ['tasks.create', { title: 'X', assignee: 'Alex', createdBy: 'someone' }],
+      // create
+      ['tasks.create', {}],
+      ['tasks.create', { title: '   ' }],
+      ['tasks.create', { title: 'x'.repeat(201) }],
+      ['tasks.create', { title: 'X', dueDate: '01.12.2026' }],
+      ['tasks.create', { title: 'X', dueDate: '2026-02-30' }],
+      ['tasks.create', { title: 'X', assignee: 'Alex' }],
+      ['tasks.create', { title: 'X', status: 'finished' }],
+      ['tasks.create', { title: 'X', priority: 'urgent' }],
+      ['tasks.create', { title: 'X', projectId: 'website' }],
+      ['tasks.create', { title: 'X', createdBy: 'someone' }],
+      ['tasks.create', { title: 'X', description: 'x'.repeat(10001) }],
+      // update: Statuswechsel nur auf bekannte Werte, und mindestens ein Feld
+      ['tasks.update', { id: ID }],
+      ['tasks.update', { id: ID, expectedStatus: 'done' }],
+      ['tasks.update', { id: ID, status: 'completed' }],
+      ['tasks.update', { id: ID, status: 'done', expectedStatus: 'closed' }],
+      ['tasks.update', { id: ID, title: '' }],
+      ['tasks.update', { id: ID, title: null }],
+      ['tasks.update', { id: ID, assignee: 'not an email' }],
+      ['tasks.update', { id: ID, completedBy: 'someone', status: 'done' }],
+      ['tasks.update', { id: 'not-a-uuid', status: 'done' }],
+      // assign
+      ['tasks.assign', { id: ID }],
+      ['tasks.assign', { id: ID, assignee: 'Alex' }],
+      ['tasks.assign', { id: ID, assignee: '' }],
+      // complete
       ['tasks.complete', { id: 'not-a-uuid' }],
       ['tasks.complete', {}],
+      ['tasks.complete', { id: ID, status: 'todo' }],
+      // comment
+      ['tasks.comment', { id: ID }],
+      ['tasks.comment', { id: ID, body: '   ' }],
+      ['tasks.comment', { id: ID, body: 'x'.repeat(5001) }],
+      ['tasks.comment', { id: ID, body: 'Hi', author: 'someone' }],
+      // get und list
+      ['tasks.get', {}],
       ['tasks.list', { completed: 'yes' }],
       ['tasks.list', { limit: 1000 }],
+      ['tasks.list', { status: 'open' }],
+      ['tasks.list', { mine: true, assignee: 'sam@example.com' }],
+      ['tasks.list', { status: 'done', completed: true }],
+      ['tasks.list', { projectId: 'website' }],
+      // projects
+      ['projects.create', {}],
+      ['projects.create', { name: '  ' }],
+      ['projects.create', { name: 'x'.repeat(101) }],
+      ['projects.list', { all: true }],
     ];
     for (const [tool, args] of cases) {
       const response = await call(tool, args);
       expect(response.status, `${tool} ${JSON.stringify(args)}`).toBe(400);
       const body = (await response.json()) as { error: string; issues: unknown[] };
       expect(body.error).toBe('invalid');
-      expect(body.issues.length).toBeGreaterThan(0);
+      expect(body.issues.length, `${tool} ${JSON.stringify(args)}`).toBeGreaterThan(0);
     }
   });
 
+  it('sagt einem Agenten, wie es richtig geht', async () => {
+    const expectations: [string, unknown, string, string][] = [
+      ['tasks.create', { title: 'X', assignee: 'Alex' }, 'assignee', 'Assignee must be an email address, e.g. alex@example.com.'],
+      ['tasks.update', { id: ID, status: 'completed' }, 'status', 'status must be one of todo, in_progress, done.'],
+      ['tasks.comment', { id: ID, body: ' ' }, 'body', 'Comment is empty.'],
+      ['tasks.complete', { id: 'x' }, 'id', 'id must be the UUID of a task from tasks.list.'],
+    ];
+    for (const [tool, args, field, message] of expectations) {
+      const body = (await (await call(tool, args)).json()) as { issues: { path?: unknown[]; message?: string }[] };
+      const issue = body.issues.find((candidate) => candidate.path?.[0] === field);
+      expect(issue?.message, `${tool} ${field}`).toBe(message);
+    }
+    const empty = (await (await call('tasks.update', { id: ID })).json()) as { issues: { message?: string }[] };
+    expect(empty.issues[0]?.message).toMatch(/^Nothing to change\./);
+  });
+
   it('nennt in der 400 das Feld und eine englische Meldung', async () => {
-    const response = await call('tasks.create', { title: 'X', assignee: 'Alex', dueDate: '01.12.2026' });
+    const response = await call('tasks.create', { title: 'X', assignee: 'alex@example.com', dueDate: '01.12.2026' });
     expect(response.status).toBe(400);
     const body = (await response.json()) as { issues: { path?: unknown[]; message?: string }[] };
     const issue = body.issues.find((candidate) => candidate.path?.[0] === 'dueDate');
@@ -187,6 +272,8 @@ describe('Tool-Route mit den Handlern von tasks', () => {
   });
 
   it('kennt kein Tool außerhalb der Tabelle', async () => {
-    expect((await call('tasks.delete', {})).status).toBe(404);
+    for (const tool of ['tasks.delete', 'comments.delete', 'projects.delete', '__proto__', 'toString']) {
+      expect((await call(tool, {})).status, tool).toBe(404);
+    }
   });
 });

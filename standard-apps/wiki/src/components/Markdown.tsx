@@ -1,10 +1,14 @@
+import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
+import { Icon, cn } from '@openapps/ui';
 import { parseMarkdown, type Block, type Inline } from '@/lib/markdown';
 
 /**
  * Rendert Markdown als React-Elemente. Kein HTML-String, kein
  * `dangerouslySetInnerHTML`: Jeder Text geht als Kind an React und wird
  * escapet. Links haben nur http(s)-Ziele — das prueft der Parser.
+ * Seitenlinks (`page:<uuid>`) gehen ueber `next/link` auf `/pages/<uuid>`,
+ * damit der basePath stimmt; der Pfad entsteht hier aus der geprueften UUID.
  *
  * Die Ueberschriften beginnen bei `h2`, weil der Seitentitel das `h1` ist.
  *
@@ -60,6 +64,17 @@ function renderInline(nodes: readonly Inline[], keyPrefix: string): ReactNode[] 
           </a>,
         );
         break;
+      case 'pagelink':
+        out.push(
+          <Link
+            key={key}
+            href={`/pages/${node.id}`}
+            className="text-primary underline decoration-border-strong underline-offset-2 hover:decoration-primary"
+          >
+            {renderInline(node.children, key)}
+          </Link>,
+        );
+        break;
     }
   });
   return out;
@@ -108,9 +123,38 @@ function renderBlock(block: Block, key: string): JSX.Element {
       // Der Parser erzeugt eine Liste nur aus mindestens einem Punkt, und es
       // gibt nichts, was beim Laden scheitern koennte. Leer- und Fehlerzustand
       // der Seite selbst liegen eine Ebene hoeher.
-      const items = block.items.map((item, index) => (
-        <li key={`${key}-${index}`}>{renderInline(item, `${key}-${index}`)}</li>
-      ));
+      const isChecklist = block.checked.some((value) => value !== null);
+      const items = block.items.map((item, index) => {
+        const itemKey = `${key}-${index}`;
+        const checked = block.checked[index] ?? null;
+        if (checked === null) return <li key={itemKey}>{renderInline(item, itemKey)}</li>;
+        // Ein Kaestchen zur Anzeige, kein Eingabefeld: Abhaken ist eine
+        // Aenderung am Inhalt und laeuft ueber „Edit“ bzw. pages.update.
+        return (
+          <li key={itemKey} className="flex list-none items-start gap-2">
+            <span
+              aria-hidden="true"
+              className={cn(
+                'mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
+                checked ? 'border-primary bg-primary text-primary-fg' : 'border-border-strong',
+              )}
+            >
+              {checked ? <Icon name="check" size="sm" /> : null}
+            </span>
+            <span className="sr-only">{checked ? 'Done: ' : 'Open: '}</span>
+            <span className={cn('min-w-0', checked && 'text-fg-muted line-through')}>
+              {renderInline(item, itemKey)}
+            </span>
+          </li>
+        );
+      });
+      if (isChecklist && !block.ordered) {
+        return (
+          <ul key={key} className="mt-3 space-y-1 text-sm text-fg first:mt-0">
+            {items}
+          </ul>
+        );
+      }
       return block.ordered ? (
         <ol
           key={key}

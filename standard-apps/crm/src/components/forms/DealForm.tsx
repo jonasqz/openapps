@@ -4,11 +4,12 @@ import { useRouter } from 'next/navigation';
 import type { JSX } from 'react';
 import { FormPattern, type SelectOption } from '@openapps/ui';
 import { createDealAction } from '@/app/actions';
-import { STAGE_LABELS, STAGES } from '@/lib/domain';
+import { OPEN_STAGES, STAGE_LABELS } from '@/lib/domain';
 import { parseEuroToCents } from '@/lib/format';
-import { text, useActionSubmit } from './useActionSubmit';
+import { useActionSubmit } from './useActionSubmit';
 
-const STAGE_OPTIONS: SelectOption[] = STAGES.map((stage) => ({
+// Nur offene Stages: Abschluss mit Grund geht ueber deals.update_stage.
+const STAGE_OPTIONS: SelectOption[] = OPEN_STAGES.map((stage) => ({
   value: stage,
   label: STAGE_LABELS[stage],
 }));
@@ -24,10 +25,7 @@ export function DealForm({
   companyId: string;
 }): JSX.Element {
   const router = useRouter();
-  const { onSubmit, formError } = useActionSubmit(
-    createDealAction,
-    (_id, values) => `/companies/${text(values, 'companyId')}`,
-  );
+  const { onSubmit, formError } = useActionSubmit(createDealAction, (id) => `/deals/${id}`);
 
   return (
     <FormPattern
@@ -63,7 +61,14 @@ export function DealForm({
               ? 'Enter an amount like 12,500 or 12,500.50.'
               : undefined,
         },
-        { name: 'stage', label: 'Stage', kind: 'select', options: STAGE_OPTIONS, required: true },
+        {
+          name: 'stage',
+          label: 'Stage',
+          kind: 'select',
+          options: STAGE_OPTIONS,
+          required: true,
+          hint: 'New deals usually start as a lead. Won and lost are set later, with the reason.',
+        },
         {
           name: 'expectedClose',
           label: 'Expected close',

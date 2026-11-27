@@ -1,3 +1,5 @@
+import type { RevisionChange } from './pages';
+
 /**
  * Datum fuer die Anzeige. Feste Zeitzone und Sprache, damit Server und
  * Browser dasselbe zeigen — die Seiten rendern auf dem Server.
@@ -17,4 +19,6 @@ export const CHANGE_LABEL = {
   create: 'Created',
   update: 'Edited',
   archive: 'Archived',
-} as const;
+  move: 'Moved',
+  restore: 'Restored',
+} as const satisfies Record<RevisionChange, string>;

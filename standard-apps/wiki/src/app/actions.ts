@@ -3,13 +3,20 @@
 import { headers } from 'next/headers';
 import { getUser, ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import type { ZodIssue } from 'zod';
-import { archivePage, createPage, updatePage } from '@/lib/pages';
-import { PagesArchiveArgs, PagesCreateArgs, PagesUpdateArgs } from '@/lib/schemas';
+import { archivePage, createPage, movePage, restorePage, setFavorite, updatePage } from '@/lib/pages';
+import {
+  FavoritesSetArgs,
+  PagesArchiveArgs,
+  PagesCreateArgs,
+  PagesMoveArgs,
+  PagesRestoreArgs,
+  PagesUpdateArgs,
+} from '@/lib/schemas';
 
 /**
  * Die Schreibwege der UI. Jede Action ist ein duenner Mantel um genau ein Tool
- * (`pages.create`, `pages.update`, `pages.archive`) — dieselbe Funktion,
- * dieselbe Pruefung. Es gibt keinen Weg, der nur in der UI existiert.
+ * (`pages.create`, `pages.update`, `pages.move`, `pages.archive`,
+ * `pages.restore`, `favorites.set`) — dieselbe Funktion, dieselbe Pruefung. Es gibt keinen Weg, der nur in der UI existiert.
  *
  * Eine Server Action ist ein oeffentlicher POST-Endpunkt. Deshalb prueft jede
  * zuerst die Gateway-Signatur mit `getUser` und dann die Argumente — der
@@ -96,5 +103,44 @@ export async function archivePageAction(input: unknown): Promise<ActionResult> {
     return { ok: true, id: result.id };
   } catch (error) {
     return failure(error, 'archivePage');
+  }
+}
+
+export async function movePageAction(input: unknown): Promise<ActionResult> {
+  const user = await actor();
+  if (user === undefined) return UNAUTHORIZED;
+  const parsed = PagesMoveArgs.safeParse(input);
+  if (!parsed.success) return fieldErrors(parsed.error.issues);
+  try {
+    const page = await movePage(parsed.data, user);
+    return { ok: true, id: page.id };
+  } catch (error) {
+    return failure(error, 'movePage');
+  }
+}
+
+export async function restorePageAction(input: unknown): Promise<ActionResult> {
+  const user = await actor();
+  if (user === undefined) return UNAUTHORIZED;
+  const parsed = PagesRestoreArgs.safeParse(input);
+  if (!parsed.success) return fieldErrors(parsed.error.issues);
+  try {
+    const page = await restorePage(parsed.data, user);
+    return { ok: true, id: page.id };
+  } catch (error) {
+    return failure(error, 'restorePage');
+  }
+}
+
+export async function setFavoriteAction(input: unknown): Promise<ActionResult> {
+  const user = await actor();
+  if (user === undefined) return UNAUTHORIZED;
+  const parsed = FavoritesSetArgs.safeParse(input);
+  if (!parsed.success) return fieldErrors(parsed.error.issues);
+  try {
+    const result = await setFavorite(parsed.data, user);
+    return { ok: true, id: result.id };
+  } catch (error) {
+    return failure(error, 'setFavorite');
   }
 }

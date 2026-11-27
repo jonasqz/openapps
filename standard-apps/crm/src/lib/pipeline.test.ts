@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STAGES } from './domain';
-import { formatDate, formatEuro, parseEuroToCents } from './format';
+import { formatDate, formatEuro, formatEuroInput, parseEuroToCents } from './format';
 import { summarizePipeline, toSafeNumber, weightCents } from './pipeline';
 import { likePattern } from './search';
 
@@ -104,6 +104,14 @@ describe('amounts in en-GB format', () => {
     for (const input of inputs) {
       expect(parseEuroToCents(input), input).toBeNull();
     }
+  });
+
+  it('writes amounts into a form so that they read back to the same cents', () => {
+    for (const cents of [0, 5, 100, 1250000, 1250050, 123456789, Number.MAX_SAFE_INTEGER]) {
+      expect(parseEuroToCents(formatEuroInput(cents)), String(cents)).toBe(cents);
+    }
+    expect(formatEuroInput(1250050)).toBe('12,500.50');
+    expect(formatEuroInput(1250000)).toBe('12,500');
   });
 
   it('shows a calendar date without a time zone shift', () => {

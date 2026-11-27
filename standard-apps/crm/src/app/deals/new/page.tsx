@@ -21,7 +21,7 @@ export default async function NewDealPage({
 
   return (
     <>
-      <TextLink href={companyId === '' ? '/' : `/companies/${companyId}`} className="self-start text-sm">
+      <TextLink href={companyId === '' ? '/pipeline' : `/companies/${companyId}`} className="self-start text-sm">
         ← Back
       </TextLink>
       {options === null ? (

@@ -9,10 +9,11 @@
 openapi: 3.1.0
 info:
   title: Tasks
-  version: 0.1.0
+  version: 0.2.0
   description: >-
-    Team tasks for people and agents: title, assignee, due date, completed
-    yes/no. Dates are YYYY-MM-DD, timestamps ISO 8601, ids UUIDs.
+    Team tasks for people and agents: status (todo, in_progress, done),
+    assignee (email), due date, priority, projects, comments and a history of
+    every change. Dates are YYYY-MM-DD, timestamps ISO 8601, ids UUIDs.
 servers:
   # Every app lives under a path on the shared domain (ADR 0007).
   # `basePath` is byte-for-byte equal to OPENAPPS_APP_BASE_PATH.
@@ -26,7 +27,7 @@ paths:
   /tools/tasks.list:
     post:
       operationId: listTasks
-      summary: List tasks, open ones first
+      summary: List tasks with filters
       x-openapps-verb: read
       requestBody:
         required: false
@@ -36,8 +37,14 @@ paths:
               type: object
               additionalProperties: false
               properties:
-                completed: { type: boolean, description: true for completed tasks only, false for open tasks only. }
-                assignee: { type: string, maxLength: 200, description: Name of the person responsible. }
+                mine: { type: boolean, description: Only tasks assigned to the caller's email. Not together with assignee or unassigned. }
+                assignee: { type: string, maxLength: 200, description: Email of the assignee, case-insensitive. }
+                unassigned: { type: boolean, description: Only tasks without an assignee. }
+                status: { $ref: '#/components/schemas/Status' }
+                completed: { type: boolean, description: Shorthand. false = not done, true = done. Not together with status. }
+                overdue: { type: boolean, description: true = due before today and not done. }
+                projectId: { type: string, format: uuid }
+                query: { type: string, minLength: 1, maxLength: 200, description: Text in title or description. }
                 limit: { type: integer, minimum: 1, maximum: 200, default: 50 }
       responses:
         '200':
@@ -54,6 +61,41 @@ paths:
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /tools/tasks.get:
+    post:
+      operationId: getTask
+      summary: One task with comments and history
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The task
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task, comments, history]
+                properties:
+                  task: { $ref: '#/components/schemas/Task' }
+                  comments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Comment' }
+                  history:
+                    type: array
+                    items: { $ref: '#/components/schemas/Event' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /tools/tasks.create:
     post:
       operationId: createTask
@@ -66,11 +108,15 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [title, assignee]
+              required: [title]
               properties:
                 title: { type: string, minLength: 1, maxLength: 200 }
-                assignee: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string, maxLength: 10000 }
+                assignee: { type: string, format: email, maxLength: 200 }
                 dueDate: { type: string, format: date }
+                priority: { $ref: '#/components/schemas/Priority' }
+                status: { $ref: '#/components/schemas/Status' }
+                projectId: { type: string, format: uuid }
       responses:
         '200':
           description: Created
@@ -84,10 +130,64 @@ paths:
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /tools/tasks.update:
+    post:
+      operationId: updateTask
+      summary: Change a task
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              minProperties: 2
+              properties:
+                id: { type: string, format: uuid }
+                title: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string, maxLength: 10000 }
+                assignee: { type: [string, 'null'], format: email, maxLength: 200 }
+                dueDate: { type: [string, 'null'], format: date }
+                priority: { $ref: '#/components/schemas/Priority' }
+                status: { $ref: '#/components/schemas/Status' }
+                projectId: { type: [string, 'null'], format: uuid }
+                expectedStatus:
+                  $ref: '#/components/schemas/Status'
+                  description: Only change the task if its status is still this one (for undo).
+      responses:
+        '200': { $ref: '#/components/responses/Changed' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/tasks.assign:
+    post:
+      operationId: assignTask
+      summary: Assign or unassign a task
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, assignee]
+              properties:
+                id: { type: string, format: uuid }
+                assignee: { type: [string, 'null'], format: email, maxLength: 200, description: null unassigns. }
+      responses:
+        '200': { $ref: '#/components/responses/Changed' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /tools/tasks.complete:
     post:
       operationId: completeTask
-      summary: Mark a task as completed
+      summary: Set a task to done
       x-openapps-verb: write
       requestBody:
         required: true
@@ -100,22 +200,112 @@ paths:
               properties:
                 id: { type: string, format: uuid }
       responses:
-        '200':
-          description: Completed (or it already was)
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [task, changed]
-                properties:
-                  task: { $ref: '#/components/schemas/Task' }
-                  changed: { type: boolean }
+        '200': { $ref: '#/components/responses/Changed' }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /tools/tasks.comment:
+    post:
+      operationId: commentTask
+      summary: Comment on a task
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, body]
+              properties:
+                id: { type: string, format: uuid }
+                body: { type: string, minLength: 1, maxLength: 5000 }
+      responses:
+        '200':
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [comment]
+                properties:
+                  comment: { $ref: '#/components/schemas/Comment' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/projects.list:
+    post:
+      operationId: listProjects
+      summary: List projects with counts
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: Projects
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projects]
+                properties:
+                  projects:
+                    type: array
+                    items: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/projects.create:
+    post:
+      operationId: createProject
+      summary: Create a project
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                description: { type: string, maxLength: 1000 }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [project]
+                properties:
+                  project: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
 components:
   responses:
+    Changed:
+      description: >-
+        The task after the call. changed is false if nothing differed.
+        previousStatus is the status before the call.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [task, changed, previousStatus]
+            properties:
+              task: { $ref: '#/components/schemas/Task' }
+              changed: { type: boolean }
+              previousStatus: { $ref: '#/components/schemas/Status' }
     Invalid:
       description: The arguments do not match the tool. message and issues say which field.
       content:
@@ -132,6 +322,12 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    Status:
+      type: string
+      enum: [todo, in_progress, done]
+    Priority:
+      type: string
+      enum: [low, medium, high]
     Error:
       type: object
       required: [error]
@@ -141,14 +337,71 @@ components:
         issues: { type: array, items: {} }
     Task:
       type: object
-      required: [id, title, assignee, dueDate, completed, completedAt, completedBy, createdBy, createdAt]
+      required:
+        - id
+        - title
+        - description
+        - status
+        - priority
+        - assignee
+        - dueDate
+        - overdue
+        - projectId
+        - projectName
+        - completed
+        - completedAt
+        - completedBy
+        - commentCount
+        - createdBy
+        - createdAt
+        - updatedAt
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
-        assignee: { type: string }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/Status' }
+        priority: { $ref: '#/components/schemas/Priority' }
+        assignee: { type: [string, 'null'], description: Email of the assignee. }
         dueDate: { type: [string, 'null'], format: date }
-        completed: { type: boolean }
+        overdue: { type: boolean, description: Due before today and not done. }
+        projectId: { type: [string, 'null'], format: uuid }
+        projectName: { type: [string, 'null'] }
+        completed: { type: boolean, description: Same as status = done. Kept for callers of version 0.1. }
         completedAt: { type: [string, 'null'], format: date-time }
         completedBy: { type: [string, 'null'] }
+        commentCount: { type: integer }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Comment:
+      type: object
+      required: [id, body, author, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        body: { type: string }
+        author: { type: string }
+        createdAt: { type: string, format: date-time }
+    Event:
+      type: object
+      required: [id, kind, from, to, actor, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [created, status, assignee, due_date, priority, title, description, project]
+        from: { type: [string, 'null'] }
+        to: { type: [string, 'null'] }
+        actor: { type: string }
+        createdAt: { type: string, format: date-time }
+    Project:
+      type: object
+      required: [id, name, description, openCount, overdueCount, doneCount, createdBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        openCount: { type: integer }
+        overdueCount: { type: integer }
+        doneCount: { type: integer }
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }

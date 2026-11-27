@@ -95,8 +95,10 @@ export function DetailPattern({
         </button>
       )}
 
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+      {/* Viele Aktionen duerfen den Titel nicht zerdruecken: Der Titel behaelt
+          eine Mindestbreite, die Aktionen rutschen sonst in die naechste Zeile. */}
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0 sm:flex-1 sm:basis-64">
           {eyebrow === undefined ? null : (
             <p className="font-mono text-2xs font-medium uppercase tracking-label text-fg-muted">
               {eyebrow}
@@ -108,7 +110,7 @@ export function DetailPattern({
           {meta === undefined ? null : <div className="mt-2 flex flex-wrap gap-2">{meta}</div>}
         </div>
         {actions === undefined ? null : (
-          <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+          <div className="flex max-w-full flex-wrap gap-2">{actions}</div>
         )}
       </header>
 

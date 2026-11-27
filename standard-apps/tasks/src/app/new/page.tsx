@@ -1,13 +1,52 @@
-import { TaskForm } from '@/components/TaskForm';
+import { ErrorState } from '@openapps/ui';
 import { TextLink } from '@/components/links';
+import { TaskForm } from '@/components/TaskForm';
+import { parseFilters, type SearchParams } from '@/lib/filters';
+import { currentUser } from '@/lib/me';
+import { listProjects, type Project } from '@/lib/projects';
 
-export default function NewTaskPage() {
+export const dynamic = 'force-dynamic';
+
+/**
+ * Neue Aufgabe. Tool: `tasks.create`. Zugewiesen ist sie zunaechst der
+ * Person, die sie anlegt; `?project=<id>` waehlt das Projekt vor.
+ */
+export default async function NewTaskPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const { project } = parseFilters(await searchParams);
+  const user = await currentUser();
+  let projects: Project[] = [];
+  let failed = false;
+  try {
+    projects = await listProjects();
+  } catch (error) {
+    console.error('[tasks] loading projects:', error);
+    failed = true;
+  }
+
   return (
     <>
-      <TextLink href="/" className="self-start text-sm">
+      <TextLink href="/all" className="self-start text-sm">
         ← All tasks
       </TextLink>
-      <TaskForm />
+      {failed ? (
+        <ErrorState
+          title="Projects could not be loaded"
+          description="You can still create the task; pick a project later. Reload the page to try again."
+        />
+      ) : null}
+      <TaskForm
+        mode="create"
+        projects={projects.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
+        initialValues={{
+          title: '',
+          assignee: user?.email.toLowerCase() ?? '',
+          dueDate: '',
+          priority: 'medium',
+          status: 'todo',
+          projectId: projects.some((candidate) => candidate.id === project) ? project : '',
+        }}
+        initialDescription=""
+      />
     </>
   );
 }

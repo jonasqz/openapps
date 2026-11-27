@@ -32,9 +32,11 @@ the MCP prompt `how_to_build_app` through the platform MCP.
    and an error state, every form has validation with a visible error
    message. The sidebar comes from the platform: `PlatformShell` from
    `@openapps/ui` renders users, the app list, settings and sign-out. Your
-   app only provides its own sections (the template shows how, in
-   `src/app/layout.tsx` and `src/components/Shell.tsx`). No navigation,
-   login or user menu of your own.
+   app only provides its own sections: a `SECTIONS` table in
+   `src/app/layout.tsx`, passed to `NextPlatformShell` from
+   `@openapps/ui/next` together with `loadShell(manifest)` from
+   `@openapps/sdk/next` (the template shows how). Do not copy or rebuild
+   that wiring. No navigation, login or user menu of your own.
 7. **Nothing bypasses the gateway.** No outbound network access except to the
    targets declared in the manifest.
 

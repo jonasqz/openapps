@@ -8,8 +8,12 @@ import {
   ContactUpdateArgs,
   DealCreateArgs,
   DealsListArgs,
+  DealUpdateArgs,
   DealUpdateStageArgs,
   IdArgs,
+  NextStepCompleteArgs,
+  NextStepCreateArgs,
+  NextStepsListArgs,
   PipelineSummaryArgs,
 } from './schemas';
 
@@ -30,7 +34,7 @@ function messages(result: { success: boolean; error?: { issues: { message: strin
 describe('strict arguments', () => {
   it('rejects unknown keys, e.g. snake_case instead of camelCase', () => {
     expect(ContactCreateArgs.safeParse({ name: 'Ada', company_id: COMPANY }).success).toBe(false);
-    expect(DealsListArgs.safeParse({ stage: 'lead', status: 'open' }).success).toBe(false);
+    expect(DealsListArgs.safeParse({ stage: 'lead', state: 'open' }).success).toBe(false);
     expect(PipelineSummaryArgs.safeParse({ stage: 'lead' }).success).toBe(false);
   });
 
@@ -148,6 +152,17 @@ describe('deals', () => {
     expect(DealCreateArgs.parse({ ...base, stage: '' }).stage).toBe('lead');
   });
 
+  it('creates deals only in an open stage, so no deal is closed without a reason', () => {
+    for (const stage of ['lead', 'qualified', 'proposal']) {
+      expect(DealCreateArgs.safeParse({ ...base, stage }).success, stage).toBe(true);
+    }
+    for (const stage of ['won', 'lost']) {
+      const result = DealCreateArgs.safeParse({ ...base, stage });
+      expect(result.success, stage).toBe(false);
+      expect(messages(result)).toContain('deals.update_stage');
+    }
+  });
+
   it('requires whole, non-negative cents', () => {
     expect(DealCreateArgs.safeParse({ ...base, valueCents: 0 }).success).toBe(true);
     expect(DealCreateArgs.safeParse({ ...base, valueCents: Number.MAX_SAFE_INTEGER }).success).toBe(true);
@@ -170,7 +185,7 @@ describe('deals', () => {
 
   it('knows only the five stages', () => {
     for (const stage of ['lead', 'qualified', 'proposal', 'won', 'lost']) {
-      expect(DealUpdateStageArgs.safeParse({ id: DEAL, stage }).success, stage).toBe(true);
+      expect(DealUpdateStageArgs.safeParse({ id: DEAL, stage, note: 'Reason' }).success, stage).toBe(true);
     }
     for (const stage of ['Lead', 'gewonnen', 'open', '', null]) {
       expect(DealUpdateStageArgs.safeParse({ id: DEAL, stage }).success, String(stage)).toBe(false);
@@ -178,9 +193,94 @@ describe('deals', () => {
     expect(messages(DealUpdateStageArgs.safeParse({ id: DEAL, stage: 'gewonnen' }))).toContain('qualified');
   });
 
+  it('requires a reason for won and lost, on the field note', () => {
+    for (const stage of ['won', 'lost']) {
+      for (const note of [undefined, '', '   ']) {
+        const result = DealUpdateStageArgs.safeParse({ id: DEAL, stage, ...(note === undefined ? {} : { note }) });
+        expect(result.success, `${stage} ${String(note)}`).toBe(false);
+        expect(result.error?.issues[0]?.path).toEqual(['note']);
+        expect(messages(result)).toContain('reason');
+      }
+    }
+    for (const stage of ['lead', 'qualified', 'proposal']) {
+      expect(DealUpdateStageArgs.safeParse({ id: DEAL, stage }).success, stage).toBe(true);
+    }
+  });
+
   it('limits the note for a stage change', () => {
     expect(DealUpdateStageArgs.safeParse({ id: DEAL, stage: 'proposal', note: 'x'.repeat(2000) }).success).toBe(true);
     expect(DealUpdateStageArgs.safeParse({ id: DEAL, stage: 'proposal', note: 'x'.repeat(2001) }).success).toBe(false);
+  });
+});
+
+describe('deals.list', () => {
+  it('accepts search, status, owner and contact filters', () => {
+    expect(DealsListArgs.parse({ q: ' portal ', status: 'open', owner: 'agent:sales', contactId: CONTACT })).toEqual({
+      q: 'portal',
+      status: 'open',
+      owner: 'agent:sales',
+      contactId: CONTACT,
+      limit: 50,
+    });
+    for (const status of ['Open', 'won', 'archived', 1]) {
+      expect(DealsListArgs.safeParse({ status }).success, String(status)).toBe(false);
+    }
+  });
+});
+
+describe('deals.update', () => {
+  it('requires at least one field and never takes a stage', () => {
+    expect(messages(DealUpdateArgs.safeParse({ id: DEAL }))).toContain('deals.update_stage');
+    expect(DealUpdateArgs.safeParse({ id: DEAL, stage: 'won' }).success).toBe(false);
+  });
+
+  it('tells "not given" from "clear"', () => {
+    expect(DealUpdateArgs.parse({ id: DEAL, expectedClose: '', owner: null, contactId: '' })).toEqual({
+      id: DEAL,
+      expectedClose: null,
+      owner: null,
+      contactId: null,
+    });
+    expect(DealUpdateArgs.parse({ id: DEAL, valueCents: 0 })).toEqual({ id: DEAL, valueCents: 0 });
+    // Der Titel laesst sich nicht leeren: "" heisst "nicht aendern".
+    expect(DealUpdateArgs.safeParse({ id: DEAL, title: '' }).success).toBe(false);
+    expect(DealUpdateArgs.safeParse({ id: DEAL, title: null }).success).toBe(false);
+  });
+
+  it('checks amount and date like deals.create', () => {
+    for (const valueCents of [-1, 1.5, '100']) {
+      expect(DealUpdateArgs.safeParse({ id: DEAL, valueCents }).success, String(valueCents)).toBe(false);
+    }
+    expect(DealUpdateArgs.safeParse({ id: DEAL, expectedClose: '2025-02-30' }).success).toBe(false);
+  });
+});
+
+describe('next steps', () => {
+  it('requires a title, a real due date and at least one reference', () => {
+    const base = { title: 'Call back', dueOn: '2030-01-31' };
+    expect(NextStepCreateArgs.safeParse({ ...base, dealId: DEAL }).success).toBe(true);
+    expect(messages(NextStepCreateArgs.safeParse(base))).toContain('dealId, companyId, contactId');
+    expect(NextStepCreateArgs.safeParse({ ...base, dealId: '' }).success).toBe(false);
+    for (const dueOn of ['', '2030-02-30', '31.01.2030', undefined]) {
+      expect(NextStepCreateArgs.safeParse({ ...base, dueOn, dealId: DEAL }).success, String(dueOn)).toBe(false);
+    }
+    expect(NextStepCreateArgs.safeParse({ ...base, title: ' ', dealId: DEAL }).success).toBe(false);
+    expect(NextStepCreateArgs.safeParse({ ...base, title: 'x'.repeat(201), dealId: DEAL }).success).toBe(false);
+  });
+
+  it('lists open steps by default and knows only four statuses', () => {
+    expect(NextStepsListArgs.parse({})).toEqual({ status: 'open', limit: 50 });
+    for (const status of ['open', 'overdue', 'done', 'all']) {
+      expect(NextStepsListArgs.safeParse({ status }).success, status).toBe(true);
+    }
+    for (const status of ['late', 'Open', 1]) {
+      expect(NextStepsListArgs.safeParse({ status }).success, String(status)).toBe(false);
+    }
+  });
+
+  it('limits the outcome note when completing', () => {
+    expect(NextStepCompleteArgs.safeParse({ id: DEAL, note: 'x'.repeat(2000) }).success).toBe(true);
+    expect(NextStepCompleteArgs.safeParse({ id: DEAL, note: 'x'.repeat(2001) }).success).toBe(false);
   });
 });
 

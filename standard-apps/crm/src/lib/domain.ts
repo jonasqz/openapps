@@ -10,6 +10,32 @@ export type Stage = (typeof STAGES)[number];
 /** Stages, in denen ein Deal noch offen ist. */
 export const OPEN_STAGES: readonly Stage[] = ['lead', 'qualified', 'proposal'];
 
+/** Stages, in denen ein Deal abgeschlossen ist; dort steht ein Grund. */
+export const CLOSED_STAGES: readonly Stage[] = ['won', 'lost'];
+
+export function isClosedStage(stage: Stage): boolean {
+  return CLOSED_STAGES.includes(stage);
+}
+
+/** Braucht ein Wechsel nach `to` einen Grund? Nur der Abschluss. */
+export function needsReason(to: Stage): boolean {
+  return isClosedStage(to);
+}
+
+export const REASON_REQUIRED =
+  'A reason is required when a deal is won or lost. Pass it as note, e.g. "Chose a cheaper provider".';
+
+/** Filter `status` in deals.list: offen oder abgeschlossen. */
+export const DEAL_STATUSES = ['open', 'closed'] as const;
+export type DealStatus = (typeof DEAL_STATUSES)[number];
+
+/**
+ * Filter `status` in next_steps.list. `overdue` ist offen und vor dem
+ * heutigen Tag (Europe/Berlin) faellig.
+ */
+export const NEXT_STEP_STATUSES = ['open', 'overdue', 'done', 'all'] as const;
+export type NextStepStatus = (typeof NEXT_STEP_STATUSES)[number];
+
 /** Beschriftungen fuer Menschen; die Werte oben sind API- und DB-Werte. */
 export const STAGE_LABELS: Readonly<Record<Stage, string>> = {
   lead: 'Lead',

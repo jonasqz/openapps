@@ -1,5 +1,5 @@
 import { ToolNotFoundError } from '@openapps/sdk';
-import { getPage, type Page } from './pages';
+import { getPage, listPages, type Page } from './pages';
 import { PageId } from './schemas';
 
 export type Loaded<T> = { kind: 'ok'; value: T } | { kind: 'missing' } | { kind: 'failed' };
@@ -17,5 +17,21 @@ export async function loadPage(rawId: string): Promise<Loaded<Page>> {
     if (error instanceof ToolNotFoundError) return { kind: 'missing' };
     console.error('[wiki] load page:', error);
     return { kind: 'failed' };
+  }
+}
+
+/**
+ * Seiten fuer „Link to page“ im Editor, nach Titel. `null`, wenn sie nicht
+ * geladen werden konnten — der Editor bleibt dann benutzbar, nur ohne Auswahl.
+ */
+export async function loadLinkTargets(
+  excludeId?: string,
+): Promise<Array<{ id: string; title: string }> | null> {
+  try {
+    const { pages } = await listPages({});
+    return pages.filter((page) => page.id !== excludeId).map((page) => ({ id: page.id, title: page.title }));
+  } catch (error) {
+    console.error('[wiki] link targets:', error);
+    return null;
   }
 }

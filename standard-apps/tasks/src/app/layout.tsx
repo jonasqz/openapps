@@ -1,31 +1,47 @@
 import type { ReactNode } from 'react';
-import { themeScript } from '@openapps/ui';
+import { loadShell } from '@openapps/sdk/next';
+import { ThemeScript } from '@openapps/ui';
+import { NextPlatformShell, type AppSection } from '@openapps/ui/next';
 import '@openapps/ui/tokens.css';
 import './globals.css';
-import { Shell } from '@/components/Shell';
-import { loadShell } from '@/lib/shell';
+import manifest from '../../app.json';
 
 export const metadata = { title: 'Tasks' };
 
 /**
+ * Die Bereiche dieser App in der gemeinsamen Leiste (ADR 0017, ADR 0019).
+ * Nutzer, App-Liste, „New app“, Settings und Abmelden liefert die Plattform.
+ */
+const SECTIONS = [
+  { id: 'mine', label: 'My tasks', path: '/' },
+  { id: 'board', label: 'Board', path: '/board' },
+  { id: 'all', label: 'All tasks', path: '/all', match: ['/all', '/task'] },
+  { id: 'projects', label: 'Projects', path: '/projects' },
+  { id: 'new', label: 'New task', path: '/new' },
+] as const satisfies readonly AppSection[];
+
+/**
  * Die Leiste kommt von der Plattform (`PlatformShell`, ADR 0017). Diese App
- * liefert nur ihren Inhalt und ihre eigenen Bereiche (`Shell`) — keinen
+ * liefert nur ihren Inhalt und ihre eigenen Bereiche (`SECTIONS`) — keinen
  * Login, kein Profilmenue, keine App-Liste.
  *
- * `suppressHydrationWarning`: `themeScript` setzt `data-theme` auf `<html>`,
- * bevor React hydriert.
+ * `loadShell` (`@openapps/sdk/next`) liest Person und Navigation aus den
+ * Gateway-Headern und wirft nie (ADR 0019). `suppressHydrationWarning`:
+ * `ThemeScript` setzt `data-theme` auf `<html>`, bevor React hydriert.
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const shell = await loadShell();
+  const shell = await loadShell(manifest);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <ThemeScript />
       </head>
       <body className="bg-bg text-fg antialiased">
-        <Shell {...shell}>
-          <div className="mx-auto flex w-full min-w-0 max-w-screen-xl flex-col gap-6">{children}</div>
-        </Shell>
+        <NextPlatformShell {...shell} sections={SECTIONS}>
+          <div className="mx-auto flex w-full min-w-0 max-w-screen-xl flex-col gap-6">
+            {children}
+          </div>
+        </NextPlatformShell>
       </body>
     </html>
   );

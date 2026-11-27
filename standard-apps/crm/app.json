@@ -2,12 +2,12 @@
   "manifestVersion": 1,
   "name": "crm",
   "displayName": "CRM",
-  "description": "Lean CRM for humans and agents: companies, contacts, deals with a pipeline, and activities.",
+  "description": "CRM for humans and agents: companies, contacts, a deal pipeline with stages and close reasons, a timeline of activities, and next steps with due dates.",
   "category": "sales",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "crm-v0.1.4"
+    "tag": "crm-v0.2.0"
   },
   "requiredTables": [
     {
@@ -20,11 +20,15 @@
     },
     {
       "name": "deals",
-      "description": "Sales opportunities with company, optional contact, amount in cents, stage, expected close date and owner."
+      "description": "Sales opportunities with company, optional contact, amount in cents, stage, expected close date, owner, and for won or lost deals the close time and reason."
     },
     {
       "name": "activities",
       "description": "History: notes, calls, emails and meetings for contacts, companies or deals. Stage changes are logged here automatically."
+    },
+    {
+      "name": "next_steps",
+      "description": "Next steps with a due date on a deal, company or contact, with owner. Completing one writes an activity to the timeline."
     }
   ],
   "offeredTools": [
@@ -36,7 +40,7 @@
     },
     {
       "name": "companies.get",
-      "description": "Gets a company with everything that belongs to it. Argument: id (company UUID). Returns { company, contacts, deals, activities }; activities are the latest 20, including those on the company's contacts and deals, newest first. An unknown id returns 404.",
+      "description": "Gets a company with everything that belongs to it. Argument: id (company UUID). Returns { company, contacts, deals, activities, nextSteps }; activities are the latest 20, including those on the company's contacts and deals, newest first; nextSteps are the open ones, also from its contacts and deals, by due date. An unknown id returns 404.",
       "operationId": "getCompany",
       "verb": "read"
     },
@@ -54,7 +58,7 @@
     },
     {
       "name": "contacts.get",
-      "description": "Gets a contact with its deals and the latest 20 activities. Argument: id (contact UUID). Returns { contact, deals, activities }. An unknown id returns 404.",
+      "description": "Gets a contact with its deals, the latest 20 activities and its open next steps. Argument: id (contact UUID). Returns { contact, deals, activities, nextSteps }. An unknown id returns 404.",
       "operationId": "getContact",
       "verb": "read"
     },
@@ -72,19 +76,31 @@
     },
     {
       "name": "deals.list",
-      "description": "Lists deals, by expected close date first, then newest. Arguments: stage (optional: lead, qualified, proposal, won, lost), companyId (optional), limit (optional, 1 to 200, default 50). Returns { deals: [{ id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner }] }. valueCents is the amount in euro cents.",
+      "description": "Lists deals by expected close date. Optional: q (searches title, company and contact name), stage, status (open or closed), companyId, contactId, owner (exact user id), limit (1 to 200, default 50). Returns { deals: [{ id, title, companyId, companyName, contactId, contactName, valueCents, stage, expectedClose, owner, closedAt, closeReason, nextStep }] }. valueCents is in euro cents; nextStep is the earliest open step { id, title, dueOn, overdue } or null.",
       "operationId": "listDeals",
       "verb": "read"
     },
     {
+      "name": "deals.get",
+      "description": "Gets a deal with its timeline and next steps. Argument: id (deal UUID). Returns { deal, activities, nextSteps }; activities are the latest 50, newest first; nextSteps are all steps of the deal, open ones first by due date, then done ones. An unknown id returns 404.",
+      "operationId": "getDeal",
+      "verb": "read"
+    },
+    {
       "name": "deals.create",
-      "description": "Creates a deal. Arguments: title (required), companyId (required), valueCents (required, whole euro cents, €12,500 = 1250000), contactId (optional, must belong to the company), stage (optional, default lead), expectedClose (optional, YYYY-MM-DD), owner (optional, default: the caller). Returns { deal }.",
+      "description": "Creates a deal. Arguments: title (required), companyId (required), valueCents (required, whole euro cents, €12,500 = 1250000), contactId (optional, must belong to the company), stage (optional: lead, qualified or proposal, default lead; close it later with deals.update_stage and a reason), expectedClose (optional, YYYY-MM-DD), owner (optional, default: the caller). Returns { deal }.",
       "operationId": "createDeal",
       "verb": "write"
     },
     {
+      "name": "deals.update",
+      "description": "Updates a deal. Arguments: id (required) and at least one of title, valueCents (whole euro cents), expectedClose (YYYY-MM-DD), owner, contactId (must belong to the deal's company). Only the fields you pass change; null (or empty text) clears expectedClose, owner or contactId. The stage cannot be changed here, use deals.update_stage. Returns { deal }.",
+      "operationId": "updateDeal",
+      "verb": "write"
+    },
+    {
       "name": "deals.update_stage",
-      "description": "Sets the stage of a deal: lead, qualified, proposal, won, lost. Arguments: id (required), stage (required), note (optional, the reason). A change automatically writes an activity (kind note) with the old and new stage and the note. If the deal already has that stage, nothing changes. Returns { deal, changed, activity }.",
+      "description": "Moves a deal to a stage: lead, qualified, proposal, won, lost. Arguments: id (required), stage (required), note (the reason; required for won and lost, optional otherwise). Won or lost stores the note as closeReason and sets closedAt; moving back to an open stage clears both. A change writes an activity (kind note, subject 'Stage: Old → New', body = note). If the deal already has that stage, nothing changes and no activity is written. Returns { deal, changed, activity }.",
       "operationId": "updateDealStage",
       "verb": "write"
     },
@@ -99,6 +115,30 @@
       "description": "Lists activities, newest first. Arguments: contactId, companyId, dealId (optional, combinable; companyId also finds activities on the company's contacts and deals), limit (optional, 1 to 200, default 50). Without a filter: the newest across all records. Returns { activities }.",
       "operationId": "listActivities",
       "verb": "read"
+    },
+    {
+      "name": "next_steps.list",
+      "description": "Lists next steps. Optional: status (open = default, overdue = open and due before today in Europe/Berlin, done, all), dealId, companyId (also steps on its deals and contacts), contactId, owner (exact user id), limit (1 to 200, default 50). Open steps first by due date. Returns { nextSteps: [{ id, title, dueOn, overdue, dealId, dealTitle, companyId, companyName, contactId, contactName, owner, doneAt, doneBy }] }.",
+      "operationId": "listNextSteps",
+      "verb": "read"
+    },
+    {
+      "name": "next_steps.create",
+      "description": "Plans a next step. Arguments: title (required, what to do, 1 to 200 characters), dueOn (required, YYYY-MM-DD), dealId, companyId, contactId (at least one of them), owner (optional, default: the caller). If companyId is missing, it is taken from the deal or contact. Returns { nextStep }.",
+      "operationId": "createNextStep",
+      "verb": "write"
+    },
+    {
+      "name": "next_steps.complete",
+      "description": "Marks a next step as done. Arguments: id (required), note (optional, the outcome). Writes an activity (kind note, subject 'Done: <title>', body = note) to the timeline. If the step is already done, nothing changes. Returns { nextStep, changed, activity }.",
+      "operationId": "completeNextStep",
+      "verb": "write"
+    },
+    {
+      "name": "next_steps.reopen",
+      "description": "Reopens a next step that was marked done, e.g. to undo next_steps.complete. Argument: id (required). Writes an activity (kind note, subject 'Reopened: <title>'). If the step is already open, nothing changes. Returns { nextStep, changed, activity }.",
+      "operationId": "reopenNextStep",
+      "verb": "write"
     },
     {
       "name": "pipeline.summary",

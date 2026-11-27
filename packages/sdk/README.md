@@ -118,6 +118,38 @@ from spec 3.3 (no published host port, only the gateway network) or TLS on that
 leg protects against that. Nor does it protect against a leaked secret —
 whoever knows it can sign arbitrary user values.
 
+## The shared sidebar
+
+The sidebar of every app (`PlatformShell`, ADR 0017) needs the user and the
+platform navigation. Both come from the gateway headers; `getNavigation`
+checks the separate signature of `X-Auth-Nav` and returns `null` if anything
+is off.
+
+In a Next.js app (App Router) do not read them yourself. Use `loadShell`
+from the subpath `@openapps/sdk/next` in `src/app/layout.tsx` and pass the
+result to `NextPlatformShell` from `@openapps/ui/next` (ADR 0019):
+
+```tsx
+import { loadShell } from '@openapps/sdk/next';
+import manifest from '../../app.json';
+
+const shell = await loadShell(manifest); // { appName, appTitle, platform, user, basePath }
+```
+
+- Server only. The secret never reaches the browser; importing it in a client
+  component fails the build, because `next/headers` is not available there.
+- Never throws because of the headers: without a valid identity `user` is
+  `null` (the sidebar shows a placeholder), without a valid navigation
+  `platform` is `null` (the sidebar shows only this app). Whether a person may
+  see the page was decided by the forward auth; route handlers still call
+  `getUser` themselves.
+- `basePath` comes from `OPENAPPS_APP_BASE_PATH`, the same value
+  `next.config.js` bakes into the build. An invalid value falls back to `''`.
+
+`next` is an optional peer dependency: only `@openapps/sdk/next` imports it.
+Without Next.js, call `readShell(headers, manifest)` from `@openapps/sdk`
+with the request headers — same result, no framework.
+
 ## Postgres client
 
 ```ts
@@ -160,10 +192,11 @@ unchanged as the HTTP status.
 | `OPENAPPS_AUTH_SECRET` | yes | HMAC key for the identity headers. At least 32 characters. |
 | `OPENAPPS_APP_ID` | no | App id in the signature material. |
 | `OPENAPPS_APP_HOST` | no | The app's own domain in the signature material. |
+| `OPENAPPS_APP_BASE_PATH` | no | The path the app lives under (`/<app>`); empty locally. Read by `loadShell`. |
 | `DATABASE_URL` | yes | Connection with the app's own DB role. |
 | `DATABASE_SCHEMA` | no | The app's own schema. |
 
-Every app declares these five in its `app.json` (AGENTS.md rule 5).
+Every app declares these six in its `app.json` (AGENTS.md rule 5).
 
 ## Scripts
 

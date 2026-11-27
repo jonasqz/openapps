@@ -72,13 +72,18 @@ The platform shell comes from `PlatformShell` in `@openapps/ui` (ADR 0017):
 user, app list, "New app", "New agent", settings, sign-out and theme. Your
 app only provides its own sections.
 
-- `src/app/layout.tsx` — wires up the shell. Keep it as it is.
-- `src/lib/shell.ts` — reads the user (`getUser`) and the platform navigation
-  (`getNavigation`) from the gateway headers on the server. Never throws:
-  without navigation the sidebar shows only your app. Keep it as it is.
-- `src/components/Shell.tsx` — **your sections.** One entry in `SECTIONS` per
-  page people navigate to, with the path inside the app (`/items`, without
-  the `basePath`) and the paths that mark it as the current page.
+- `src/app/layout.tsx` — wires up the shell, and holds **your sections.**
+  One entry in `SECTIONS` per page people navigate to: `id`, `label`, the
+  `path` inside the app (`/items`, without the `basePath`) and optionally
+  `match`, the paths that mark it as the current page (default: `path`).
+  Change only `SECTIONS` and `metadata`; keep the rest as it is.
+- `loadShell(manifest)` from `@openapps/sdk/next` reads the user (`getUser`)
+  and the platform navigation (`getNavigation`) from the gateway headers on
+  the server. It never throws: without a valid signature the sidebar shows
+  only your app.
+- `NextPlatformShell` from `@openapps/ui/next` renders `PlatformShell` with
+  your sections, marks the current page and navigates inside the app with
+  the Next router.
 
 Pages render no `<main>` and no outer padding: the shell provides both. No
 navigation, login or user menu of your own.

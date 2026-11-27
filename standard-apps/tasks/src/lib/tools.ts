@@ -1,6 +1,18 @@
 import { parseArgs, type ToolHandler } from '@openapps/sdk';
-import { completeTask, createTask, listTasks } from './tasks';
-import { TaskCompleteArgs, TaskCreateArgs, TaskListArgs } from './schemas';
+import { createProject, listProjects } from './projects';
+import {
+  ProjectCreateArgs,
+  ProjectListArgs,
+  TaskAssignArgs,
+  TaskCommentArgs,
+  TaskCompleteArgs,
+  TaskCreateArgs,
+  TaskGetArgs,
+  TaskListArgs,
+  TaskUpdateArgs,
+} from './schemas';
+import { addComment, createTask, getTask, listTasks, updateTask } from './tasks';
+import { actorOf } from './workflow';
 
 /**
  * Die Tools dieser App, wie sie in `app.json` unter `offeredTools` und als
@@ -8,17 +20,37 @@ import { TaskCompleteArgs, TaskCreateArgs, TaskListArgs } from './schemas';
  * Plattform-MCP auf (`tasks__tasks__list`). Wer was darf, prüft die
  * Plattform vorher; hier steht kein Rechte-Code.
  *
- * Die UI ruft dieselben Handler (src/app/actions.ts).
+ * Die UI ruft dieselben Handler (src/app/actions.ts) — jeder Knopf hat sein Tool.
  */
 export const toolHandlers = {
-  'tasks.list': async (args) => ({
-    tasks: await listTasks(parseArgs(TaskListArgs, args ?? {})),
+  'tasks.list': async (args, { user }) => ({
+    tasks: await listTasks(parseArgs(TaskListArgs, args ?? {}), user.email),
   }),
+  'tasks.get': async (args) => getTask(parseArgs(TaskGetArgs, args).id),
   'tasks.create': async (args, { user }) => ({
-    task: await createTask(parseArgs(TaskCreateArgs, args), user.id),
+    task: await createTask(parseArgs(TaskCreateArgs, args), actorOf(user)),
   }),
+  'tasks.update': async (args, { user }) => {
+    const { id, expectedStatus, ...patch } = parseArgs(TaskUpdateArgs, args);
+    return updateTask(id, patch, actorOf(user), expectedStatus);
+  },
+  'tasks.assign': async (args, { user }) => {
+    const { id, assignee } = parseArgs(TaskAssignArgs, args);
+    return updateTask(id, { assignee }, actorOf(user));
+  },
   'tasks.complete': async (args, { user }) =>
-    completeTask(parseArgs(TaskCompleteArgs, args).id, user.id),
+    updateTask(parseArgs(TaskCompleteArgs, args).id, { status: 'done' }, actorOf(user)),
+  'tasks.comment': async (args, { user }) => {
+    const { id, body } = parseArgs(TaskCommentArgs, args);
+    return { comment: await addComment(id, body, actorOf(user)) };
+  },
+  'projects.list': async (args) => {
+    parseArgs(ProjectListArgs, args ?? {});
+    return { projects: await listProjects() };
+  },
+  'projects.create': async (args, { user }) => ({
+    project: await createProject(parseArgs(ProjectCreateArgs, args), actorOf(user)),
+  }),
 } satisfies Record<string, ToolHandler>;
 
 export type ToolName = keyof typeof toolHandlers;

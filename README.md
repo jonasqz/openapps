@@ -78,4 +78,11 @@ pnpm check
 
 - Rules for agents that build apps for this platform: [`AGENTS.md`](AGENTS.md)
 - Rules for working **on** this repo: [`CLAUDE.md`](CLAUDE.md) (German)
+- Secrets check: `pnpm install` enables a pre-commit hook (`.githooks/pre-commit`)
+  that scans staged changes with [gitleaks](https://github.com/gitleaks/gitleaks),
+  using the same rules as CI. Install it with `brew install gitleaks`. Without
+  gitleaks the hook runs a minimal built-in check for the most obvious patterns
+  (private keys, common token prefixes, `.env` files, `infra/lokal/.agents/`) and
+  still blocks on a match. Run `pnpm secrets` to scan the whole working tree.
+  For a verified false positive, add `gitleaks:allow` as a comment on that line.
 - License: still open, see [`docs/06-lizenz.md`](docs/06-lizenz.md) (German)

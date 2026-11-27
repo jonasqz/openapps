@@ -12,11 +12,12 @@
 openapi: 3.1.0
 info:
   title: Wiki
-  version: 0.1.2
+  version: 0.2.0
   description: >-
-    Knowledge pages with a page tree, Markdown, full-text search (Postgres
-    English dictionary) and a history of every change. Humans and agents use
-    the same operations.
+    Notes and documents with nested pages, Markdown, links between pages with
+    backlinks, favorites, full-text search (Postgres English dictionary) and a
+    history of every change with restore. Humans and agents use the same
+    operations.
 servers:
   # Jede App liegt unter einem Pfad auf der gemeinsamen Domain (ADR 0007).
   # `basePath` setzt die Control Plane pro Deployment in OPENAPPS_APP_BASE_PATH.
@@ -32,8 +33,10 @@ paths:
       operationId: listPages
       summary: Lists pages without content
       description: >-
-        Non-archived pages, sorted by title, at most 500. To search the
-        content use `searchPages`, for the text use `getPage`.
+        Non-archived pages, sorted by title or by last change ("recently
+        edited"), at most `limit` (default and maximum 500). For the hierarchy
+        use `getPageTree`, to search the content `searchPages`, for the text
+        `getPage`.
       x-openapps-verb: read
       requestBody:
         required: false
@@ -46,6 +49,12 @@ paths:
                 q: { type: string, maxLength: 200, description: Text that must appear in the title }
                 parentId: { type: string, format: uuid, description: Only direct subpages of this page }
                 tag: { $ref: '#/components/schemas/Tag' }
+                sort:
+                  type: string
+                  enum: [title, updated]
+                  default: title
+                  description: title = alphabetical; updated = most recently changed first
+                limit: { type: integer, minimum: 1, maximum: 500, default: 500 }
       responses:
         '200':
           description: Page list
@@ -60,9 +69,46 @@ paths:
                     items: { $ref: '#/components/schemas/PageSummary' }
                   truncated:
                     type: boolean
-                    description: More than 500 pages match; narrow the filter.
+                    description: More pages match than `limit`; narrow the filter.
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/pages.tree:
+    post:
+      operationId: getPageTree
+      summary: The page tree without content
+      description: >-
+        Without `rootId`, every non-archived page from the top level down;
+        with `rootId`, that page and its subpages. At most 500 pages, cut level
+        by level, so a page never comes without its parent.
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                rootId: { type: string, format: uuid, description: Only this page and its subpages }
+      responses:
+        '200':
+          description: The tree
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tree, truncated]
+                properties:
+                  tree:
+                    type: array
+                    items: { $ref: '#/components/schemas/TreeNode' }
+                  truncated:
+                    type: boolean
+                    description: More than 500 pages; ask again with a rootId further down.
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /tools/pages.get:
     post:
@@ -189,6 +235,41 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /tools/pages.move:
+    post:
+      operationId: movePage
+      summary: Moves a page with its subpages
+      description: >-
+        `parentId` is required: a page id, or null for the top level. Rejected
+        (400) if the new parent is the page itself or one of its subpages
+        (a cycle), or if the page or the new parent is archived. Moves run one
+        after another, so two concurrent moves cannot build a cycle together.
+        Writes a revision `move`.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, parentId]
+              properties:
+                id: { type: string, format: uuid }
+                parentId:
+                  type: [string, 'null']
+                  format: uuid
+                  description: New parent page, or null for the top level
+      responses:
+        '200':
+          description: The page after the move
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Page' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /tools/pages.archive:
     post:
       operationId: archivePage
@@ -255,6 +336,99 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /tools/pages.restore:
+    post:
+      operationId: restorePage
+      summary: Restores a page to an earlier revision
+      description: >-
+        Sets title, content and tags to the state of the revision and writes a
+        new revision `restore`. Nothing is deleted; the parent page stays.
+        Archived pages: 400. A revision of another page: 404.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, revisionId]
+              properties:
+                id: { type: string, format: uuid }
+                revisionId:
+                  type: string
+                  pattern: '^[1-9][0-9]{0,17}$'
+                  description: The id of a revision from getPageHistory
+      responses:
+        '200':
+          description: The page after the restore
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Page' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tools/favorites.list:
+    post:
+      operationId: listFavorites
+      summary: The caller's favorite pages
+      description: Favorites belong to the caller (person or agent). Non-archived, by title.
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: Favorites
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pages]
+                properties:
+                  pages:
+                    type: array
+                    items: { $ref: '#/components/schemas/PageSummary' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tools/favorites.set:
+    post:
+      operationId: setFavorite
+      summary: Adds a page to the caller's favorites or removes it
+      description: Idempotent. An archived page cannot be added (400), but can be removed.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, favorite]
+              properties:
+                id: { type: string, format: uuid }
+                favorite: { type: boolean, description: true adds, false removes }
+      responses:
+        '200':
+          description: The new state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, favorite]
+                properties:
+                  id: { type: string, format: uuid }
+                  favorite: { type: boolean }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   responses:
     Invalid:
@@ -282,7 +456,10 @@ components:
               message: { type: string }
   schemas:
     Title: { type: string, minLength: 1, maxLength: 200 }
-    ContentMd: { type: string, maxLength: 200000, description: Markdown }
+    ContentMd:
+      type: string
+      maxLength: 200000
+      description: Markdown. Link to another page with [text](page:<uuid>); only http(s) and page links become links.
     Tag:
       type: string
       minLength: 1
@@ -313,7 +490,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/PageSummary'
         - type: object
-          required: [contentMd, createdAt, createdBy, archivedAt, parent, children]
+          required: [contentMd, createdAt, createdBy, archivedAt, parent, children, path, backlinks]
           properties:
             contentMd: { type: string }
             createdAt: { type: string, format: date-time }
@@ -326,6 +503,24 @@ components:
             children:
               type: array
               items: { $ref: '#/components/schemas/PageRef' }
+            path:
+              type: array
+              description: Ancestors from the top level down to the parent, for breadcrumbs
+              items: { $ref: '#/components/schemas/PageRef' }
+            backlinks:
+              type: array
+              description: Non-archived pages that link to this page, at most 100
+              items: { $ref: '#/components/schemas/PageRef' }
+    TreeNode:
+      type: object
+      required: [id, title, updatedAt, children]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        updatedAt: { type: string, format: date-time }
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/TreeNode' }
     SearchHit:
       type: object
       required: [id, parentId, title, tags, updatedAt, rank, snippet]
@@ -339,10 +534,11 @@ components:
         snippet: { type: string, description: 'One-line excerpt, hits wrapped in « and »' }
     Revision:
       type: object
-      required: [id, change, title, contentMd, tags, editedBy, editedAt]
+      required: [id, change, parentId, title, contentMd, tags, editedBy, editedAt]
       properties:
         id: { type: string }
-        change: { type: string, enum: [create, update, archive] }
+        change: { type: string, enum: [create, update, move, restore, archive] }
+        parentId: { type: [string, 'null'], format: uuid, description: Parent page after the change; null = top level }
         title: { type: string }
         contentMd: { type: string }
         tags: { type: array, items: { type: string } }

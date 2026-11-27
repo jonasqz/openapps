@@ -15,7 +15,58 @@ and forwards the apps' tools — each only to callers that have a grant.
 | `grant`          | grant a permission                                                                |
 | `revoke`         | revoke a grant                                                                    |
 | `list_grants`    | look up grants                                                                    |
-| `whoami`         | who you are: identity, groups, the apps you can open, your grants                 |
+| `whoami`         | who you are: identity, groups, apps you can open, grants with their source        |
+
+`whoami` needs no grant and only ever shows the caller's own grants: those
+made to the caller directly and those made to one of the caller's groups. An
+agent is in no group, so it only sees its direct grants. Each grant carries
+its source in `via`, so a right that comes both directly and through a group
+appears twice — revoking one of them is not enough:
+
+```json
+{
+  "me": {
+    "kind": "user",
+    "id": "u-lena",
+    "email": "lena@example.com",
+    "groups": ["sales"],
+    "isAdmin": false,
+    "canCreateApps": false,
+    "apps": [
+      { "name": "crm", "title": "CRM", "category": "Sales", "href": "https://apps.example.com/crm" }
+    ],
+    "grants": [
+      {
+        "id": "…",
+        "subject": { "kind": "user", "id": "u-lena" },
+        "verb": "read",
+        "resource": { "kind": "app", "id": "crm" },
+        "via": { "kind": "direct" },
+        "grantedBy": "user:u-admin",
+        "grantedAt": "…",
+        "revokedAt": null,
+        "revokedBy": null
+      },
+      {
+        "id": "…",
+        "subject": { "kind": "group", "id": "sales" },
+        "verb": "read",
+        "resource": { "kind": "app", "id": "crm" },
+        "via": { "kind": "group", "group": "sales" },
+        "grantedBy": "user:u-admin",
+        "grantedAt": "…",
+        "revokedAt": null,
+        "revokedBy": null
+      }
+    ],
+    "agent": null
+  }
+}
+```
+
+Revoked grants are left out. `GET /api/me` in the control plane returns the
+same object, and the `/settings` page shows it. Every call is logged once
+with the action `whoami`.
 
 Group management (migrations 0009 and 0011 — a group is a subject **and** a
 resource):

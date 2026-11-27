@@ -20,8 +20,8 @@ export default async function DealStagePage({
 
   return (
     <>
-      <TextLink href="/" className="self-start text-sm">
-        ← Pipeline
+      <TextLink href={dealId === '' ? '/pipeline' : `/deals/${dealId}`} className="self-start text-sm">
+        ← Back
       </TextLink>
       {options === null ? (
         <ErrorState

@@ -51,8 +51,9 @@ The template already includes:
 - Migrations on startup: `src/instrumentation.ts`
 - Sample data in `seeds/`, loaded only locally
 - a list page with an empty state and an error state
-- the shared platform sidebar (`PlatformShell`) in `src/app/layout.tsx`, with
-  the app's own sections in `src/components/Shell.tsx`
+- the shared platform sidebar in `src/app/layout.tsx`: `loadShell(manifest)`
+  from `@openapps/sdk/next` and `NextPlatformShell` from `@openapps/ui/next`,
+  with the app's own sections in `SECTIONS` in the same file
 
 ## 3. Manifest first
 
@@ -87,10 +88,13 @@ Maintain `app.json` before you write code:
   - Pages with data need `export const dynamic = 'force-dynamic'`.
   - Links within the app go through `next/link`, because the app runs under
     `/<name>`.
-  - The sidebar comes from the platform (`PlatformShell` from `@openapps/ui`,
-    wired up in `src/app/layout.tsx`). It brings the user, the app list,
-    "New app", settings and sign-out. Your app only provides its sections:
-    one entry per page in `SECTIONS` in `src/components/Shell.tsx`. Do not
+  - The sidebar comes from the platform (`NextPlatformShell` from
+    `@openapps/ui/next`, wired up in `src/app/layout.tsx`). It brings the
+    user, the app list, "New app", settings and sign-out. Your app only
+    provides its sections: one entry per page in `SECTIONS` in
+    `src/app/layout.tsx` (`id`, `label`, `path` without the base path,
+    optional `match`). Keep the rest of the layout as it is; do not write
+    your own `loadShell`, `usePathname` or `router.push` wiring, and do not
     build navigation, a login or a user menu of your own.
   - Pages render no `<main>` and no outer padding; the sidebar provides both.
 

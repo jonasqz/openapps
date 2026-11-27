@@ -18,8 +18,7 @@ import {
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { JSX, ReactNode } from 'react';
-import { describeActor, type ActorDescription } from '../../../domain';
-import type { Grant } from '../../../domain/types';
+import { describeActor, type ActorDescription, type ActorGrant } from '../../../domain';
 import { currentUser } from '../../../lib/actor';
 import { domainContext } from '../../../lib/runtime';
 import { actorFromSession } from '../../../lib/session';
@@ -34,19 +33,24 @@ interface GrantRow {
   id: string;
   verb: string;
   resource: string;
+  via: string;
   grantedBy: string;
 }
 
 const GRANT_COLUMNS: readonly TableColumn<GrantRow>[] = [
   { field: 'verb', header: 'Verb' },
   { field: 'resource', header: 'Resource' },
+  { field: 'via', header: 'Source' },
   { field: 'grantedBy', header: 'Granted by', hideBelow: 'md' },
 ];
 
-const toRow = (g: Grant): GrantRow => ({
+// Die Herkunft als Satzteil, damit klar ist, warum ein Recht da ist — und wo
+// es zu widerrufen waere.
+const toRow = (g: ActorGrant): GrantRow => ({
   id: g.id,
   verb: g.verb,
   resource: `${g.resource.kind}:${g.resource.id}`,
+  via: g.via.kind === 'group' ? `via group ${g.via.group}` : 'Direct',
   grantedBy: g.grantedBy,
 });
 
@@ -146,7 +150,7 @@ export default async function SettingsPage(): Promise<JSX.Element> {
 
       <Section
         title="Your access"
-        description="Grants made directly to you. Access through a group is listed with the group."
+        description="Everything you may do: grants made directly to you and grants to your groups. The same right can appear more than once if it comes from several places."
       >
         <Table
           caption="Your grants"
@@ -156,7 +160,7 @@ export default async function SettingsPage(): Promise<JSX.Element> {
             ? {}
             : { error: { title: 'Your grants could not be loaded', description: failure } })}
           empty={{
-            title: 'You have no direct grants',
+            title: 'You have no grants',
             description:
               'Without a grant, everything is locked. That is the intended starting point.',
           }}

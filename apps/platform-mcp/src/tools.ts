@@ -395,13 +395,15 @@ export const disableAgentTool = defineTool({
 /**
  * Wer bin ich? Das Gegenstueck zu `GET /api/me` und zur Seite `/settings`
  * (ADR 0017). Braucht kein Recht: Die eigenen Freigaben darf jeder sehen,
- * und die Apps sind genau die, die der Aufrufer ohnehin lesen darf.
+ * und die Apps sind genau die, die der Aufrufer ohnehin lesen darf. Die
+ * Freigaben kommen mit Herkunft (`via`), direkt oder ueber eine Gruppe; der
+ * Audit-Eintrag heisst `whoami`, nicht `list_grants`.
  */
 export const whoamiTool = defineTool({
   name: 'whoami',
   title: 'Who am I',
   description:
-    'Shows who you are on the platform: identity, groups, the apps you can open and your grants. Anyone may call it.',
+    'Shows who you are on the platform: identity, groups, the apps you can open and every open grant that applies to you. Each grant has a via field: {kind: "direct"} for a grant to you, {kind: "group", group} for a grant to one of your groups. The same right can appear more than once if it comes from several places. Anyone may call it; it only shows your own grants. Logged as whoami.',
   schema: z.object({}),
   async handler({ ctx, actor, correlationId }) {
     const me = await describeActor(ctx, actor, {

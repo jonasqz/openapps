@@ -61,7 +61,13 @@ export {
   platformNavFor,
   visibleAppsFor,
 } from './navigation';
-export { describeActor, type ActorDescription, type AgentSelf } from './me';
+export {
+  describeActor,
+  type ActorDescription,
+  type ActorGrant,
+  type AgentSelf,
+  type GrantSource,
+} from './me';
 export {
   proposedGrantsOf,
   resourceRefOf,

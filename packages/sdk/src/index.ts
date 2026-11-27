@@ -40,6 +40,18 @@ export {
 } from './nav.js';
 
 export {
+  APP_BASE_PATH_ENV,
+  appBasePath,
+  readShell,
+  type ReadShellOptions,
+  type ShellAppInfo,
+  type ShellData,
+  type ShellPlatformAppData,
+  type ShellPlatformData,
+  type ShellUserData,
+} from './shell.js';
+
+export {
   assertAppConnectionString,
   assertSafeSchemaName,
   createAppPool,

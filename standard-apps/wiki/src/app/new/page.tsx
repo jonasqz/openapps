@@ -1,6 +1,6 @@
 import { ErrorState } from '@openapps/ui';
 import { TextLink } from '@/components/LinkButton';
-import { loadPage } from '@/lib/load';
+import { loadLinkTargets, loadPage } from '@/lib/load';
 import { PageForm } from '../PageForm';
 
 /** Neue Seite, optional als Unterseite (`?parent=<id>`). Speichert wie `pages.create`. */
@@ -35,9 +35,10 @@ export default async function NewPage({
     parent = { id: loaded.value.id, title: loaded.value.title };
   }
 
+  const linkTargets = await loadLinkTargets();
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-4">
-      <PageForm mode="create" parent={parent} />
+      <PageForm mode="create" parent={parent} linkTargets={linkTargets} />
     </div>
   );
 }

@@ -1,31 +1,39 @@
 import type { ReactNode } from 'react';
-import { themeScript } from '@openapps/ui';
+import { loadShell } from '@openapps/sdk/next';
+import { ThemeScript } from '@openapps/ui';
+import { NextPlatformShell, type AppSection } from '@openapps/ui/next';
 import '@openapps/ui/tokens.css';
 import './globals.css';
-import { Shell } from '@/components/Shell';
-import { loadShell } from '@/lib/shell';
+import manifest from '../../app.json';
 
 export const metadata = { title: 'Knowledge' };
 
 /**
- * Die Leiste kommt von der Plattform (`PlatformShell`, ADR 0017). Diese App
- * liefert nur ihren Inhalt und ihre eigenen Bereiche (`Shell`) — keinen
- * Login, kein Profilmenue, keine App-Liste.
- *
- * `suppressHydrationWarning`: `themeScript` setzt `data-theme` auf `<html>`,
- * bevor React hydriert.
+ * Die Bereiche dieser App in der gemeinsamen Leiste (ADR 0017, ADR 0019).
+ * Nutzer, App-Liste, „New app“, Settings und Abmelden liefert die Plattform.
+ */
+const SECTIONS = [
+  { id: 'search', label: 'Search', path: '/' },
+  { id: 'documents', label: 'Documents', path: '/documents' },
+] as const satisfies readonly AppSection[];
+
+/**
+ * Die Leiste kommt von der Plattform: `loadShell` liest Person und
+ * Navigation aus den Gateway-Headern (wirft nie), `NextPlatformShell` haengt
+ * die Bereiche an. `suppressHydrationWarning`: `ThemeScript` setzt
+ * `data-theme` auf `<html>`, bevor React hydriert.
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const shell = await loadShell();
+  const shell = await loadShell(manifest);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <ThemeScript />
       </head>
       <body className="bg-bg text-fg antialiased">
-        <Shell {...shell}>
+        <NextPlatformShell {...shell} sections={SECTIONS}>
           {children}
-        </Shell>
+        </NextPlatformShell>
       </body>
     </html>
   );

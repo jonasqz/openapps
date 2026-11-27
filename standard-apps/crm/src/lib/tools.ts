@@ -2,16 +2,22 @@ import { parseArgs, type ToolHandler } from '@openapps/sdk';
 import {
   createCompany,
   createContact,
+  completeNextStep,
   createDeal,
+  createNextStep,
   getCompany,
   getContact,
+  getDeal,
   listActivities,
   listCompanies,
   listContacts,
   listDeals,
+  listNextSteps,
   logActivity,
   pipelineSummary,
+  reopenNextStep,
   updateContact,
+  updateDeal,
   updateDealStage,
 } from './crm';
 import {
@@ -24,8 +30,12 @@ import {
   ContactUpdateArgs,
   DealCreateArgs,
   DealsListArgs,
+  DealUpdateArgs,
   DealUpdateStageArgs,
   IdArgs,
+  NextStepCompleteArgs,
+  NextStepCreateArgs,
+  NextStepsListArgs,
   PipelineSummaryArgs,
 } from './schemas';
 
@@ -61,11 +71,23 @@ export const toolHandlers = {
   }),
 
   'deals.list': async (args) => ({ deals: await listDeals(parseArgs(DealsListArgs, args)) }),
+  'deals.get': async (args) => getDeal(parseArgs(IdArgs, args).id),
   'deals.create': async (args, { user }) => ({
     deal: await createDeal(parseArgs(DealCreateArgs, args), user.id),
   }),
+  'deals.update': async (args) => ({ deal: await updateDeal(parseArgs(DealUpdateArgs, args)) }),
   'deals.update_stage': async (args, { user }) =>
     updateDealStage(parseArgs(DealUpdateStageArgs, args), user.id),
+
+  'next_steps.list': async (args) => ({
+    nextSteps: await listNextSteps(parseArgs(NextStepsListArgs, args)),
+  }),
+  'next_steps.create': async (args, { user }) => ({
+    nextStep: await createNextStep(parseArgs(NextStepCreateArgs, args), user.id),
+  }),
+  'next_steps.complete': async (args, { user }) =>
+    completeNextStep(parseArgs(NextStepCompleteArgs, args), user.id),
+  'next_steps.reopen': async (args, { user }) => reopenNextStep(parseArgs(IdArgs, args).id, user.id),
 
   'activities.log': async (args, { user }) => ({
     activity: await logActivity(parseArgs(ActivityLogArgs, args), user.id),

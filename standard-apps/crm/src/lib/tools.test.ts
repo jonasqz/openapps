@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseAppManifest } from '@openapps/app-manifest';
 import {
@@ -65,9 +65,13 @@ describe('Manifest', () => {
     expect(manifest.name).toBe('crm');
   });
 
-  it('names every table from the migration', () => {
+  it('names every table from the migrations', () => {
     const manifest = parseAppManifest(JSON.parse(manifestText));
-    const sql = readFileSync(new URL('../../migrations/0001_crm.sql', import.meta.url), 'utf8');
+    const dir = new URL('../../migrations/', import.meta.url);
+    const sql = readdirSync(dir)
+      .filter((name) => name.endsWith('.sql'))
+      .map((name) => readFileSync(new URL(name, dir), 'utf8'))
+      .join('\n');
     const created = [...sql.matchAll(/^create table (\w+)/gm)].map((match) => match[1]);
     expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual(created.sort());
   });
@@ -137,8 +141,14 @@ describe('tool mapping', () => {
         'contacts.list',
         'contacts.update',
         'deals.create',
+        'deals.get',
         'deals.list',
+        'deals.update',
         'deals.update_stage',
+        'next_steps.complete',
+        'next_steps.create',
+        'next_steps.list',
+        'next_steps.reopen',
         'pipeline.summary',
       ].sort(),
     );
@@ -213,6 +223,20 @@ describe('tool route with the CRM handlers', () => {
       ['contacts.update', { id: '0b000000-0000-4000-8000-000000000001' }],
       ['companies.get', {}],
       ['pipeline.summary', { stage: 'lead' }],
+      // Abschluss ohne Grund: won und lost verlangen note.
+      ['deals.update_stage', { id: '0d000000-0000-4000-8000-000000000001', stage: 'won' }],
+      ['deals.update_stage', { id: '0d000000-0000-4000-8000-000000000001', stage: 'lost', note: '  ' }],
+      // Die Stage aendert nur deals.update_stage, nie deals.update.
+      ['deals.update', { id: '0d000000-0000-4000-8000-000000000001', stage: 'won' }],
+      ['deals.update', { id: '0d000000-0000-4000-8000-000000000001' }],
+      ['deals.update', { id: '0d000000-0000-4000-8000-000000000001', valueCents: -1 }],
+      ['deals.list', { status: 'archived' }],
+      ['deals.create', { title: 'X', companyId: '0a000000-0000-4000-8000-000000000001', valueCents: 1, stage: 'won' }],
+      ['next_steps.create', { title: 'Call back', dueOn: '2030-01-01' }],
+      ['next_steps.create', { title: 'Call back', dueOn: 'tomorrow', dealId: '0d000000-0000-4000-8000-000000000001' }],
+      ['next_steps.list', { status: 'late' }],
+      ['next_steps.complete', { id: 'x' }],
+      ['next_steps.reopen', { id: '0e000000-0000-4000-8000-000000000001', note: 'not allowed' }],
     ];
     for (const [tool, args] of cases) {
       const response = await call(tool, args);

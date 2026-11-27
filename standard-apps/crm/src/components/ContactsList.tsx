@@ -78,7 +78,18 @@ export function ContactsList({
       }}
       rows={rows}
       columns={[
-        { field: 'name', header: 'Name' },
+        {
+          key: 'name',
+          header: 'Name',
+          cell: (row) => (
+            <Link
+              href={`/contacts/${row.id}`}
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              {row.name}
+            </Link>
+          ),
+        },
         {
           key: 'company',
           header: 'Company',

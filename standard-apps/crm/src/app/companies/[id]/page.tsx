@@ -1,20 +1,29 @@
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { ToolNotFoundError } from '@openapps/sdk';
-import { Badge, DetailPattern, EmptyState, ErrorState, Table, Tabs } from '@openapps/ui';
+import { Badge, Card, CardBody, CardHeader, ErrorState, PageHeader, Table, Tabs } from '@openapps/ui';
+import { AppLinks } from '@/components/AppLinks';
+import { DealSummaryTable } from '@/components/DealSummaryTable';
 import { ButtonLink, TextLink } from '@/components/links';
-import { getCompany, type Activity, type CompanyDetail, type Contact, type Deal } from '@/lib/crm';
-import { ACTIVITY_KIND_LABELS, STAGE_LABELS } from '@/lib/domain';
-import { formatDate, formatDateTime, formatDay, formatEuro } from '@/lib/format';
+import { NextStepList } from '@/components/NextStepList';
+import { Properties } from '@/components/Properties';
+import { Timeline } from '@/components/Timeline';
+import { getCompany, type CompanyDetail, type Contact } from '@/lib/crm';
+import { isClosedStage } from '@/lib/domain';
+import { formatDay, formatEuro } from '@/lib/format';
 import { uuid } from '@/lib/schemas';
+import { nextStepView } from '@/lib/views';
 
 export const dynamic = 'force-dynamic';
 
-/** Firmen-Detail. Dieselben Daten liefert das Tool `companies.get`. */
+/**
+ * Eine Firma mit allem, was dazugehoert: Kontakte, Deals, naechste Schritte
+ * und Zeitleiste (auch von ihren Kontakten und Deals). Tool: `companies.get`.
+ */
 
 interface ContactRow {
   id: string;
-  name: string;
+  name: ReactNode;
   role: string;
   email: ReactNode;
   phone: string;
@@ -22,10 +31,12 @@ interface ContactRow {
 
 const toContactRow = (contact: Contact): ContactRow => ({
   id: contact.id,
-  name: contact.name,
+  name: <TextLink href={`/contacts/${contact.id}`}>{contact.name}</TextLink>,
   role: contact.role ?? '',
   email:
-    contact.email === null ? '' : (
+    contact.email === null ? (
+      ''
+    ) : (
       <a href={`mailto:${contact.email}`} className="text-primary underline-offset-2 hover:underline">
         {contact.email}
       </a>
@@ -33,25 +44,8 @@ const toContactRow = (contact: Contact): ContactRow => ({
   phone: contact.phone ?? '',
 });
 
-interface DealRow {
-  id: string;
-  title: string;
-  stage: ReactNode;
-  wert: string;
-  abschluss: string;
-}
-
-const toDealRow = (deal: Deal): DealRow => ({
-  id: deal.id,
-  title: deal.title,
-  stage: <Badge>{STAGE_LABELS[deal.stage]}</Badge>,
-  wert: formatEuro(deal.valueCents),
-  abschluss: formatDate(deal.expectedClose),
-});
-
 export default async function CompanyPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const parsed = uuid.safeParse(id);
+  const parsed = uuid.safeParse((await params).id);
   if (!parsed.success) notFound();
 
   let detail: CompanyDetail | null = null;
@@ -64,52 +58,100 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   if (detail === null) {
     return (
-      <>
-        <TextLink href="/companies">← All companies</TextLink>
-        <ErrorState
-          title="Company could not be loaded"
-          description="The database did not respond. Reload the page."
-        />
-      </>
+      <AppLinks>
+        <PageHeader breadcrumbs={[{ label: 'Companies', href: '/companies' }, { label: 'Company' }]} title="Company" />
+        <ErrorState title="Company could not be loaded" description="The database did not respond. Reload the page." />
+      </AppLinks>
     );
   }
 
-  const { company, contacts, deals, activities } = detail;
-  const openDeals = deals.filter((deal) => deal.stage !== 'won' && deal.stage !== 'lost');
+  const { company, contacts, deals, activities, nextSteps } = detail;
+  const openDeals = deals.filter((deal) => !isClosedStage(deal.stage));
+  const openValue = openDeals.reduce((sum, deal) => sum + deal.valueCents, 0);
+  const refs = `company=${company.id}`;
 
   return (
-    <>
-      <TextLink href="/companies" className="self-start text-sm">
-        ← All companies
-      </TextLink>
-      <DetailPattern
-        eyebrow="Company"
+    <AppLinks>
+      <PageHeader
+        breadcrumbs={[{ label: 'Companies', href: '/companies' }, { label: company.name }]}
         title={company.name}
         meta={
           <>
             {company.industry === null ? null : <Badge>{company.industry}</Badge>}
-            <Badge tone="primary">{`${openDeals.length} open ${openDeals.length === 1 ? 'deal' : 'deals'}`}</Badge>
+            <Badge tone="primary">{`${openDeals.length} open ${openDeals.length === 1 ? 'deal' : 'deals'} · ${formatEuro(openValue)}`}</Badge>
           </>
         }
         actions={
           <>
-            <ButtonLink href={`/activities/new?company=${company.id}`} variant="secondary">
+            <ButtonLink href={`/activities/new?${refs}`} variant="secondary">
               Log activity
             </ButtonLink>
-            <ButtonLink href={`/contacts/new?company=${company.id}`} variant="secondary">
+            <ButtonLink href={`/contacts/new?${refs}`} variant="secondary">
               New contact
             </ButtonLink>
-            <ButtonLink href={`/deals/new?company=${company.id}`}>New deal</ButtonLink>
+            <ButtonLink href={`/next-steps/new?${refs}`} variant="secondary">
+              Add next step
+            </ButtonLink>
+            <ButtonLink href={`/deals/new?${refs}`}>New deal</ButtonLink>
           </>
         }
-        sections={[
-          {
-            title: 'Details',
-            fields: [
+      />
+
+      <div className="grid min-w-0 gap-6 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2">
+          <Tabs
+            label="Company sections"
+            items={[
+              {
+                id: 'timeline',
+                label: 'Timeline',
+                count: activities.length,
+                content: (
+                  <Timeline
+                    activities={activities}
+                    hide={['company']}
+                    emptyAction={<TextLink href={`/activities/new?${refs}`}>Log activity</TextLink>}
+                  />
+                ),
+              },
+              {
+                id: 'deals',
+                label: 'Deals',
+                count: deals.length,
+                content: (
+                  <DealSummaryTable
+                    caption={`Deals with ${company.name}`}
+                    deals={deals}
+                    emptyAction={<TextLink href={`/deals/new?${refs}`}>New deal</TextLink>}
+                  />
+                ),
+              },
+              {
+                id: 'contacts',
+                label: 'Contacts',
+                count: contacts.length,
+                content: <ContactTable caption={`Contacts at ${company.name}`} contacts={contacts} newHref={`/contacts/new?${refs}`} />,
+              },
+            ]}
+          />
+        </div>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card>
+            <CardHeader as="h2" title="Next steps" description="Open steps here and on its contacts and deals." />
+            <CardBody>
+              <NextStepList
+                steps={nextSteps.map((step) => nextStepView(step, 'company'))}
+                addHref={`/next-steps/new?${refs}`}
+              />
+            </CardBody>
+          </Card>
+          <Properties
+            title="Details"
+            items={[
               {
                 label: 'Website',
                 value:
-                  company.website === null ? '–' : (
+                  company.website === null ? null : (
                     <a
                       href={company.website}
                       rel="noopener noreferrer"
@@ -120,108 +162,45 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
                     </a>
                   ),
               },
-              { label: 'Industry', value: company.industry ?? '–' },
+              { label: 'Industry', value: company.industry },
+              { label: 'Notes', value: company.notes === null ? null : <span className="whitespace-pre-line">{company.notes}</span> },
               { label: 'Created', value: formatDay(company.createdAt) },
               { label: 'Updated', value: formatDay(company.updatedAt) },
-              { label: 'Notes', value: company.notes ?? '–', wide: true },
-            ],
-          },
-        ]}
-      >
-        <Tabs
-          label="Company sections"
-          items={[
-            {
-              id: 'contacts',
-              label: 'Contacts',
-              count: contacts.length,
-              content: (
-                <Table<ContactRow>
-                  caption={`Contacts at ${company.name}`}
-                  rows={contacts.map(toContactRow)}
-                  columns={[
-                    { field: 'name', header: 'Name' },
-                    { field: 'role', header: 'Role', hideBelow: 'sm' },
-                    { field: 'email', header: 'Email', hideBelow: 'md' },
-                    { field: 'phone', header: 'Phone', hideBelow: 'lg' },
-                  ]}
-                  empty={{
-                    title: 'No contacts yet',
-                    description: 'Create a contact for this company.',
-                  }}
-                />
-              ),
-            },
-            {
-              id: 'deals',
-              label: 'Deals',
-              count: deals.length,
-              content: (
-                <Table<DealRow>
-                  caption={`Deals with ${company.name}`}
-                  rows={deals.map(toDealRow)}
-                  columns={[
-                    { field: 'title', header: 'Title' },
-                    { field: 'stage', header: 'Stage' },
-                    { field: 'wert', header: 'Value', align: 'right' },
-                    { field: 'abschluss', header: 'Expected close', hideBelow: 'sm' },
-                  ]}
-                  empty={{
-                    title: 'No deals yet',
-                    description: 'Create a deal for this company.',
-                  }}
-                />
-              ),
-            },
-            {
-              id: 'activities',
-              label: 'Activities',
-              count: activities.length,
-              content: <ActivityList activities={activities} />,
-            },
-          ]}
-        />
-      </DetailPattern>
-    </>
+            ]}
+          />
+        </div>
+      </div>
+    </AppLinks>
   );
 }
 
-function ActivityList({ activities }: { activities: Activity[] }) {
-  if (activities.length === 0) {
-    return (
-      <EmptyState
-        title="No activities yet"
-        description="Log a note, a call, an email or a meeting."
-      />
-    );
-  }
+function ContactTable({
+  caption,
+  contacts,
+  newHref,
+  failed = false,
+}: {
+  caption: string;
+  contacts: readonly Contact[];
+  newHref: string;
+  failed?: boolean;
+}) {
   return (
-    <ul className="flex flex-col gap-3">
-      {activities.map((activity) => (
-        <li key={activity.id} className="min-w-0 rounded-lg border border-border bg-surface p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge>{ACTIVITY_KIND_LABELS[activity.kind]}</Badge>
-            <span className="text-sm font-medium text-fg [overflow-wrap:anywhere]">
-              {activity.subject}
-            </span>
-          </div>
-          {activity.body === null ? null : (
-            <p className="mt-2 whitespace-pre-line text-sm text-fg [overflow-wrap:anywhere]">
-              {activity.body}
-            </p>
-          )}
-          <p className="mt-2 text-xs text-fg-muted [overflow-wrap:anywhere]">
-            {[
-              formatDateTime(activity.happenedAt),
-              activity.contactName,
-              activity.dealTitle,
-              `logged by ${activity.createdBy}`,
-            ]
-              .filter((part): part is string => part !== null && part !== '')
-              .join(' · ')}
-          </p>
-        </li>
-      ))}
-    </ul>
+    <Table<ContactRow>
+      caption={caption}
+      rows={contacts.map(toContactRow)}
+      columns={[
+        { field: 'name', header: 'Name' },
+        { field: 'role', header: 'Role', hideBelow: 'sm' },
+        { field: 'email', header: 'Email', hideBelow: 'md' },
+        { field: 'phone', header: 'Phone', hideBelow: 'lg' },
+      ]}
+      empty={{
+        title: 'No contacts yet',
+        description: 'Add the people you talk to at this company.',
+        action: <TextLink href={newHref}>New contact</TextLink>,
+      }}
+      error={failed ? { title: 'Contacts could not be loaded', description: 'Reload the page.' } : undefined}
+    />
   );
 }
