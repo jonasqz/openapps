@@ -24,6 +24,13 @@ import {
 } from './prompts';
 import type { AppToolRef, MemoryRunScope, RefCache } from '@openapps/control-plane/domain';
 import { platformTools, runTool, type AnyToolDefinition } from './tools';
+import {
+  createToolCatalog,
+  jsonSchemaOf,
+  PLATFORM_APP,
+  toolSummary,
+  type CatalogEntry,
+} from './tool-catalog';
 
 export interface PlatformServerOptions {
   readonly ctx: DomainContext;
@@ -37,11 +44,41 @@ export interface PlatformServerOptions {
   readonly run?: MemoryRunScope;
   /** Meldet je angemeldetem App-Tool seinen Namen im MCP (fuer den Lauf). */
   readonly onAppTool?: (mcpName: string, tool: AppToolRef) => void;
+  /**
+   * Plattform-Tools, die `search_tools` und `describe_tool` nicht nennen,
+   * weil der Aufrufer sie hier nicht ausfuehren kann (im Lauf
+   * `RUN_EXCLUDED_TOOLS`). Angemeldet bleiben sie; das Filtern beim Aufruf
+   * liegt beim Lauf (`run-toolbox.ts`).
+   */
+  readonly hiddenTools?: readonly string[];
 }
 
 export async function createPlatformServer(options: PlatformServerOptions): Promise<McpServer> {
   const server = new McpServer({ name: 'openapps-platform', version: '0.1.0' });
+  // Der Katalog fuer `search_tools` und `describe_tool`: dieselben Namen,
+  // Beschreibungen und Schemas, die hier angemeldet werden.
+  const hidden = new Set(options.hiddenTools ?? []);
+  const platformEntries: CatalogEntry[] = platformTools
+    .filter((tool) => !hidden.has(tool.name))
+    .map((tool) => ({
+      name: tool.name,
+      kind: 'platform' as const,
+      resourceId: `${PLATFORM_APP}.${tool.name}`,
+      app: PLATFORM_APP,
+      title: tool.title,
+      description: tool.description,
+      summary: toolSummary(tool.description),
+      inputSchema: jsonSchemaOf(rawShapeOf(tool)),
+    }));
+  const appEntries: CatalogEntry[] = [];
+  const catalog = createToolCatalog({
+    ctx: options.ctx,
+    actor: options.actor,
+    platform: platformEntries,
+    appTools: appEntries,
+  });
   const call = {
+    catalog,
     ctx: options.ctx,
     actor: options.actor,
     invoker: options.invoker,
@@ -71,23 +108,36 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
     const mcpName = mcpToolName(appTool.resourceId, taken);
     taken.add(mcpName);
     options.onAppTool?.(mcpName, appTool);
+    const ownDescription =
+      appTool.description ?? `Tool "${appTool.toolName}" of the app "${appTool.appName}"`;
+    const description = `${appTool.appName}: ${ownDescription}\n\nPass the arguments as an object in the "args" field.`;
+    const title = `${appTool.appName}: ${appTool.toolName}`;
+    // Die Argumente beschreibt die App in ihrer OpenAPI-Spec und in der
+    // Tool-Beschreibung; die Plattform reicht sie unveraendert durch. Ein
+    // leeres Schema hier wuerde sie stillschweigend verwerfen (zod entfernt
+    // unbekannte Schluessel), deshalb ein offenes Feld.
+    const inputSchema = {
+      args: z
+        .record(z.unknown())
+        .optional()
+        .describe('Arguments of the tool, as named in the description'),
+    };
+    appEntries.push({
+      name: mcpName,
+      kind: 'app',
+      resourceId: appTool.resourceId,
+      app: appTool.appName,
+      title,
+      description,
+      summary: toolSummary(ownDescription),
+      inputSchema: jsonSchemaOf(inputSchema),
+    });
     server.registerTool(
       mcpName,
       {
-        description: `${appTool.appName}: ${
-          appTool.description ?? `Tool "${appTool.toolName}" of the app "${appTool.appName}"`
-        }\n\nPass the arguments as an object in the "args" field.`,
-        // Die Argumente beschreibt die App in ihrer OpenAPI-Spec und in der
-        // Tool-Beschreibung; die Plattform reicht sie unveraendert durch. Ein
-        // leeres Schema hier wuerde sie stillschweigend verwerfen (zod
-        // entfernt unbekannte Schluessel), deshalb ein offenes Feld.
-        inputSchema: {
-          args: z
-            .record(z.unknown())
-            .optional()
-            .describe('Arguments of the tool, as named in the description'),
-        },
-        annotations: { title: `${appTool.appName}: ${appTool.toolName}` },
+        description,
+        inputSchema,
+        annotations: { title },
       },
       async (input: { args?: Record<string, unknown> | undefined }) => {
         try {

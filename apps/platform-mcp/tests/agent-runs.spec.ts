@@ -150,6 +150,64 @@ describe('Tools eines Laufs', () => {
     await annaBox.close?.();
   });
 
+  it('search_tools und describe_tool im Lauf: nur Aufrufbares, geschnitten mit dem Ausloeser', async () => {
+    const { ctx } = await setup(scriptedModelSetup(createScriptedModelProvider()));
+    const invoker = createCountingInvoker();
+    const parse = (content: string) =>
+      JSON.parse(content) as {
+        ok: boolean;
+        value?: { tools?: { name: string }[]; tool?: { name: string } };
+        error?: { code: string; message: string };
+      };
+
+    const benRun = await runFor(ctx, ben, 'ben@example.com');
+    const benBox = await createRunToolbox({
+      ctx: contextForRun(ctx, benRun),
+      scope: { runId: benRun.id, agentName: 'helper', usedApps: () => [] },
+      invoker,
+    });
+    const offered = benBox.tools.map((tool) => tool.name);
+    expect(offered).toContain('search_tools');
+    expect(offered).toContain('describe_tool');
+
+    const contacts = parse((await benBox.call('search_tools', { query: 'contacts' })).content);
+    expect(contacts.value?.tools?.map((tool) => tool.name)).toContain('crm__contacts__list');
+    // Ausgeschlossene Tools nennt die Suche im Lauf nicht, auch mit Freigabe.
+    const agents = parse(
+      (await benBox.call('search_tools', { query: 'agent', limit: 25 })).content,
+    );
+    const named = agents.value?.tools?.map((tool) => tool.name) ?? [];
+    for (const excluded of RUN_EXCLUDED_TOOLS) expect(named).not.toContain(excluded);
+    expect(parse((await benBox.call('describe_tool', { name: 'create_agent' })).content)).toEqual({
+      ok: false,
+      error: { code: 'not_found', message: 'unknown tool "create_agent"' },
+    });
+    expect(
+      parse((await benBox.call('describe_tool', { name: 'crm__contacts__list' })).content).value
+        ?.tool?.name,
+    ).toBe('crm__contacts__list');
+    await benBox.close?.();
+
+    // Anna liest das CRM nicht: Der Lauf findet das CRM-Tool nicht.
+    await ctx.agentRuns!.update(benRun.id, { status: 'succeeded' });
+    const annaRun = await runFor(ctx, anna, 'anna@example.com');
+    const annaBox = await createRunToolbox({
+      ctx: contextForRun(ctx, annaRun),
+      scope: { runId: annaRun.id, agentName: 'helper', usedApps: () => [] },
+      invoker,
+    });
+    const annaHits = parse((await annaBox.call('search_tools', { query: 'contacts' })).content);
+    expect(annaHits.value?.tools?.map((tool) => tool.name)).not.toContain('crm__contacts__list');
+    expect(
+      parse((await annaBox.call('describe_tool', { name: 'crm__contacts__list' })).content),
+    ).toEqual({
+      ok: false,
+      error: { code: 'not_found', message: 'unknown tool "crm__contacts__list"' },
+    });
+    expect(invoker.calls).toHaveLength(0);
+    await annaBox.close?.();
+  });
+
   it('ein App-Tool laeuft ueber callAppTool als der Agent, im Audit mit der Lauf-Id, mit Herkunft', async () => {
     const { harness, ctx } = await setup(scriptedModelSetup(createScriptedModelProvider()));
     const invoker = createCountingInvoker();

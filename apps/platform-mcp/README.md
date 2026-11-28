@@ -18,6 +18,8 @@ and forwards the apps' tools — each only to callers that have a grant.
 | `list_grants`         | look up grants                                                                                |
 | `whoami`              | who you are: identity, groups, apps you can open, grants with their source                    |
 | `search`              | search all apps you may search at once, hits grouped by app (ADR 0021)                        |
+| `search_tools`        | find tools you may execute here, platform and app tools, by text match (ADR 0024 addendum)    |
+| `describe_tool`       | full description and input schema of one tool you may execute, otherwise `not_found`          |
 | `list_inbox`          | your own inbox: notifications from apps you may read (ADR 0022)                               |
 | `mark_inbox`          | mark items of your own inbox as read, unread or done                                          |
 | `resolve_refs`        | resolve `@{app:type:id}` references to title and status, `restricted` without read (ADR 0023) |
@@ -176,6 +178,29 @@ mentioned. `search` itself needs no grant, like `list_apps`. It is the same
 domain function as the bar's search (`searchApps`), with one audit entry
 `search` per call and without the query text in the log.
 
+### Finding tools
+
+`search_tools` and `describe_tool` let an agent find tools on demand instead
+of reading the whole catalog first (ADR 0024, addendum "Code Mode", point 1).
+`search_tools` takes `query` (2 to 200 characters), optionally `apps` (app
+names, `platform` for the platform tools) and `limit` (1 to 25, default 10),
+and returns `{ query, tools: [{ name, kind, resourceId, app, summary }], matched }`.
+`name` is the MCP name to call (`tasks__tasks__create`), `resourceId` the id
+in the permission model (`tasks.tasks.create`, `platform.<name>` for platform
+tools). Ranking is a plain text match over name and description: exact name
+first, then words in the name, then words in the description; no embeddings.
+
+Both show only tools of this session that the caller may execute: every
+platform tool (each checks its own grants when called) and the app tools
+with `execute`, checked again on every call, so a revoke hides a tool on the
+next call without a new connection. `describe_tool` takes the MCP name or the
+resource id and answers `not_found` with `unknown tool "<name>"` for a tool
+without a grant, exactly as for a tool that does not exist. Neither needs a
+grant of its own, like `search` and `whoami`. Each call is audited once
+(`search_tools`, `describe_tool`), without the query text. In a platform
+agent run both are offered and leave out the tools a run never gets
+(`RUN_EXCLUDED_TOOLS`).
+
 ## Prompts
 
 - `how_to_build_app` returns the content of `AGENTS.md`, read fresh on every
@@ -188,6 +213,7 @@ domain function as the bar's search (`searchApps`), with one audit entry
 
 ```
 src/tools.ts       the platform tools as data: name, schema, handler
+src/tool-catalog.ts the session's tool catalog and ranking for search_tools and describe_tool
 src/app-tools.ts   visibility and invocation of app tools (from the control plane domain)
 src/identity.ts    one OAuth client per agent
 src/invoker.ts     forwarding to the app (from the control plane, shared with app calls)

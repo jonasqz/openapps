@@ -1,6 +1,6 @@
 {
   "name": "openapps",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Build and change apps on the openapps platform with your own assistant: connection to the platform MCP, the platform rules as a skill, and commands for new apps and changes.",
   "author": { "name": "openapps" },
   "keywords": ["openapps", "apps", "mcp", "coolify"]

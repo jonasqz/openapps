@@ -59,12 +59,17 @@ transcripts never go to the platform.
 The command needs these grants for the agent access, and skips any part
 whose grant is missing:
 
-| What           | Grant                                                          |
-| -------------- | -------------------------------------------------------------- |
-| Search         | `read` on each app to search                                   |
-| Team memory    | `execute` on tool `platform.recall` and `platform.remember`    |
-| Tasks          | `execute` on tool `tasks.tasks.create`                         |
-| Decision pages | `execute` on tools `wiki.pages.create` and `wiki.pages.update` |
+| What            | Grant                                                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Search          | `read` on each app, and `execute` on its search tool: `tasks.search`, `crm.search`, `wiki.pages.search`, `knowledge.documents.search` |
+| Open references | `execute` on each app's resolver tool: `tasks.tasks.resolve`, `wiki.pages.resolve`, `crm.crm.resolve`                            |
+| Team memory     | `execute` on tool `platform.recall` and `platform.remember`                                                                      |
+| Tasks           | `execute` on tool `tasks.tasks.create`                                                                                           |
+| Decision pages  | `execute` on tools `wiki.pages.create` and `wiki.pages.update`                                                                   |
+
+Without the search tool grant an app is skipped silently: `search` then
+answers with an empty `searched` list. Without a resolver grant a reference
+comes back as `restricted`.
 
 ### Alone or as a team
 

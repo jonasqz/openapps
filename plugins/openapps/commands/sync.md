@@ -23,9 +23,12 @@ skip that part. Never grant yourself anything.
 ## Pull
 
 1. Call `search` with the topic. Call `recall` with the topic if you may.
+   If `searched` comes back empty, say that the search tool grants are
+   missing instead of reporting "nothing found".
 2. If a hit contains references like `@{tasks:task:42}`, resolve them with
-   `resolve_refs`. A `restricted` reference stays restricted; do not try to
-   reach it another way.
+   `resolve_refs`, passing them without the `@{ }` (`tasks:task:42`). A
+   `restricted` reference stays restricted; do not try to reach it another
+   way.
 3. Summarize in at most ten lines: what exists, what is open, which
    decisions apply. Give each item its link (`href`). Then stop and wait for my
    next instruction.
@@ -64,4 +67,6 @@ skip that part. Never grant yourself anything.
 App tools appear in the MCP under their resource id with the dots replaced,
 for example `tasks.create` of the app tasks as `tasks__tasks__create`, with the
 arguments in the field `args`. Platform tools (`whoami`, `search`, `recall`,
-`remember`, `resolve_refs`) keep their names.
+`remember`, `resolve_refs`) keep their names. If you do not know a tool's
+name, find it with `search_tools` and read its arguments with
+`describe_tool`.

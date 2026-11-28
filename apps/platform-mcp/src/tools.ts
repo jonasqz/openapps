@@ -65,7 +65,17 @@ import {
   type Actor,
   type AppToolInvoker,
   type DomainContext,
+  audited,
+  NotFoundError,
+  ValidationError,
 } from '@openapps/control-plane/domain';
+import {
+  queryWords,
+  rankTools,
+  TOOL_SEARCH_LIMITS,
+  type CatalogEntry,
+  type ToolCatalog,
+} from './tool-catalog';
 
 export interface ToolCallContext {
   readonly ctx: DomainContext;
@@ -86,6 +96,11 @@ export interface ToolCallContext {
    * (ADR 0024 E). `remember` nimmt daraus die Herkunft.
    */
   readonly run?: MemoryRunScope;
+  /**
+   * Die Tools dieser Sitzung fuer `search_tools` und `describe_tool`. Setzt
+   * nur `createPlatformServer`; fehlt er, scheitern beide mit klarer Meldung.
+   */
+  readonly catalog?: ToolCatalog;
 }
 
 export interface ToolDefinition<Schema extends z.ZodTypeAny> {
@@ -487,6 +502,142 @@ export const searchTool = defineTool({
 });
 
 /**
+ * Tool-Suche nach Bedarf (ADR 0024, Nachtrag Code Mode, Punkt 1): Ein Agent
+ * findet Tools, statt den ganzen Katalog vorab zu lesen. Keine eigene
+ * Freigabe, wie `search` und `whoami`: Beide zeigen nur Tools, die der
+ * Aufrufer in dieser Sitzung ausfuehren darf (Plattform-Tools, App-Tools mit
+ * `execute`, frisch geprueft). Ein App-Tool ohne Freigabe ist fuer
+ * `describe_tool` dasselbe wie ein Tool, das es nicht gibt.
+ */
+function hitOf(entry: CatalogEntry) {
+  return {
+    name: entry.name,
+    kind: entry.kind,
+    resourceId: entry.resourceId,
+    app: entry.app,
+    summary: entry.summary,
+  };
+}
+
+function catalogOf(catalog: ToolCatalog | undefined, tool: string): ToolCatalog {
+  if (catalog === undefined) {
+    throw new Error(`${tool} is not available here: no tool catalog for this session`);
+  }
+  return catalog;
+}
+
+export const searchToolsTool = defineTool({
+  name: 'search_tools',
+  title: 'Search tools',
+  description: `Finds tools you may execute in this session, platform tools and app tools, by simple text match over name and description (no semantic search). Returns {query, tools: [{name, kind, resourceId, app, summary}], matched}: name is the MCP name to call (app tools look like tasks__tasks__create), kind is platform or app, resourceId is the id in the permission model (<app>.<tool>, platform.<name> for platform tools), summary is one line. Best match first: exact name, then words in the name, then words in the description. App tools appear only with execute on them; after a revoke they disappear on the next call. Platform tools check their own grants when called. Arguments: query (${String(TOOL_SEARCH_LIMITS.queryMin)} to ${String(TOOL_SEARCH_LIMITS.queryMax)} characters), apps (optional list of app names, platform for platform tools), limit (1 to ${String(TOOL_SEARCH_LIMITS.limitMax)}, default ${String(TOOL_SEARCH_LIMITS.limitDefault)}). Get the full description and input schema of a hit with describe_tool.`,
+  // Die Grenzen prueft der Handler, nicht das Schema: Sonst lehnte schon das
+  // MCP-SDK ab, mit einem Protokollfehler und ohne Audit-Eintrag.
+  schema: z.object({
+    query: z.string(),
+    apps: z.array(z.string()).optional(),
+    limit: z.number().int().optional(),
+  }),
+  async handler({ ctx, actor, correlationId, catalog }, input) {
+    const tools = catalogOf(catalog, 'search_tools');
+    return audited(
+      ctx,
+      {
+        actor,
+        action: 'search_tools',
+        // Der Suchtext gehoert nicht ins Audit, wie bei `search`.
+        detail:
+          input.apps === undefined ? {} : { apps: input.apps.slice(0, TOOL_SEARCH_LIMITS.appsMax) },
+        ...(correlationId === undefined ? {} : { correlationId }),
+      },
+      async () => {
+        const query = input.query.trim();
+        if (
+          query.length < TOOL_SEARCH_LIMITS.queryMin ||
+          query.length > TOOL_SEARCH_LIMITS.queryMax
+        ) {
+          throw new ValidationError(
+            `query must be ${String(TOOL_SEARCH_LIMITS.queryMin)} to ${String(TOOL_SEARCH_LIMITS.queryMax)} characters`,
+          );
+        }
+        if (queryWords(query).length === 0) {
+          throw new ValidationError('query must contain letters or digits');
+        }
+        if (input.apps !== undefined && input.apps.length > TOOL_SEARCH_LIMITS.appsMax) {
+          throw new ValidationError(
+            `apps takes at most ${String(TOOL_SEARCH_LIMITS.appsMax)} names`,
+          );
+        }
+        const limit = input.limit ?? TOOL_SEARCH_LIMITS.limitDefault;
+        if (limit < 1 || limit > TOOL_SEARCH_LIMITS.limitMax) {
+          throw new ValidationError(`limit must be 1 to ${String(TOOL_SEARCH_LIMITS.limitMax)}`);
+        }
+        const apps = input.apps === undefined ? null : new Set(input.apps);
+        const visible = (await tools.visible()).filter(
+          (entry) => apps === null || apps.has(entry.app),
+        );
+        const ranked = rankTools(visible, query, visible.length);
+        return {
+          value: {
+            query,
+            tools: ranked.slice(0, limit).map(hitOf),
+            matched: ranked.length,
+          },
+          detail: { matched: ranked.length, visible: visible.length },
+        };
+      },
+    );
+  },
+});
+
+export const describeToolTool = defineTool({
+  name: 'describe_tool',
+  title: 'Describe a tool',
+  description:
+    'Returns the full description and input schema of one tool you may execute in this session: {tool: {name, kind, resourceId, app, title, description, inputSchema}}. Argument: name, the MCP name from search_tools (for example tasks__tasks__create) or the resource id (tasks.tasks.create). A tool you may not execute answers not_found, the same as a tool that does not exist. App tools take their arguments as an object in the args field; the description names them.',
+  schema: z.object({ name: z.string() }),
+  async handler({ ctx, actor, correlationId, catalog }, input) {
+    const tools = catalogOf(catalog, 'describe_tool');
+    // Ein ueberlanger Name ist nie ein Tool; nicht in die Meldung kopieren.
+    const name = input.name.slice(0, TOOL_SEARCH_LIMITS.nameMax);
+    const visible = await tools.visible();
+    const entry =
+      name !== input.name
+        ? undefined
+        : (visible.find((candidate) => candidate.name === name) ??
+          visible.find((candidate) => candidate.resourceId === name));
+    return audited(
+      ctx,
+      {
+        actor,
+        action: 'describe_tool',
+        // Die Ressource nur, wenn der Aufrufer das Tool sehen darf; sonst
+        // stuende im Audit eine Id, die es vielleicht gar nicht gibt.
+        ...(entry === undefined
+          ? {}
+          : { resource: { kind: 'tool' as const, id: entry.resourceId } }),
+        ...(correlationId === undefined ? {} : { correlationId }),
+      },
+      async () => {
+        if (entry === undefined) throw new NotFoundError(`unknown tool "${name}"`);
+        return {
+          value: {
+            tool: {
+              name: entry.name,
+              kind: entry.kind,
+              resourceId: entry.resourceId,
+              app: entry.app,
+              title: entry.title,
+              description: entry.description,
+              inputSchema: entry.inputSchema,
+            },
+          },
+        };
+      },
+    );
+  },
+});
+
+/**
  * Der eigene Eingang (ADR 0022 D): Benachrichtigungen aus den Apps, die der
  * Aufrufer lesen darf, dieselbe Domaenenfunktion wie `GET /api/inbox` und
  * die Seite `/home`. Keine eigene Freigabe: Wie `whoami` wirkt es nur auf
@@ -774,7 +925,8 @@ export const forgetTool = defineTool({
 
 /**
  * Die sechs Tools des Briefs, `list_grants` und `whoami` zum Nachsehen,
- * `search` ueber alle Apps, der eigene Eingang (ADR 0022), die Verweise
+ * `search` ueber alle Apps, `search_tools` und `describe_tool` zum Finden
+ * von Tools (ADR 0024, Nachtrag), der eigene Eingang (ADR 0022), die Verweise
  * zwischen Apps (ADR 0023), die Gruppenpflege, die Agent-Identitaeten, die
  * Plattform-Agents und das Team-Gedaechtnis (ADR 0024). Mehr gibt es nicht: jede weitere
  * Plattform-Aktion entsteht erst als Domaenenfunktion.
@@ -789,6 +941,8 @@ export const platformTools: readonly AnyToolDefinition[] = [
   listGrantsTool,
   whoamiTool,
   searchTool,
+  searchToolsTool,
+  describeToolTool,
   listInboxTool,
   markInboxTool,
   resolveRefsTool,

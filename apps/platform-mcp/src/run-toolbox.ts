@@ -11,7 +11,8 @@
  *
  * Nicht angeboten und nicht ausgefuehrt werden `RUN_EXCLUDED_TOOLS`. Der
  * Lauf erreicht den Server nur hierueber; ein Name, der nicht angeboten
- * wurde, laeuft nicht.
+ * wurde, laeuft nicht. `search_tools` und `describe_tool` (ADR 0024,
+ * Nachtrag Code Mode) nennen sie auch nicht.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -71,6 +72,8 @@ export async function createRunToolbox(input: RunToolboxInput): Promise<RunToolb
     correlationId: input.scope.runId,
     run: input.scope,
     onAppTool: (name, tool) => appTools.set(name, tool),
+    // `search_tools` und `describe_tool` nennen im Lauf nur, was er aufrufen kann.
+    hiddenTools: RUN_EXCLUDED_TOOLS,
     ...(input.refCache === undefined ? {} : { refCache: input.refCache }),
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

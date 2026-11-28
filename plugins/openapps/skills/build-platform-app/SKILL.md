@@ -140,6 +140,9 @@ the task requires:
 In the MCP, app tools are called `<app>__<tool>`, and every dot becomes `__`.
 `tasks.create` in the app `tasks` becomes `tasks__tasks__create`. The
 arguments go into the `args` field. `list_grants` shows your own grants.
+To find a tool, call `search_tools` with a few words (for example
+`create task`); `describe_tool` with its name returns the full description
+and input schema. Both only show tools you may execute.
 
 The MCP assembles the list of tools when you connect. A tool you have just
 been granted therefore only shows up after a new connection (in Claude Code
