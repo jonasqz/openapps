@@ -442,3 +442,41 @@ gebaut, ADR 0025, Umsetzung).
 - **cognee** erst bei Bedarf, hinter dem Port.
 - Externe Agents ueber MCP bleiben gleichwertig, der eingebaute Agent ist
   optional.
+
+## Nachtrag: Code Mode (28.11.2026, Nutzerentscheidung „festhalten“)
+
+**Kontext.** Cloudflare beschreibt mit Code Mode (`@cloudflare/codemode`)
+ein Muster: Das Modell ruft Tools nicht einzeln auf, sondern schreibt eine
+kurze JavaScript-Funktion, die mehrere Tools verkettet, filtert und
+verzweigt. Sie laeuft in einer Sandbox, nur das Endergebnis geht zurueck ins
+Modell. Tools findet das Modell ueber `search` und `describe` nach Bedarf,
+statt den ganzen Katalog vorab zu bekommen. Die Zugangsdaten bleiben
+ausserhalb der Sandbox; jeder Aufruf geht ueber die normale Tool-Schicht.
+
+**Bewertung.**
+
+- Das Muster passt zu E: Ein Lauf hat hoechstens 8 Schritte und 50k Tokens.
+  Verkettete Aufrufe in einem Schritt sparen Schritte und Tokens, weil
+  Zwischenergebnisse nicht ins Modell gehen.
+- Die Rechte bleiben unberuehrt, solange jeder Aufruf aus der Sandbox ueber
+  `callAppTool` geht: Gateway-Pruefung mit dem Schnitt aus Agent und
+  Ausloeser, Audit mit der Lauf-Id.
+- Das Paket passt nicht: Der Hauptweg braucht Cloudflare Workers mit Worker
+  Loader und Durable Objects; fuer Node gibt es keinen Ausfuehrer. Cloudflare
+  nennt es selbst experimentell. Zahlen zur Einsparung nennt die Doku nicht.
+- Modell-Code auf unserem Server auszufuehren braucht eine eigene, gepruefte
+  Abschottung (kein Dateisystem, kein Netz, Zeitgrenze). Das ist der teure
+  und riskante Teil.
+- Externe Agents (G) verketten Aufrufe heute schon selbst per Skript; fuer
+  sie aendert sich nichts.
+
+**Festlegung.** Kein Einbau jetzt. Wieder aufnehmen nach dem ersten echten
+Lauf bei blyck (Zielbild 1), wenn Laeufe gemessen sind. Reihenfolge dann:
+
+1. Tool-Suche nach Bedarf im Plattform-MCP (`search_tools`,
+   `describe_tool`), zusammen mit der Tool-Bibliothek (Zielbild 2). Braucht
+   keine Sandbox.
+2. Erst wenn Laeufe messbar an 8 Schritten oder 50k Tokens scheitern:
+   Code-Ausfuehrung fuer Laeufe, mit eigener Sandbox hinter einem Port und
+   eigenem ADR. Das Cloudflare-Paket nur, falls es dann einen Ausfuehrer
+   ausserhalb von Cloudflare gibt.
