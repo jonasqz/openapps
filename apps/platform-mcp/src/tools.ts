@@ -32,6 +32,16 @@ import {
   listGrants,
   listGroupMembers,
   listGroups,
+  listInbox,
+  markInbox,
+  INBOX_LIMITS,
+  listActions,
+  listBacklinks,
+  listPeople,
+  REF_LIST_LIMITS,
+  REF_RESOLVE_LIMITS,
+  resolveRefs,
+  type RefCache,
   recordAudit,
   removeGroupMember,
   requestDeploy,
@@ -39,6 +49,19 @@ import {
   rollback,
   searchApps,
   PLATFORM_SEARCH_LIMITS,
+  AGENT_PROFILE_LIMITS,
+  AGENT_RUN_LIMITS,
+  configureAgent,
+  forget,
+  getAgentRun,
+  listAgentProfiles,
+  listAgentRuns,
+  listMemories,
+  MEMORY_LIMITS,
+  recall,
+  remember,
+  startAgentRun,
+  type MemoryRunScope,
   type Actor,
   type AppToolInvoker,
   type DomainContext,
@@ -53,6 +76,16 @@ export interface ToolCallContext {
    * sie, scheitert `search` mit einer klaren Meldung statt still leer.
    */
   readonly invoker?: AppToolInvoker;
+  /**
+   * Cache der Resolver-Antworten fuer `resolve_refs` (ADR 0023 B, 60 s).
+   * Fehlt er, fragt jeder Aufruf die App. Die Rechtepruefung laeuft immer.
+   */
+  readonly refCache?: RefCache;
+  /**
+   * Gesetzt, wenn der Aufruf aus einem Lauf eines Plattform-Agents kommt
+   * (ADR 0024 E). `remember` nimmt daraus die Herkunft.
+   */
+  readonly run?: MemoryRunScope;
 }
 
 export interface ToolDefinition<Schema extends z.ZodTypeAny> {
@@ -454,9 +487,297 @@ export const searchTool = defineTool({
 });
 
 /**
+ * Der eigene Eingang (ADR 0022 D): Benachrichtigungen aus den Apps, die der
+ * Aufrufer lesen darf, dieselbe Domaenenfunktion wie `GET /api/inbox` und
+ * die Seite `/home`. Keine eigene Freigabe: Wie `whoami` wirkt es nur auf
+ * den Eingang des Aufrufers, und jede Zeile braucht beim Lesen `read` auf
+ * ihre Quell-App. Ein Widerruf blendet sie beim naechsten Aufruf aus.
+ */
+export const listInboxTool = defineTool({
+  name: 'list_inbox',
+  title: 'List my inbox',
+  description: `Lists notifications from the apps for you: tasks assigned to you, deals won, pages you follow that changed, and so on. Returns {items: [{id, state, app, appTitle, type, title, href, actor, actorLabel, importance, via, viaGroup, occurredAt}], unread, apps: [{name, title}]}. Order: addressed to you directly before via a group, then importance (high, normal, low), then newest first. Only apps you may read appear; if a grant is revoked, its items disappear on the next call. Arguments (all optional): state (open = unread and read, the default; unread; read; done; all), app (one app name), limit (1 to ${String(INBOX_LIMITS.max)}, default ${String(INBOX_LIMITS.default)}). Items carry only a title; open href or use the app's own get tool for the content. Mark items with mark_inbox.`,
+  schema: z.object({
+    state: z.enum(['open', 'unread', 'read', 'done', 'all']).optional(),
+    app: z.string().optional(),
+    limit: z.number().int().optional(),
+  }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return listInbox(ctx, {
+      actor,
+      ...(input.state === undefined ? {} : { state: input.state }),
+      ...(input.app === undefined ? {} : { app: input.app }),
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const markInboxTool = defineTool({
+  name: 'mark_inbox',
+  title: 'Mark inbox items',
+  description: `Marks items of your own inbox as read, unread or done. Arguments: ids (1 to ${String(INBOX_LIMITS.markMax)} ids from list_inbox), state (read, unread or done). Returns {updated}: ids that are not yours, unknown or from an app you may no longer read are left alone and not counted.`,
+  schema: z.object({
+    ids: z.array(z.string()).min(1).max(INBOX_LIMITS.markMax),
+    state: z.enum(['read', 'unread', 'done']),
+  }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return markInbox(ctx, {
+      actor,
+      ids: input.ids,
+      state: input.state,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+/* -------------------------------------------------------------------------- */
+/* Verweise zwischen Apps (ADR 0023)                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Verweise aufloesen, dieselbe Domaenenfunktion wie die Chips im Browser
+ * (`GET /_platform/refs/resolve`). Ein Agent bekommt einen Titel nur mit
+ * `read` auf die Ziel-App und `execute` auf ihren Resolver; sonst
+ * `restricted`, ohne Titel und ohne App-Namen.
+ */
+export const resolveRefsTool = defineTool({
+  name: 'resolve_refs',
+  title: 'Resolve references',
+  description: `Resolves references to objects in other apps, as they appear in text as @{app:type:id} (for example @{tasks:task:42}, @{wiki:page:9f2c}) or to people as @{human:email}. Argument: refs (1 to ${String(REF_RESOLVE_LIMITS.refs)} references without the @{ }). Returns {results: [{ref, state, ...}]} in the same order. state is resolved (with app, appTitle, type, id, title, path, href, status, updatedAt for objects; with kind and title for people, groups and agents), restricted (you may not read that app; no title, no app name), not_found (the app has no such object) or unavailable (the app did not answer in time). For an object you need read on the app and execute on its resolver tool (see list_grants). Titles are cached for up to 60 seconds; permissions are checked on every call.`,
+  schema: z.object({
+    refs: z.array(z.string()).min(1).max(REF_RESOLVE_LIMITS.refs),
+  }),
+  async handler({ ctx, actor, correlationId, invoker, refCache }, input) {
+    if (invoker === undefined) {
+      throw new Error('resolve_refs is not available here: no connection to the apps');
+    }
+    return resolveRefs(ctx, {
+      actor,
+      refs: input.refs,
+      invoker,
+      ...(refCache === undefined ? {} : { cache: refCache }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const listBacklinksTool = defineTool({
+  name: 'list_backlinks',
+  title: 'List backlinks',
+  description: `Lists what points to an object from other places: pages, tasks, deals or notes that link to it (kind link), mention it, or were created from it (kind derived). Argument: ref, an object reference app:type:id (for example tasks:task:42). Returns {ref, backlinks: [{source, kind, app, appTitle, updatedAt}]}, newest first, at most ${String(REF_LIST_LIMITS.backlinks)}. You only see a backlink if you may read both the app of the object and the app of the source; otherwise it is left out silently. Resolve the sources with resolve_refs to get their titles.`,
+  schema: z.object({ ref: z.string() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return listBacklinks(ctx, {
+      actor,
+      ref: input.ref,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const listPeopleTool = defineTool({
+  name: 'list_people',
+  title: 'List people to mention',
+  description: `Lists the people and agents you can mention in an app: everyone with read on that app, directly, through a group or through app:*. Arguments: app (app name), q (optional text in name, email or agent name), limit (1 to ${String(REF_LIST_LIMITS.peopleMax)}, default ${String(REF_LIST_LIMITS.peopleDefault)}). Returns {app, people: [{ref, kind, label, detail}]}; put a ref into text as @{ref}, for example @{human:anna@example.com}. Only if you may read the app yourself; otherwise the list is empty. Someone without access to the app does not appear and is not notified when mentioned.`,
+  schema: z.object({
+    app: z.string(),
+    q: z.string().max(REF_LIST_LIMITS.queryMax).optional(),
+    limit: z.number().int().optional(),
+  }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return listPeople(ctx, {
+      actor,
+      app: input.app,
+      ...(input.q === undefined ? {} : { q: input.q }),
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const listActionsTool = defineTool({
+  name: 'list_actions',
+  title: 'List actions for an object',
+  description: `Lists what other apps can create from an object, for example "Create task" from a wiki page (tasks.create_from_ref). Arguments: ref (object reference app:type:id), excerpt (optional short text, up to ${String(REF_LIST_LIMITS.excerptMax)} characters, for the link a person opens). Returns {ref, actions: [{app, appTitle, name, title, tool}]}: only actions whose tool you may execute. Call the tool with {sourceRef: ref, excerpt?} through its app tool; the new object then shows up in list_backlinks of the source with kind derived.`,
+  schema: z.object({
+    ref: z.string(),
+    excerpt: z
+      .string()
+      .max(REF_LIST_LIMITS.excerptMax * 4)
+      .optional(),
+  }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return listActions(ctx, {
+      actor,
+      ref: input.ref,
+      ...(input.excerpt === undefined ? {} : { excerpt: input.excerpt }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+/* -------------------------------------------------------------------------- */
+/* Plattform-Agents und Team-Gedaechtnis (ADR 0024)                            */
+/* -------------------------------------------------------------------------- */
+
+export const configureAgentTool = defineTool({
+  name: 'configure_agent',
+  title: 'Configure platform agent',
+  description: `Creates or updates the profile of a platform agent: an agent identity (create_agent) that runs inside the platform with the configured chat model. Needs write on agent:<name>. Arguments: name, instructions (1 to ${String(AGENT_PROFILE_LIMITS.instructionsMax)} characters, what the agent does), model (optional, another model name of the configured chat provider; without it the platform model applies), maxSteps (1 to ${String(AGENT_PROFILE_LIMITS.stepsMax)}, default ${String(AGENT_PROFILE_LIMITS.stepsDefault)}), tokenBudget (tokens per run, ${String(AGENT_PROFILE_LIMITS.tokenBudgetMin)} to ${String(AGENT_PROFILE_LIMITS.tokenBudgetMax)}, default ${String(AGENT_PROFILE_LIMITS.tokenBudgetDefault)}). A run sees exactly the tools this agent sees over MCP, limited to what the person who starts it may do. Starting a run needs execute on agent:<name>.`,
+  schema: z.object({
+    name: z.string(),
+    instructions: z.string(),
+    model: z.string().optional(),
+    maxSteps: z.number().int().optional(),
+    tokenBudget: z.number().int().optional(),
+  }),
+  async handler({ ctx, actor, correlationId }, input) {
+    const profile = await configureAgent(ctx, {
+      actor,
+      name: input.name,
+      instructions: input.instructions,
+      ...(input.model === undefined ? {} : { model: input.model }),
+      ...(input.maxSteps === undefined ? {} : { maxSteps: input.maxSteps }),
+      ...(input.tokenBudget === undefined ? {} : { tokenBudget: input.tokenBudget }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+    return { profile };
+  },
+});
+
+export const listAgentProfilesTool = defineTool({
+  name: 'list_agent_profiles',
+  title: 'List platform agents',
+  description:
+    'Lists the platform agents you may see or start: {chat, agents: [{agent, displayName, instructions, model, maxSteps, tokenBudget, canStart, canEdit, updatedAt}]}. chat is not_configured when the platform has no chat model; then no platform agent runs. instructions are only shown with read or write on the agent.',
+  schema: z.object({}),
+  async handler({ ctx, actor, correlationId }) {
+    return listAgentProfiles(ctx, {
+      actor,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const startAgentRunTool = defineTool({
+  name: 'start_agent_run',
+  title: 'Start platform agent run',
+  description: `Starts a run of a platform agent with your request. Needs execute on agent:<name>. The run sees the tools of that agent, limited to what you may do yourself, and every tool call is audited with the run id. Arguments: agent (name), prompt (1 to ${String(AGENT_RUN_LIMITS.promptMax)} characters). Returns {run} with status queued; poll get_agent_run for the result. Without a chat model on the platform the answer is not_configured.`,
+  schema: z.object({ agent: z.string(), prompt: z.string() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    const run = await startAgentRun(ctx, {
+      actor,
+      agent: input.agent,
+      prompt: input.prompt,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+    return { run };
+  },
+});
+
+export const getAgentRunTool = defineTool({
+  name: 'get_agent_run',
+  title: 'Get platform agent run',
+  description:
+    'Shows one run: {run: {id, agent, status (queued, running, succeeded, failed), trigger, prompt, result, error, steps, tokens, usedApps, toolCalls, createdAt, startedAt, finishedAt}}. You see a run you started, a run of an agent you may write, or your own runs as an agent, and only while you may read every app in usedApps.',
+  schema: z.object({ id: z.string() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    const run = await getAgentRun(ctx, {
+      actor,
+      id: input.id,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+    return { run };
+  },
+});
+
+export const listAgentRunsTool = defineTool({
+  name: 'list_agent_runs',
+  title: 'List platform agent runs',
+  description: `Lists runs you started and runs of agents you may write, newest first, the same fields as get_agent_run. Arguments: agent (optional name), limit (1 to ${String(AGENT_RUN_LIMITS.listMax)}, default ${String(AGENT_RUN_LIMITS.listDefault)}).`,
+  schema: z.object({ agent: z.string().optional(), limit: z.number().int().optional() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return listAgentRuns(ctx, {
+      actor,
+      ...(input.agent === undefined ? {} : { agent: input.agent }),
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const rememberTool = defineTool({
+  name: 'remember',
+  title: 'Remember for the team',
+  description: `Stores a short note in the team memory that other agents can recall. Needs execute on tool platform.remember. Arguments: text (1 to ${String(MEMORY_LIMITS.textMax)} characters), apps (optional app names whose content the note is based on). Every note carries its origin: in a platform run all apps whose content the run has seen so far, otherwise all apps you may read now, plus apps you name. You cannot make the origin smaller. A note is only shown to callers who may read every app of its origin.`,
+  schema: z.object({
+    text: z.string(),
+    apps: z.array(z.string()).max(MEMORY_LIMITS.appsMax).optional(),
+  }),
+  async handler({ ctx, actor, correlationId, run }, input) {
+    const memory = await remember(ctx, {
+      actor,
+      text: input.text,
+      ...(input.apps === undefined ? {} : { apps: input.apps }),
+      ...(run === undefined ? {} : { run }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+    return { memory };
+  },
+});
+
+export const recallTool = defineTool({
+  name: 'recall',
+  title: 'Recall from the team memory',
+  description: `Searches the team memory: {memories: [{id, author, text, apps, runId, createdAt}]}. Needs execute on tool platform.recall. Only notes whose whole origin (apps) you may read appear. Arguments: query (${String(MEMORY_LIMITS.queryMin)} to ${String(MEMORY_LIMITS.queryMax)} characters), limit (1 to ${String(MEMORY_LIMITS.recallMax)}, default ${String(MEMORY_LIMITS.recallDefault)}).`,
+  schema: z.object({ query: z.string(), limit: z.number().int().optional() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return recall(ctx, {
+      actor,
+      query: input.query,
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const listMemoriesTool = defineTool({
+  name: 'list_memories',
+  title: 'List team memory',
+  description: `Lists the newest notes of the team memory you may read. Without agent it needs execute on tool platform.recall; with agent (name) it lists that agent's notes and needs write on agent:<name> or being that agent. Arguments: agent (optional), limit (1 to ${String(MEMORY_LIMITS.listMax)}, default ${String(MEMORY_LIMITS.listDefault)}).`,
+  schema: z.object({ agent: z.string().optional(), limit: z.number().int().optional() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return listMemories(ctx, {
+      actor,
+      ...(input.agent === undefined ? {} : { agent: input.agent }),
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+export const forgetTool = defineTool({
+  name: 'forget',
+  title: 'Forget a note',
+  description:
+    'Deletes a note from the team memory for good. Allowed for the agent that wrote it (with execute on tool platform.remember) and for whoever has write on that agent, and only for a note you may read. Argument: id. Returns {forgotten}.',
+  schema: z.object({ id: z.string() }),
+  async handler({ ctx, actor, correlationId }, input) {
+    return forget(ctx, {
+      actor,
+      id: input.id,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  },
+});
+
+/**
  * Die sechs Tools des Briefs, `list_grants` und `whoami` zum Nachsehen,
- * `search` ueber alle Apps, die Gruppenpflege und die Agent-Identitaeten. Mehr gibt es nicht: jede weitere Plattform-Aktion entsteht
- * erst als Domaenenfunktion.
+ * `search` ueber alle Apps, der eigene Eingang (ADR 0022), die Verweise
+ * zwischen Apps (ADR 0023), die Gruppenpflege, die Agent-Identitaeten, die
+ * Plattform-Agents und das Team-Gedaechtnis (ADR 0024). Mehr gibt es nicht: jede weitere
+ * Plattform-Aktion entsteht erst als Domaenenfunktion.
  */
 export const platformTools: readonly AnyToolDefinition[] = [
   createAppTool,
@@ -468,6 +789,12 @@ export const platformTools: readonly AnyToolDefinition[] = [
   listGrantsTool,
   whoamiTool,
   searchTool,
+  listInboxTool,
+  markInboxTool,
+  resolveRefsTool,
+  listBacklinksTool,
+  listPeopleTool,
+  listActionsTool,
   listGroupsTool,
   createGroupTool,
   listGroupMembersTool,
@@ -476,6 +803,15 @@ export const platformTools: readonly AnyToolDefinition[] = [
   listAgentsTool,
   createAgentTool,
   disableAgentTool,
+  configureAgentTool,
+  listAgentProfilesTool,
+  startAgentRunTool,
+  getAgentRunTool,
+  listAgentRunsTool,
+  rememberTool,
+  recallTool,
+  listMemoriesTool,
+  forgetTool,
 ];
 
 export interface ToolRunResult {

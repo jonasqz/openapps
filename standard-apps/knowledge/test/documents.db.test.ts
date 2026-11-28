@@ -24,6 +24,9 @@ import { OWN_DOCUMENTS_ONLY, type Visibility } from '@/lib/visibility';
  *   KNOWLEDGE_TEST_DATABASE_URL=postgres://app_knowledge:…@localhost:55432/openapps_test \
  *   KNOWLEDGE_TEST_DATABASE_SCHEMA=app_knowledge pnpm --filter @openapps/app-knowledge test
  *
+ * Seit 0.3.0 braucht die Migration 0004 pgvector im Schema `extensions` und
+ * USAGE der Rolle darauf (siehe `embeddings.db.test.ts`).
+ *
  * Riskant und deshalb zuerst: Treffer aus nicht lesbaren Apps, fremde
  * Quellen ersetzen oder entfernen, deutsche Wortformen.
  */

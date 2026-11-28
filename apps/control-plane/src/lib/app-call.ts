@@ -14,13 +14,26 @@
  * Jede Antwort ausser 2xx heisst „nein". Ein Fehler der Ziel-App kommt mit
  * ihrem Status zurueck (400, 404 …), damit die aufrufende App unterscheiden
  * kann, ob ein neuer Versuch lohnt.
+ *
+ * Das Ziel `platform` (ADR 0022 A) ist keine App: Nach derselben
+ * Signaturpruefung gehen `emit_event`, `poll_events`, `ack_events` und
+ * `set_refs` (ADR 0023), `generate` und `embed` (ADR 0024 D) an die Domaene
+ * (`callPlatformTool`), jedes mit seiner eigenen Freigabe `execute` auf
+ * `tool:platform.<name>`. `model_info` (ADR 0025) hat keine eigene
+ * Freigabe, es braucht `execute` auf `generate` oder `embed`. Falsche Form 400, unbekanntes Tool 404, ohne
+ * Modell 503 `not_configured`, Tagesgrenze 429 `budget_exceeded`.
  */
 
 import { APP_CALL_MAX_BODY_BYTES } from '@openapps/sdk';
 import {
   AppToolError,
   callAppTool,
+  callPlatformTool,
+  DomainError,
+  NotFoundError,
   PermissionDeniedError,
+  PLATFORM_TARGET,
+  ValidationError,
   UnauthenticatedCallerError,
   verifyAppCaller,
   type AppToolInvoker,
@@ -68,6 +81,16 @@ export async function handleAppCall(
       return jsonResponse({ error: 'invalid', message: 'body must be a JSON object' }, 400);
     }
 
+    if (app === PLATFORM_TARGET) {
+      const value = await callPlatformTool(ctx, {
+        actor,
+        tool,
+        args,
+        ...(correlationId === undefined ? {} : { correlationId }),
+      });
+      return jsonResponse(value ?? null);
+    }
+
     const value = await callAppTool(ctx, {
       actor,
       toolResourceId: `${app}.${tool}`,
@@ -84,6 +107,23 @@ export async function handleAppCall(
     }
     if (error instanceof PermissionDeniedError) {
       return jsonResponse({ error: 'permission_denied', message: error.message }, 403);
+    }
+    if (error instanceof ValidationError) {
+      return jsonResponse({ error: 'invalid', message: error.message }, 400);
+    }
+    if (error instanceof NotFoundError) {
+      return jsonResponse({ error: 'not_found', message: error.message }, 404);
+    }
+    if (error instanceof DomainError && error.code === 'not_configured') {
+      return jsonResponse({ error: 'not_configured', message: error.message }, 503);
+    }
+    // ADR 0024 C: Tagesgrenze erreicht. 429, damit die App spaeter neu versucht.
+    if (error instanceof DomainError && error.code === 'budget_exceeded') {
+      return jsonResponse({ error: 'budget_exceeded', message: error.message }, 429);
+    }
+    // Der Modell-Anbieter hat nicht geantwortet; die Meldung ist unsere, nie seine.
+    if (error instanceof DomainError && error.code === 'model_error') {
+      return jsonResponse({ error: 'model_error', message: error.message }, 502);
     }
     if (error instanceof AppToolError) {
       const status = error.status >= 400 && error.status < 600 ? error.status : 502;

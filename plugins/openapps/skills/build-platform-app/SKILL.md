@@ -193,7 +193,8 @@ there; Knowledge shows it only to callers who may read your app (ADR 0020).
 
    Delete the outbox row only with the version you delivered. On an
    `AppCallError` keep the row and its error; retry on the next write, on
-   start and on a timer. Copy `standard-apps/wiki/src/lib/search-sync.ts`.
+   start and on a timer. `createOutbox` from `@openapps/sdk` does all of
+   that; see how the wiki uses it in `standard-apps/wiki/src/lib/search-sync.ts`.
 
 4. **Backfill:** a tool that queues everything again (the wiki has
    `search.backfill`) and one that shows what is stuck (`search.status`).
@@ -204,6 +205,79 @@ there; Knowledge shows it only to callers who may read your app (ADR 0020).
 
 Do not pass a source app in the arguments; Knowledge rejects it and takes
 your name from your verified identity.
+
+## Tell people what happened (inbox)
+
+The platform has one inbox per person and agent, shown on Home (ADR 0022).
+Your app reports events; the platform decides who sees them (only people who
+may read your app, never the one who caused it).
+
+1. Declare each type in `app.json` under `events`, with `type`
+   (`task.assigned`), `description` and `importance` (`high`, `normal`,
+   `low`). Undeclared types are rejected.
+2. Request `execute` on the tool `emit_event` of the app `platform` for
+   yourself, declare `OPENAPPS_PLATFORM_URL` and `OPENAPPS_CALL_SECRET`, and
+   the control plane as egress.
+3. Add a migration with the table `event_outbox` (DDL in
+   `packages/sdk/src/outbox.ts`) and emit inside the transaction of the
+   change with `createEventOutbox({ query }).emit(tx, event)`. Call `kick()`
+   after the commit and `start()` at startup. An event has `id`, `type`,
+   `object`, `title`, `path`, `actor` and `audience`; build the audience with
+   `recipientOf(...)`. No content beyond the title.
+
+## Link to other apps and mention people (references)
+
+Text in your app can point to items of other apps and to people (ADR 0023).
+Store only the reference, never a title: someone reading your page may not be
+allowed to see the other app.
+
+1. **Write references:** `@{app:type:id}` for an item (`@{tasks:task:42}`),
+   `@{human:<email>}` or `@{agent:<name>}` to mention someone. People and
+   agents you may mention: MCP tool `list_people` with your app name.
+2. **Let others link to you:** declare your item types under `"objects"` in
+   `app.json` with a read tool as `resolver`. It takes `{ type, ids }`
+   (`parseResolveArgs` in `@openapps/sdk`) and returns
+   `{ objects: [{ id, title, path, status?, updatedAt }] }`; unknown ids are
+   left out. The platform checks the viewer's rights before it calls it.
+3. **Report references:** add a migration with the table `refs_outbox` (same
+   columns as `event_outbox`), report the **full set** of an item's
+   references inside the transaction of the change with
+   `createRefsOutbox({ query }).report(tx, { source, targets, updatedAt, title, path, actor })`
+   and request `execute` on `platform.set_refs` for yourself. An empty set
+   deletes; mentioned people who may read your app get a notification.
+4. **Show them:** `RefText`, `BacklinksPanel`, `MentionPicker` and
+   `RefActionsMenu` from `@openapps/ui`, with `createRefResolver()` and the
+   other loaders. They load in the browser through `/_platform/…`.
+5. **Create Y from X:** an `"actions"` entry (`name`, `title`,
+   `accepts: ["wiki:page"]`, `tool`, `path`) offers "Create task" on other
+   apps' items. The tool takes `{ sourceRef, excerpt? }` and reports kind
+   `derived`; `path` is where a person confirms.
+
+## Use the platform model
+
+The platform may have a model configured by its operator (ADR 0024); without
+one, everything still works and the model tools answer `not_configured`.
+
+1. **Grant:** request `execute` on `platform.generate` and/or
+   `platform.embed` for yourself in `requestedGrants`.
+2. **Call:** `callAppTool('platform', 'generate', { instruction, contents?, maxTokens? })`
+   returns `{ status, text, withheld, model, usage }`;
+   `callAppTool('platform', 'embed', { texts })` returns
+   `{ status, model, embeddings: [{ id, vector }], withheld }`. Each content
+   item is `{ id, sourceApp, text }` with the app the text really comes from.
+3. **Handle the answers:** items from apps the operator keeps in-house come
+   back under `withheld`; status 503 with `not_configured` means no model,
+   status 429 with `budget_exceeded` means the daily limit is reached. Never
+   let a save fail because of either.
+4. **Plan large jobs:** `callAppTool('platform', 'model_info')` costs no
+   tokens and returns the model for each tool you may call and
+   `budget: { resetsAt, subject: { limit, used }, installation: { limit, used } }`.
+   Take only a share of the day for a backfill, pause until `resetsAt` and
+   continue then; never raise the limit yourself.
+5. **Vectors in your own schema:** add `"databaseExtensions": ["vector"]` to
+   `app.json` and use `extensions.vector` and `OPERATOR(extensions.<=>)` fully
+   qualified. Your role gets `USAGE` on `extensions`, never `CREATE`; the
+   `search_path` stays your schema.
 
 ## Show up in the search across all apps
 

@@ -3,10 +3,13 @@ import { Badge, Card, CardBody, CardHeader, DetailPattern, EmptyState, ErrorStat
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { Markdown } from '@/components/Markdown';
 import { PageTree } from '@/components/PageTree';
+import { WikiBacklinks, WikiSectionActions } from '@/components/Refs';
 import { LinkButton, TextLink } from '@/components/LinkButton';
 import { pageLinkMarkdown } from '@/lib/editing';
 import { formatDateTime } from '@/lib/format';
 import { loadPage } from '@/lib/load';
+import { pageSections } from '@/lib/markdown';
+import { pageRef } from '@/lib/refs';
 import { isFavorite, pageTree, type PageTree as Tree } from '@/lib/pages';
 import { flattenTree } from '@/lib/tree';
 import { viewerId } from '@/lib/viewer';
@@ -17,6 +20,10 @@ import { MoveButton } from '../../MoveButton';
 /**
  * Eine Seite: Pfad, Inhalt, Unterseiten, Rueckverweise, daneben der
  * Seitenbaum. Liest wie die Tools `pages.get` und `pages.tree`.
+ *
+ * Dazu (ADR 0023): Rueckverweise aus anderen Apps (`list_backlinks`) und
+ * „Create task from section“ (`list_actions`, Ziel `tasks.create_from_ref`).
+ * Beides laedt der Browser ueber die Plattform, mit den Rechten der Person.
  */
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +46,12 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
 
   const page = loaded.value;
   const archived = page.archivedAt !== null;
+  // Ohne Ueberschrift ist die ganze Seite der eine Abschnitt.
+  const found = pageSections(page.contentMd);
+  const sections =
+    found.length > 0
+      ? found
+      : [{ heading: page.title, excerpt: `${page.title}\n\n${page.contentMd}`.slice(0, 500) }];
 
   // Baum und Favorit sind Beiwerk: Scheitern sie, bleibt die Seite lesbar.
   const viewer = await viewerId();
@@ -161,6 +174,25 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
               )}
             </CardBody>
           </Card>
+
+          <Card>
+            <CardBody>
+              <WikiBacklinks refValue={pageRef(page.id)} />
+            </CardBody>
+          </Card>
+
+          {archived ? null : (
+            <Card>
+              <CardHeader
+                as="h2"
+                title="Create from this page"
+                description="Turn a section into a task in another app. You confirm it there."
+              />
+              <CardBody>
+                <WikiSectionActions refValue={pageRef(page.id)} sections={sections} />
+              </CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHeader as="h2" title="Details" />

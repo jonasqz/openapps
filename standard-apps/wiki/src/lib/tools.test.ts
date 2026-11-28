@@ -15,6 +15,7 @@ import {
 import { POST } from '@/app/api/tools/[tool]/route';
 import { toSearchHit } from './pages';
 import { toolHandlers, toolSchemas } from './tools';
+import { WIKI_EVENT_TYPES } from './events';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const manifest = appManifestSchema.parse(JSON.parse(readFileSync(join(ROOT, 'app.json'), 'utf8')));
@@ -53,18 +54,46 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
   it('the manifest passes the real schema of the platform', () => {
     expect(manifest.name).toBe('wiki');
     expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual([
+      'event_outbox',
       'page_favorites',
       'page_links',
       'page_revisions',
       'pages',
+      'refs_outbox',
       'search_outbox',
       'search_sync',
     ]);
-    expect(manifest.version).toBe('0.3.2');
-    expect(manifest.source.tag).toBe('wiki-v0.3.2');
+    expect(manifest.version).toBe('0.5.2');
+    expect(manifest.source.tag).toBe('wiki-v0.5.2');
   });
 
-  it('offers exactly the fourteen tools of the wiki', () => {
+  it('declares exactly the events the code reports and requests emit_event for itself (ADR 0022)', () => {
+    expect((manifest.events ?? []).map((event) => event.type)).toEqual([...WIKI_EVENT_TYPES]);
+    expect(manifest.requestedGrants).toContainEqual(
+      expect.objectContaining({
+        subjectKind: 'app',
+        subjectId: 'wiki',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'platform', name: 'emit_event' },
+      }),
+    );
+  });
+
+  it('declares pages as objects with pages.resolve and requests set_refs for itself (ADR 0023)', () => {
+    expect(manifest.objects).toEqual([
+      expect.objectContaining({ type: 'page', resolver: 'pages.resolve' }),
+    ]);
+    expect(manifest.requestedGrants).toContainEqual(
+      expect.objectContaining({
+        subjectKind: 'app',
+        subjectId: 'wiki',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'platform', name: 'set_refs' },
+      }),
+    );
+  });
+
+  it('offers exactly the fifteen tools of the wiki', () => {
     expect(manifest.offeredTools.map((tool) => tool.name).sort()).toEqual(
       [
         'favorites.list',
@@ -75,6 +104,7 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
         'pages.history',
         'pages.list',
         'pages.move',
+        'pages.resolve',
         'pages.restore',
         'pages.search',
         'pages.tree',
@@ -110,6 +140,7 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
       'pages.get': 'read',
       'pages.search': 'read',
       'pages.history': 'read',
+      'pages.resolve': 'read',
       'favorites.list': 'read',
       'search.status': 'read',
       'pages.create': 'write',
@@ -122,7 +153,7 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
     });
   });
 
-  it('asks for exactly the two grants it needs on Knowledge, for itself as an app', () => {
+  it('asks for exactly the grants it needs on Knowledge and the platform, for itself as an app', () => {
     const forApp = manifest.requestedGrants.filter((grant) => grant.subjectKind === 'app');
     expect(forApp).toEqual([
       expect.objectContaining({
@@ -134,6 +165,16 @@ describe('tool mapping — manifest, OpenAPI and route match', () => {
         subjectId: 'wiki',
         verb: 'execute',
         resource: { kind: 'tool', app: 'knowledge', name: 'documents.remove' },
+      }),
+      expect.objectContaining({
+        subjectId: 'wiki',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'platform', name: 'emit_event' },
+      }),
+      expect.objectContaining({
+        subjectId: 'wiki',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'platform', name: 'set_refs' },
       }),
     ]);
   });
@@ -233,6 +274,10 @@ describe('tool route — signature first, then arguments', () => {
       ['favorites.list', { userId: 'someone-else' }],
       ['favorites.set', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001' }],
       ['favorites.set', { id: '6f1c2a4e-1b7d-4c2a-9e51-0a0000000001', favorite: 'yes' }],
+      ['pages.resolve', {}],
+      ['pages.resolve', { type: 'task', ids: ['1'] }],
+      ['pages.resolve', { type: 'page', ids: [] }],
+      ['pages.resolve', { type: 'page', ids: ['1'], query: 'x' }],
     ];
     for (const [tool, args] of cases) {
       const response = await call(tool, args, signed());

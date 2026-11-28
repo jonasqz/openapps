@@ -24,6 +24,16 @@ export async function register(): Promise<void> {
   // Nicht abgewartet: Der Prozess startet, auch wenn Datenbank oder Traefik
   // langsam sind.
   void startGateway();
+
+  // Der taegliche Loeschlauf der Ereignisse (ADR 0022 F).
+  void import('./infra/event-retention')
+    .then(async ({ startEventRetention }) => {
+      const { domainContext } = await import('./lib/runtime');
+      startEventRetention(domainContext);
+    })
+    .catch((cause: unknown) => {
+      console.error(`ALARM event retention not started: ${errorText(cause)}`);
+    });
 }
 
 async function startGateway(): Promise<void> {

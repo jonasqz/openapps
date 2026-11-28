@@ -204,7 +204,78 @@ try {
 
 Never let a user action fail because another app is unreachable: write what
 you want to deliver into an outbox in the same transaction and deliver after
-the commit (the wiki shows how, `standard-apps/wiki/src/lib/search-sync.ts`).
+the commit.
+
+## Outbox
+
+`createOutbox({ name, table, query, deliver })` is that loop:
+`enqueue(tx, entries)` inside the transaction of the change, `kick()` after the commit,
+`start()` once at startup (delivers and then checks every 60 s). A row is
+deleted only with the version that was delivered, so a change during delivery
+is never lost. When the platform does not accept (`denied`, `unreachable`,
+`not_configured`) the batch stops and the rows wait with their error;
+`status()` shows them. The table comes from your own migration; the DDL is in
+`src/outbox.ts`. The wiki delivers to Knowledge this way.
+
+## Events
+
+Report what happened to the platform inbox (ADR 0022):
+
+```ts
+import { createEventOutbox, recipientOf, actorOf } from '@openapps/sdk';
+
+export const events = createEventOutbox({ query }); // table event_outbox
+
+await withTransaction(async (q) => {
+  // … the change …
+  await events.emit(q, {
+    id: `task.assigned:${historyId}`, // unique in your app
+    type: 'task.assigned', // declared under "events" in app.json
+    object: `task:${task.id}`,
+    title: `Assigned to you: ${task.title}`, // no content beyond this
+    path: `/task/${task.id}`, // inside your app
+    actor: actorOf(user.email),
+    audience: [recipientOf(task.assignee)], // human:, user:, group:, agent:
+  });
+});
+events.kick();
+```
+
+`emit` checks the event before writing (`EventInputError`, 400). Delivery
+goes to `platform.emit_event` and needs that grant. The platform answers
+`accepted` or `duplicate` (same id again); an undeclared type is `invalid`
+and stays in the outbox. Who gets a notification is decided by the platform.
+
+`subscribe(['mail.message.received'], handler)` polls the events your
+manifest lists under `subscriptions` (`platform.poll_events`) and
+acknowledges after the handler (`platform.ack_events`). At least once: make
+the handler idempotent on `event.id`.
+
+## References
+
+Text stores only references, never titles (ADR 0023): `@{app:type:id}` for an
+item, `@{human:<email>}` or `@{agent:<name>}` for a mention. `extractRefs`,
+`splitRefTokens`, `parseRef` and `formatRefToken` come from
+`@openapps/app-manifest/refs` and are re-exported here.
+
+```ts
+import { createRefsOutbox, refTargetsFromText } from '@openapps/sdk';
+
+export const refs = createRefsOutbox({ query }); // table refs_outbox
+await refs.report(tx, {
+  source: `wiki:page:${id}`,
+  targets: refTargetsFromText(contentMd),
+  updatedAt,
+  title,
+  path: `/pages/${id}`,
+});
+refs.kick();
+```
+
+`report` sends the **full set** to `platform.set_refs` (needs that grant); a
+newer report of the same source replaces a waiting one. A resolver tool
+checks its arguments with `parseResolveArgs(args, types)` and returns
+`ResolveToolResult`.
 
 ## Readable apps
 

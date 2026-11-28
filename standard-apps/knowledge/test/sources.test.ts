@@ -36,7 +36,16 @@ const documents = vi.hoisted(() => ({
 vi.mock('@/lib/documents', () => documents);
 
 const retriever = vi.hoisted(() => ({ search: vi.fn() }));
-vi.mock('@/lib/retriever', () => ({ createFulltextRetriever: () => retriever }));
+// Seit 0.3.0 (ADR 0025) sucht `search` ueber den hybriden Retriever; ohne
+// Embedding-Modell ist er genau der Volltext. Gemockt wird die Stelle, an
+// der beide entstehen.
+vi.mock('@/lib/knowledge-runtime', () => ({
+  hybridRetriever: () => retriever,
+  fulltextRetriever: () => retriever,
+  embeddingWorker: () => ({ runNow: vi.fn() }),
+  kickEmbeddings: () => undefined,
+  chatAvailable: async () => false,
+}));
 
 const SECRET = 'k'.repeat(48);
 const APP_ID = 'knowledge';

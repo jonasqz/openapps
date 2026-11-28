@@ -4,6 +4,9 @@ import { Badge, Card, CardBody, CardHeader, EmptyState, ErrorState, PageHeader }
 import { AppLinks } from '@/components/AppLinks';
 import { AssignButtons } from '@/components/AssignButtons';
 import { CommentBox } from '@/components/CommentBox';
+import { TaskBacklinks, TaskRefChip, TaskRefText } from '@/components/Refs';
+import { refSegments } from '@/lib/ref-segments';
+import { taskRef } from '@/lib/refs';
 import { ButtonLink, TextLink } from '@/components/links';
 import { CompleteButton, StatusSelect } from '@/components/StatusButtons';
 import { formatDate, formatDateTime } from '@/lib/format';
@@ -20,7 +23,10 @@ const STATUS_TONE = { todo: 'neutral', in_progress: 'primary', done: 'success' }
 /**
  * Eine Aufgabe mit Details, Kommentaren und Verlauf. Dieselben Daten liefert
  * das Tool `tasks.get`; jede Aktion hier hat ihr Tool (`tasks.update`,
- * `tasks.complete`, `tasks.assign`, `tasks.comment`).
+ * `tasks.complete`, `tasks.assign`, `tasks.comment`). Verweise `@{…}` in
+ * Beschreibung und Kommentaren werden Chips, die Rueckverweise anderer Apps
+ * stehen neben den Details (ADR 0023); beides laedt der Browser ueber die
+ * Plattform (`resolve_refs`, `list_backlinks`).
  */
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -105,6 +111,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           <TextLink href={`/all?project=${task.projectId}`}>{task.projectName ?? 'Project'}</TextLink>
         ),
     },
+    ...(task.sourceRef === null
+      ? []
+      : [{ label: 'Created from', value: <TaskRefChip value={task.sourceRef} /> }]),
     { label: 'Created', value: `${formatDateTime(task.createdAt)} by ${task.createdBy}` },
     ...(task.completedAt === null
       ? []
@@ -149,7 +158,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               {task.description.trim() === '' ? (
                 <p className="text-sm text-fg-muted">No description.</p>
               ) : (
-                <p className="whitespace-pre-wrap text-sm text-fg">{task.description}</p>
+                <p>
+                  <TaskRefText segments={refSegments(task.description)} />
+                </p>
               )}
             </CardBody>
           </Card>
@@ -166,7 +177,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                       <p className="font-mono text-2xs uppercase tracking-label text-fg-muted [overflow-wrap:anywhere]">
                         {comment.author} · {formatDateTime(comment.createdAt)}
                       </p>
-                      <p className="whitespace-pre-wrap text-sm text-fg">{comment.body}</p>
+                      <p>
+                        <TaskRefText segments={refSegments(comment.body)} />
+                      </p>
                     </li>
                   ))}
                 </ol>
@@ -188,6 +201,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   </div>
                 ))}
               </dl>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardBody>
+              <TaskBacklinks refValue={taskRef(task.id)} />
             </CardBody>
           </Card>
 

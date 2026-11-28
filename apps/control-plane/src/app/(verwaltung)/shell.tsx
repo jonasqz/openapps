@@ -42,6 +42,7 @@ export function VerwaltungShell({
       appName="admin"
       appTitle="Admin"
       user={user}
+      homeCurrent={pathname === '/home'}
       {...(search === undefined ? {} : { search })}
       sections={[
         { items: NAV.map((item) => ({ ...item, current: isCurrent(item.href, pathname) })) },

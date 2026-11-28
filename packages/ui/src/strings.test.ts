@@ -7,7 +7,7 @@ import { defaultStrings, overrideStrings, resetStrings, strings } from './string
 const srcRoot = dirname(fileURLToPath(import.meta.url));
 
 /** Komponenten, Muster und Shell — hier darf kein fester Text mehr stehen. */
-const SCANNED = ['components', 'patterns', 'shell'];
+const SCANNED = ['components', 'patterns', 'shell', 'refs'];
 
 function filesIn(folder: string): string[] {
   return readdirSync(join(srcRoot, folder))

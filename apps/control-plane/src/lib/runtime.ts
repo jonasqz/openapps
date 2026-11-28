@@ -5,6 +5,7 @@
  */
 
 import { createConfiguredBackend } from '../adapters/coolify';
+import { modelSetupFromEnv } from '../adapters/models';
 import { createConfiguredRepositoryBackend } from '../adapters/github';
 import {
   createLokalBackend,
@@ -15,13 +16,20 @@ import { systemClock, uuidIds, type DomainContext, type GatewaySettings } from '
 import { createDefaultPipeline } from '../domain/review-gate';
 import {
   createAgentIdentityRepository,
+  createAgentProfileRepository,
+  createAgentRunRepository,
   createGroupMembershipRepository,
   createGroupRepository,
   createAppRepository,
   createAuditRepository,
   createDeploymentRepository,
+  createEventRepository,
   createGrantRepository,
+  createModelUsageRepository,
   createPgProvisioner,
+  createRefRepository,
+  createTeamMemoryStore,
+  createUserDirectory,
   getPool,
 } from '../infra/pg';
 import { createAlarmSink } from '../infra/alarms';
@@ -101,6 +109,18 @@ export function domainContext(): DomainContext {
     }),
     authMasterSecret: env.authMasterSecret,
     alarms: createAlarmSink(),
+    events: createEventRepository(pool),
+    users: createUserDirectory(pool),
+    refs: createRefRepository(pool),
+    // Modelle nur aus der Env (ADR 0024). Ohne Konfiguration steht hier kein
+    // Chat- und kein Embedding-Modell, und jede Funktion dafuer antwortet
+    // `not_configured`. Gelesen einmal je Prozess: Ein neuer Schluessel
+    // braucht einen Neustart.
+    models: modelSetupFromEnv(),
+    modelUsage: createModelUsageRepository(pool),
+    agentProfiles: createAgentProfileRepository(pool),
+    agentRuns: createAgentRunRepository(pool),
+    memories: createTeamMemoryStore(pool),
     ...(env.appsDomain === undefined ? {} : { appsDomain: env.appsDomain }),
   };
 

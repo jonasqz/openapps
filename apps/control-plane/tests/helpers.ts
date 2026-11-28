@@ -26,6 +26,7 @@ import {
 } from '../src/infra/memory/doubles';
 import { createMemoryStore, type MemoryStore } from '../src/infra/memory/repositories';
 import type { Actor, AppManifest, ManifestSource } from '../src/domain/types';
+import type { ModelSetup } from '../src/domain/ports';
 
 export interface Harness {
   readonly ctx: DomainContext;
@@ -75,6 +76,8 @@ export function createHarness(options?: {
   gatewayVerification?: RecordingGatewayConfigStoreOptions['verification'];
   /** Soll das Schreiben der Konfiguration scheitern? */
   gatewayPublishFailsWith?: string;
+  /** Modelle (ADR 0024). Ohne Angabe ist keines konfiguriert, wie ohne Env. */
+  models?: ModelSetup;
 }): Harness {
   const store = createMemoryStore();
   const backend = createRecordingBackend(
@@ -111,6 +114,14 @@ export function createHarness(options?: {
     provisioner,
     authMasterSecret: TEST_MASTER_SECRET,
     alarms,
+    events: store.events,
+    users: store.users,
+    refs: store.refs,
+    modelUsage: store.modelUsage,
+    agentProfiles: store.agentProfiles,
+    agentRuns: store.agentRuns,
+    memories: store.memories,
+    ...(options?.models === undefined ? {} : { models: options.models }),
     ...(options?.appsDomain === undefined ? {} : { appsDomain: options.appsDomain }),
   };
 

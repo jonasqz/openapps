@@ -4,11 +4,11 @@
  */
 
 import { audited } from './audit';
-import { can, requirePermission } from './can';
+import { can, canSubjects, requirePermission } from './can';
 import { ConflictError, NotFoundError, PermissionDeniedError } from './errors';
-import { appsDomainFor, assertAppName, dbRoleFor, schemaNameFor } from './naming';
+import { appsDomainFor, assertNewAppName, dbRoleFor, schemaNameFor } from './naming';
 import type { DomainContext } from './context';
-import type { Actor, App, AppManifest, ManifestSource, Verb } from './types';
+import type { Actor, App, AppManifest, ManifestSource, SubjectRef, Verb } from './types';
 import { ANY } from './types';
 
 /**
@@ -24,6 +24,20 @@ export async function canAccessApp(
 ): Promise<boolean> {
   if (await can(ctx, actor, verb, { kind: 'app', id: app.id })) return true;
   return can(ctx, actor, verb, { kind: 'app', id: app.name });
+}
+
+/**
+ * Wie `canAccessApp`, fuer Subjekte ohne Aufrufer (`canSubjects`): eine
+ * Person ueber ihre E-Mail und Gruppen, beim Ableiten der Benachrichtigungen.
+ */
+export async function subjectsCanAccessApp(
+  ctx: DomainContext,
+  subjects: readonly SubjectRef[],
+  verb: Verb,
+  app: Pick<App, 'id' | 'name'>,
+): Promise<boolean> {
+  if (await canSubjects(ctx, subjects, verb, { kind: 'app', id: app.id })) return true;
+  return canSubjects(ctx, subjects, verb, { kind: 'app', id: app.name });
 }
 
 export async function requireAppPermission(
@@ -72,7 +86,7 @@ export interface CreateAppInput {
  */
 export async function createApp(ctx: DomainContext, input: CreateAppInput): Promise<App> {
   const { actor, name } = input;
-  assertAppName(name);
+  assertNewAppName(name);
 
   return audited(
     ctx,

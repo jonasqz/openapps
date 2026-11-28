@@ -37,6 +37,11 @@ The same as on the server:
   `operator`. It may do what the group `platform-admins` may do. Its token is
   then stored in `infra/lokal/.agents/operator.token` (mode 0600) and is never
   shown.
+- Before deploying, it sets up pgvector in the database as superuser
+  (`openapps-vector` in the Postgres image, ADR 0025). Init scripts only run on
+  an empty volume; this step covers an existing one and changes nothing on a
+  second run. Apps get `USAGE` on the schema `extensions` only if their
+  `app.json` lists `databaseExtensions`.
 - A second run creates nothing twice. A changed version of an app is deployed
   again.
 - It grants what an app requests in `app.json` **for itself as an app**

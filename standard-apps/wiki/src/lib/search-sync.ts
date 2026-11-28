@@ -1,4 +1,4 @@
-import { AppCallError, callAppTool } from '@openapps/sdk';
+import { callAppTool, createOutbox, type OutboxDeliveryReport } from '@openapps/sdk';
 import { query, transaction, type Tx } from './db';
 
 /**
@@ -21,6 +21,11 @@ import { query, transaction, type Tx } from './db';
  *    wird beim naechsten Schreiben, beim Start und alle 60 s, solange etwas
  *    aussteht (`startSearchSync`).
  *
+ * Die Schleife aus 3. und 4. (Stapel, Versionen, Abbruch, Takt, Log) ist seit
+ * 0.4.0 `createOutbox` aus dem SDK (ADR 0022: zweiter Nutzer sind die
+ * Ereignisse). Was hier bleibt, ist das, was nur das Wiki weiss: welche
+ * Seiten eingereiht werden und was an Knowledge geht.
+ *
  * ## Kein Rechte-Code
  *
  * Ob das Wiki an Knowledge liefern darf, entscheidet die Plattform (Freigabe
@@ -34,13 +39,6 @@ import { query, transaction, type Tx } from './db';
 const KNOWLEDGE_CONTENT_MAX = 200_000;
 const KNOWLEDGE_SOURCE_MAX = 500;
 const KNOWLEDGE_TITLE_MAX = 200;
-const LAST_ERROR_MAX = 1000;
-
-/** Eintraege je Durchlauf. Der Rest kommt im naechsten. */
-const BATCH_SIZE = 50;
-
-/** So oft wird nachgesehen, ob noch etwas aussteht. */
-const RETRY_INTERVAL_MS = 60_000;
 
 export interface Deliverer {
   upsert(args: UpsertPayload): Promise<unknown>;
@@ -73,13 +71,22 @@ export function setSearchDeliverer(replacement: Deliverer | undefined): void {
 /* Einreihen — immer in der Transaktion der Aenderung                          */
 /* -------------------------------------------------------------------------- */
 
-const ENQUEUE_CONFLICT = `
-  on conflict (page_id) do update
-     set version = nextval('search_outbox_version_seq'),
-         enqueued_at = now(),
-         attempts = 0,
-         last_error = null,
-         last_attempt_at = null`;
+/**
+ * Die Lieferung an Knowledge. `search_outbox` ist eine Outbox nach dem Muster
+ * des SDK, mit `page_id` (uuid) als Schluessel und ohne `payload`: geliefert
+ * wird immer der aktuelle Stand der Seite, nicht ein Schnappschuss.
+ */
+const outbox = createOutbox({
+  name: '[wiki] search sync',
+  table: 'search_outbox',
+  keyColumn: 'page_id',
+  payloadColumn: null,
+  versionSequence: 'search_outbox_version_seq',
+  query,
+  deliver: (entry) => deliverPage(entry.key),
+});
+
+const ENQUEUE_CONFLICT = outbox.requeueClause;
 
 /** Reiht Seiten ein. Nur innerhalb der Transaktion der Aenderung aufrufen. */
 export async function enqueuePages(tx: Tx, pageIds: readonly string[]): Promise<void> {
@@ -152,11 +159,6 @@ export async function backfillIfFirstRun(): Promise<number | null> {
 /* Liefern                                                                     */
 /* -------------------------------------------------------------------------- */
 
-interface OutboxRow extends Record<string, unknown> {
-  page_id: string;
-  version: string;
-}
-
 interface PageStateRow extends Record<string, unknown> {
   id: string;
   title: string;
@@ -165,15 +167,8 @@ interface PageStateRow extends Record<string, unknown> {
   updated_at: Date;
 }
 
-export interface DeliveryReport {
-  delivered: number;
-  failed: number;
-  /** Was nach diesem Durchlauf noch aussteht. */
-  pending: number;
-  /** Abgebrochen, weil die Plattform oder Knowledge gerade nicht annimmt. */
-  stopped: boolean;
-  lastError: string | null;
-}
+/** Ergebnis eines Durchlaufs; `stopped`: Plattform oder Knowledge nehmen gerade nicht an. */
+export type DeliveryReport = OutboxDeliveryReport;
 
 /** Text fuer Knowledge: Titel als erste Zeile, damit er mitgesucht wird, dann der Inhalt. */
 export function knowledgeContent(title: string, contentMd: string): string {
@@ -227,82 +222,14 @@ async function deliverPage(pageId: string): Promise<void> {
   });
 }
 
-/**
- * Lohnt es, mit dem naechsten Eintrag weiterzumachen? Nein, wenn die
- * Plattform oder Knowledge gerade gar nicht annimmt (nicht erreichbar,
- * keine Freigabe, nicht konfiguriert): Der naechste Eintrag scheiterte genauso.
- * Ja bei einem Fehler, der an diesem Eintrag haengt (falsche Argumente).
- */
-function stopsTheBatch(error: unknown): boolean {
-  if (!(error instanceof AppCallError)) return true;
-  return error.code !== 'invalid' && error.code !== 'not_found';
-}
-
-function describeError(error: unknown): string {
-  // AppCallError-Meldungen enthalten nie ein Secret (SDK). Alles andere wird
-  // nur mit seinem Namen notiert, nicht mit seiner Meldung.
-  const text =
-    error instanceof AppCallError
-      ? `${error.code}: ${error.message}`
-      : error instanceof Error
-        ? `${error.name}: delivery failed`
-        : 'delivery failed';
-  return text.slice(0, LAST_ERROR_MAX);
-}
-
 /** Ein Durchlauf ueber hoechstens `limit` Eintraege, die mit den wenigsten Fehlversuchen zuerst. */
-export async function deliverPending(limit: number = BATCH_SIZE): Promise<DeliveryReport> {
-  const batch = await query<OutboxRow>(
-    `select page_id, version::text as version from search_outbox
-      order by attempts, version
-      limit $1`,
-    [limit],
-  );
-  let delivered = 0;
-  let failed = 0;
-  let stopped = false;
-  let lastError: string | null = null;
-
-  for (const entry of batch) {
-    try {
-      await deliverPage(entry.page_id);
-      // Nur diese Version. Ist inzwischen eine neuere da, bleibt sie stehen.
-      await query('delete from search_outbox where page_id = $1 and version = $2::bigint', [
-        entry.page_id,
-        entry.version,
-      ]);
-      delivered += 1;
-    } catch (error) {
-      failed += 1;
-      lastError = describeError(error);
-      await query(
-        `update search_outbox
-            set attempts = attempts + 1, last_error = $3, last_attempt_at = now()
-          where page_id = $1 and version = $2::bigint`,
-        [entry.page_id, entry.version, lastError],
-      );
-      if (stopsTheBatch(error)) {
-        stopped = true;
-        break;
-      }
-    }
-  }
-
-  return { delivered, failed, pending: await pendingCount(), stopped, lastError };
-}
-
-async function pendingCount(): Promise<number> {
-  const rows = await query<{ n: number }>('select count(*)::int as n from search_outbox');
-  return Number(rows[0]?.n ?? 0);
+export function deliverPending(limit?: number): Promise<DeliveryReport> {
+  return outbox.deliverPending(limit);
 }
 
 /* -------------------------------------------------------------------------- */
 /* Anstossen — nach dem Commit, beim Start, im Takt                            */
 /* -------------------------------------------------------------------------- */
-
-let running: Promise<void> | null = null;
-let again = false;
-let lastLoggedError: string | null = null;
 
 /**
  * Stoesst die Lieferung an und kehrt sofort zurueck. Wirft nie. Laeuft schon
@@ -310,50 +237,13 @@ let lastLoggedError: string | null = null;
  * Lieferung eingereiht wird, bleibt bis zum naechsten Takt liegen.
  */
 export function kickSearchSync(): void {
-  if (running !== null) {
-    again = true;
-    return;
-  }
-  running = drain().finally(() => {
-    running = null;
-  });
+  outbox.kick();
 }
 
 /** Fuer Tests und das Tool `search.backfill`: auf eine laufende Lieferung warten. */
-export async function settleSearchSync(): Promise<void> {
-  while (running !== null) await running;
+export function settleSearchSync(): Promise<void> {
+  return outbox.settle();
 }
-
-async function drain(): Promise<void> {
-  try {
-    do {
-      again = false;
-      let report: DeliveryReport;
-      do {
-        report = await deliverPending();
-      } while (!report.stopped && report.delivered > 0 && report.pending > 0);
-      logOnce(report.lastError);
-      if (report.stopped) break;
-    } while (again);
-  } catch (error) {
-    // Die Datenbank selbst ist weg. Der naechste Anstoss versucht es wieder.
-    logOnce(describeError(error));
-  }
-}
-
-/** Derselbe Fehler steht nur einmal im Log, nicht bei jedem Takt. */
-function logOnce(message: string | null): void {
-  if (message === null) {
-    if (lastLoggedError !== null) console.info('[wiki] search sync: delivering again');
-    lastLoggedError = null;
-    return;
-  }
-  if (message === lastLoggedError) return;
-  lastLoggedError = message;
-  console.warn(`[wiki] search sync: ${message}`);
-}
-
-let timer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Beim Start: beim ersten Mal alle Seiten einreihen, dann liefern, dann alle
@@ -365,19 +255,10 @@ export async function startSearchSync(): Promise<void> {
     const queued = await backfillIfFirstRun();
     if (queued !== null) console.info(`[wiki] search sync: ${String(queued)} page(s) queued`);
   } catch (error) {
-    console.warn(`[wiki] search sync: first run backfill failed (${describeError(error)})`);
+    const name = error instanceof Error ? error.name : 'error';
+    console.warn(`[wiki] search sync: first run backfill failed (${name})`);
   }
-  kickSearchSync();
-  if (timer === null) {
-    timer = setInterval(() => {
-      void pendingCount()
-        .then((pending) => {
-          if (pending > 0) kickSearchSync();
-        })
-        .catch(() => undefined);
-    }, RETRY_INTERVAL_MS);
-    timer.unref();
-  }
+  outbox.start();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -424,32 +305,20 @@ export interface SearchSyncStatus {
 
 /** `search.status`: was aussteht und warum. */
 export async function searchSyncStatus(): Promise<SearchSyncStatus> {
-  const [summary, sync, errors] = await Promise.all([
-    query<{ pending: number; failing: number; oldest: Date | null }>(
-      `select count(*)::int as pending,
-              count(*) filter (where attempts > 0)::int as failing,
-              min(enqueued_at) as oldest
-         from search_outbox`,
-    ),
+  const [status, sync] = await Promise.all([
+    outbox.status(10),
     query<{ backfilled_at: Date | null }>('select backfilled_at from search_sync where id'),
-    query<{ page_id: string; attempts: number; last_error: string | null; last_attempt_at: Date | null }>(
-      `select page_id, attempts, last_error, last_attempt_at from search_outbox
-        where attempts > 0
-        order by attempts desc, last_attempt_at desc
-        limit 10`,
-    ),
   ]);
-  const row = summary[0];
   return {
-    pending: Number(row?.pending ?? 0),
-    failing: Number(row?.failing ?? 0),
+    pending: status.pending,
+    failing: status.failing,
     backfilledAt: sync[0]?.backfilled_at?.toISOString() ?? null,
-    oldestEnqueuedAt: row?.oldest?.toISOString() ?? null,
-    errors: errors.map((entry) => ({
-      pageId: entry.page_id,
-      attempts: Number(entry.attempts),
-      lastError: entry.last_error,
-      lastAttemptAt: entry.last_attempt_at?.toISOString() ?? null,
+    oldestEnqueuedAt: status.oldestEnqueuedAt,
+    errors: status.errors.map((entry) => ({
+      pageId: entry.key,
+      attempts: entry.attempts,
+      lastError: entry.lastError,
+      lastAttemptAt: entry.lastAttemptAt,
     })),
   };
 }

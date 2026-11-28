@@ -9,6 +9,7 @@ import type {
   App,
   AppManifest,
   AuditEntry,
+  DatabaseExtension,
   Deployment,
   DeploymentStatus,
   Grant,
@@ -156,6 +157,496 @@ export interface AgentIdentityRepository {
    */
   disable(name: string, at: Date): Promise<AgentIdentity>;
   list(): Promise<readonly AgentIdentity[]>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ereignisse, Benachrichtigungen, Abonnements (ADR 0022)                      */
+/* -------------------------------------------------------------------------- */
+
+export type EventImportance = 'high' | 'normal' | 'low';
+
+/** Ein angenommenes Ereignis (Migration 0017). */
+export interface StoredEvent {
+  /** Fortlaufende Nummer der Plattform; Cursor der Abonnements. */
+  readonly seq: number;
+  /** Name der Quell-App. */
+  readonly app: string;
+  /** Die Id, die die App vergeben hat. Eindeutig je App. */
+  readonly eventId: string;
+  /** Typ ohne App-Namen, wie im Manifest: `task.assigned`. */
+  readonly type: string;
+  readonly object: string;
+  readonly title: string;
+  readonly path: string;
+  readonly actor: string | null;
+  readonly audience: readonly string[];
+  readonly importance: EventImportance;
+  readonly occurredAt: Date;
+  readonly receivedAt: Date;
+}
+
+export type NewEvent = Omit<StoredEvent, 'seq' | 'receivedAt'>;
+
+/**
+ * Wessen Eingang: ein Mensch ueber seine **E-Mail** (wie die Gruppen,
+ * Migration 0009: auch vor dem ersten Login adressierbar) oder ein Agent
+ * ueber seinen Namen. Apps haben keinen Eingang.
+ */
+export interface InboxOwner {
+  readonly kind: 'human' | 'agent';
+  readonly id: string;
+}
+
+export interface NotificationRecipient extends InboxOwner {
+  /** Direkt adressiert oder ueber eine Gruppe; ordnet den Eingang. */
+  readonly via: 'direct' | 'group';
+  readonly viaGroup: string | null;
+}
+
+export type NotificationState = 'unread' | 'read' | 'done';
+
+export interface InboxRow {
+  readonly id: string;
+  readonly state: NotificationState;
+  readonly via: 'direct' | 'group';
+  readonly viaGroup: string | null;
+  readonly createdAt: Date;
+  readonly event: StoredEvent;
+}
+
+export interface InboxQuery {
+  readonly owner: InboxOwner;
+  /** Nur diese Quell-Apps. Leer heisst: nichts (die Rechtepruefung liegt davor). */
+  readonly apps: readonly string[];
+  readonly states: readonly NotificationState[];
+  readonly limit: number;
+}
+
+export interface EventSubscriptionRef {
+  readonly app: string;
+  readonly type: string;
+}
+
+export interface EventRepository {
+  /** Gibt es dieses Ereignis der App schon? */
+  exists(app: string, eventId: string): Promise<boolean>;
+  /**
+   * Legt das Ereignis und die Benachrichtigungen **in einer Transaktion** an.
+   * `null`, wenn die App diese Id schon gemeldet hat (Doppel): Dann entsteht
+   * auch keine Benachrichtigung.
+   */
+  insert(
+    event: NewEvent,
+    recipients: readonly NotificationRecipient[],
+  ): Promise<StoredEvent | null>;
+  /** Die Quell-Apps im Eingang, ohne Rechtepruefung (die macht die Domaene). */
+  inboxApps(owner: InboxOwner): Promise<readonly string[]>;
+  /** Zuerst direkt, dann nach Wichtigkeit, dann neueste zuerst. */
+  listInbox(query: InboxQuery): Promise<readonly InboxRow[]>;
+  countInbox(owner: InboxOwner, apps: readonly string[], state: NotificationState): Promise<number>;
+  /** Setzt den Zustand nur auf Zeilen dieses Eingangs aus diesen Apps. Gibt die Zahl zurueck. */
+  markInbox(
+    owner: InboxOwner,
+    ids: readonly string[],
+    apps: readonly string[],
+    state: NotificationState,
+    at: Date,
+  ): Promise<number>;
+  /** Ereignisse der Abonnements nach ihrem Cursor, nach `seq` geordnet. */
+  pollEvents(input: {
+    readonly subscriber: string;
+    readonly subscriptions: readonly EventSubscriptionRef[];
+    readonly limit: number;
+  }): Promise<readonly StoredEvent[]>;
+  /** Setzt den Cursor dieser Abonnements auf mindestens `upTo`. Gibt die Zahl zurueck. */
+  ackEvents(input: {
+    readonly subscriber: string;
+    readonly subscriptions: readonly EventSubscriptionRef[];
+    readonly upTo: number;
+    readonly at: Date;
+  }): Promise<number>;
+  /** Hoechste vergebene Nummer, 0 ohne Ereignis. */
+  maxSeq(): Promise<number>;
+  /** Hartes Loeschen nach der Frist (ADR 0022 F). Benachrichtigungen gehen mit. */
+  purgeReceivedBefore(cutoff: Date): Promise<{ events: number; notifications: number }>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Verweise zwischen Apps (ADR 0023)                                           */
+/* -------------------------------------------------------------------------- */
+
+export type StoredRefKind = 'mention' | 'link' | 'derived';
+
+/** Ein Ziel einer Quelle, wie es gespeichert wird (Migration 0020). */
+export interface StoredRefTarget {
+  readonly ref: string;
+  readonly kind: StoredRefKind;
+  /** App des Ziels bei Objekten, `null` bei Subjekten. */
+  readonly targetApp: string | null;
+}
+
+/** Ein eingehender Verweis: wer auf das Ziel zeigt. */
+export interface IncomingRef {
+  readonly source: string;
+  readonly sourceApp: string;
+  readonly kind: StoredRefKind;
+  /** Stand der Quelle laut App. */
+  readonly updatedAt: Date;
+}
+
+export type ReplaceRefsOutcome =
+  | { readonly status: 'stale' }
+  | {
+      readonly status: 'applied';
+      /** Die Menge vor dieser Meldung, fuer die neuen Erwaehnungen. */
+      readonly previous: readonly StoredRefTarget[];
+    };
+
+export interface RefRepository {
+  /**
+   * Ersetzt die Menge der Quelle **in einer Transaktion**, wenn `updatedAt`
+   * nicht aelter ist als der gespeicherte Stand; sonst `stale` und nichts
+   * aendert sich. Eine leere Menge loescht alle Ziele, der Stand bleibt.
+   */
+  replace(input: {
+    readonly source: string;
+    readonly app: string;
+    readonly updatedAt: Date;
+    readonly targets: readonly StoredRefTarget[];
+  }): Promise<ReplaceRefsOutcome>;
+  /** Eingehende Verweise auf ein Ziel, neueste Quelle zuerst. Ohne Rechtepruefung. */
+  listIncoming(target: string, limit: number): Promise<readonly IncomingRef[]>;
+  /** Ausgehende Verweise einer Quelle. Fuer Tests und den lokalen Betrieb. */
+  listOutgoing(source: string): Promise<readonly StoredRefTarget[]>;
+}
+
+/**
+ * Die Personen, die sich schon einmal angemeldet haben (Better Auth,
+ * Migration 0008). Nur lesen: Eine Empfaenger-Angabe `user:<id>` braucht die
+ * E-Mail, eine E-Mail braucht fuer die Rechtepruefung die Nutzer-Id.
+ */
+export interface DirectoryUser {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+}
+
+export interface UserDirectory {
+  findById(id: string): Promise<DirectoryUser | null>;
+  findByEmail(email: string): Promise<DirectoryUser | null>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Modell-Anbieter (ADR 0024, implementiert von src/adapters/models)            */
+/* -------------------------------------------------------------------------- */
+
+export type ModelProviderKind = 'anthropic' | 'gemini' | 'openai-compatible';
+
+/** Ein Tool, wie das Modell es angeboten bekommt. `inputSchema` ist JSON Schema. */
+export interface ChatToolSpec {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+}
+
+export interface ChatToolCall {
+  readonly id: string;
+  readonly name: string;
+  readonly arguments: Readonly<Record<string, unknown>>;
+  /** Der Anbieter lieferte Argumente, die kein JSON-Objekt sind. Dann wird nichts ausgefuehrt. */
+  readonly argumentsError?: string;
+}
+
+export interface ChatToolResult {
+  readonly callId: string;
+  readonly name: string;
+  readonly content: string;
+  readonly isError: boolean;
+}
+
+/**
+ * Eine Nachricht im Verlauf, unabhaengig vom Anbieter. `raw` haelt die
+ * Antwort des Anbieters unveraendert fuer die naechste Runde (etwa
+ * Signaturen von Gedankengaengen bei Gemini); nur der Adapter desselben
+ * Anbieters liest es, gespeichert wird es nie.
+ */
+export type ChatMessage =
+  | { readonly role: 'user'; readonly content: string }
+  | {
+      readonly role: 'assistant';
+      readonly content: string;
+      readonly toolCalls: readonly ChatToolCall[];
+      readonly raw?: { readonly provider: ModelProviderKind; readonly value: unknown };
+    }
+  | { readonly role: 'tool'; readonly results: readonly ChatToolResult[] };
+
+export interface ChatRequest {
+  readonly model: string;
+  readonly system?: string;
+  readonly messages: readonly ChatMessage[];
+  readonly tools?: readonly ChatToolSpec[];
+  readonly maxOutputTokens: number;
+  readonly signal?: AbortSignal;
+}
+
+export interface ModelTokenCount {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+}
+
+export interface ChatResponse {
+  readonly text: string;
+  readonly toolCalls: readonly ChatToolCall[];
+  readonly stopReason: 'end' | 'tool_use' | 'max_tokens' | 'other';
+  readonly usage: ModelTokenCount;
+  /** Die rohe Antwort fuer `ChatMessage.raw`, nur fuer diesen Anbieter. */
+  readonly raw?: unknown;
+}
+
+export interface EmbedRequest {
+  readonly model: string;
+  readonly texts: readonly string[];
+  /** Nur wenn `OPENAPPS_EMBEDDING_DIMENSIONS` gesetzt ist. */
+  readonly dimensions: number | null;
+  readonly signal?: AbortSignal;
+}
+
+export interface EmbedResponse {
+  /** In der Reihenfolge von `texts`. */
+  readonly vectors: readonly (readonly number[])[];
+  readonly usage: ModelTokenCount;
+}
+
+/**
+ * Der Port fuer einen Anbieter: `chat` und getrennt `embed`. Ein Adapter,
+ * der eines davon nicht kann (Anthropic hat keine Embeddings), wirft. Der
+ * Schluessel steckt im Adapter und verlaesst ihn nie, auch nicht in einer
+ * Fehlermeldung.
+ */
+export interface ModelProvider {
+  readonly kind: ModelProviderKind;
+  /**
+   * Lokal im Sinne von ADR 0024 C2: nur `openai-compatible` mit einer
+   * Basis-URL auf Loopback, privater Adresse oder einem Namen ohne Punkt.
+   */
+  readonly local: boolean;
+  chat(request: ChatRequest): Promise<ChatResponse>;
+  embed(request: EmbedRequest): Promise<EmbedResponse>;
+}
+
+export interface ConfiguredModel {
+  readonly provider: ModelProvider;
+  /** Modellname aus der Env. Es gibt keinen Default. */
+  readonly model: string;
+}
+
+export interface ConfiguredEmbeddingModel extends ConfiguredModel {
+  readonly dimensions: number | null;
+}
+
+export interface ModelLimits {
+  /** Tokens je UTC-Tag fuer die ganze Installation. */
+  readonly dailyTokens: number;
+  /** Tokens je UTC-Tag und Subjekt. */
+  readonly dailyTokensPerSubject: number;
+}
+
+/**
+ * Was die Env an Modellen hergibt. Fehlt `chat` oder `embedding`, antwortet
+ * jede Funktion dafuer `not_configured`. `problems` nennt, was an der Env
+ * nicht stimmt, ohne einen Wert daraus.
+ */
+export interface ModelSetup {
+  readonly chat: ConfiguredModel | null;
+  readonly embedding: ConfiguredEmbeddingModel | null;
+  readonly limits: ModelLimits;
+  /** `OPENAPPS_MODEL_LOCAL_ONLY_APPS`: Inhalte dieser Apps gehen nie an einen externen Anbieter. */
+  readonly localOnlyApps: readonly string[];
+  readonly problems: readonly string[];
+}
+
+export type ModelPurpose = 'agent_run' | 'summary' | 'answer' | 'generate' | 'embedding';
+export type ModelCallOutcome = 'ok' | 'error' | 'budget_exceeded';
+
+/** Eine Zeile in `model_usage` (Migration 0021). Kein Prompt, keine Antwort. */
+export interface ModelUsageRow {
+  readonly occurredAt: Date;
+  readonly subject: SubjectRef;
+  readonly purpose: ModelPurpose;
+  readonly kind: 'chat' | 'embedding';
+  readonly provider: ModelProviderKind;
+  readonly model: string;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly durationMs: number;
+  readonly outcome: ModelCallOutcome;
+  readonly runId: string | null;
+}
+
+export interface ModelUsageRepository {
+  append(row: ModelUsageRow): Promise<void>;
+  /** Summe aus Tokens ein und aus seit `since`; mit `subject` nur fuer dieses. */
+  tokensSince(since: Date, subject?: SubjectRef): Promise<number>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Plattform-Agents und ihre Laeufe (ADR 0024 E)                                */
+/* -------------------------------------------------------------------------- */
+
+export interface AgentProfile {
+  readonly agentName: string;
+  readonly instructions: string;
+  /** Anderes Modell desselben Chat-Anbieters, sonst `null` (Modell aus der Env). */
+  readonly model: string | null;
+  readonly maxSteps: number;
+  /** Hoechstens so viele Tokens je Lauf. */
+  readonly tokenBudget: number;
+  readonly updatedBy: string;
+  readonly updatedAt: Date;
+}
+
+export type NewAgentProfile = Omit<AgentProfile, 'updatedAt'>;
+
+export interface AgentProfileRepository {
+  upsert(profile: NewAgentProfile): Promise<AgentProfile>;
+  find(agentName: string): Promise<AgentProfile | null>;
+  list(): Promise<readonly AgentProfile[]>;
+}
+
+export type AgentRunStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type AgentRunTriggerKind = 'manual' | 'mention';
+
+/**
+ * Wer den Lauf ausgeloest hat. Seine Freigaben schneiden die des Agenten
+ * (ADR 0024 E). Ein Mensch mit seiner E-Mail, damit seine Gruppen bei jeder
+ * Pruefung frisch gelesen werden.
+ */
+export interface AgentRunTrigger {
+  readonly kind: 'user' | 'agent';
+  readonly id: string;
+  readonly email: string | null;
+}
+
+/** Ein Tool-Aufruf im Lauf, ohne Argumente und ohne Ergebnis. */
+export interface AgentRunToolCall {
+  readonly tool: string;
+  readonly ok: boolean;
+  readonly at: string;
+}
+
+export interface AgentRun {
+  readonly id: string;
+  readonly agentName: string;
+  readonly status: AgentRunStatus;
+  readonly triggerKind: AgentRunTriggerKind;
+  readonly trigger: AgentRunTrigger;
+  /** Bei einer Erwaehnung: das Objekt, in dem sie stand, seine App und sein Pfad. */
+  readonly source: string | null;
+  readonly sourceApp: string | null;
+  readonly sourcePath: string | null;
+  readonly prompt: string;
+  readonly result: string | null;
+  readonly errorCode: string | null;
+  readonly errorMessage: string | null;
+  readonly steps: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  /** Herkunft: Apps, deren Inhalte der Lauf gesehen hat (ADR 0024 F). Waechst nur. */
+  readonly usedApps: readonly string[];
+  readonly toolCalls: readonly AgentRunToolCall[];
+  readonly createdAt: Date;
+  readonly startedAt: Date | null;
+  readonly finishedAt: Date | null;
+  readonly leaseUntil: Date | null;
+}
+
+export interface NewAgentRun {
+  readonly agentName: string;
+  readonly triggerKind: AgentRunTriggerKind;
+  readonly trigger: AgentRunTrigger;
+  readonly source: string | null;
+  readonly sourceApp: string | null;
+  readonly sourcePath: string | null;
+  readonly prompt: string;
+  readonly usedApps: readonly string[];
+  /** Schutz gegen Doppel (eine Erwaehnung startet genau einen Lauf). */
+  readonly dedupeKey: string | null;
+}
+
+export interface AgentRunPatch {
+  readonly status?: AgentRunStatus;
+  readonly result?: string | null;
+  readonly errorCode?: string | null;
+  readonly errorMessage?: string | null;
+  readonly steps?: number;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly usedApps?: readonly string[];
+  readonly toolCalls?: readonly AgentRunToolCall[];
+  readonly startedAt?: Date;
+  readonly finishedAt?: Date;
+  readonly leaseUntil?: Date | null;
+}
+
+export interface AgentRunRepository {
+  /** `null`, wenn es zu `dedupeKey` schon einen Lauf gibt. */
+  create(run: NewAgentRun): Promise<AgentRun | null>;
+  findById(id: string): Promise<AgentRun | null>;
+  /**
+   * Laeufe, die von `triggeredBy` ausgeloest wurden **oder** zu einem der
+   * Agents in `agentNames` gehoeren, neueste zuerst. Ohne Rechtepruefung.
+   */
+  list(filter: {
+    readonly triggeredBy?: { readonly kind: 'user' | 'agent'; readonly id: string };
+    readonly agentNames?: readonly string[];
+    readonly limit: number;
+  }): Promise<readonly AgentRun[]>;
+  /** Nimmt den aeltesten wartenden Lauf und setzt ihn auf `running`, atomar. */
+  claimNext(input: { readonly now: Date; readonly leaseUntil: Date }): Promise<AgentRun | null>;
+  update(id: string, patch: AgentRunPatch): Promise<AgentRun>;
+  /** Laeufe in `running`, deren Frist vor `now` endete, werden `failed`. Gibt die Zahl zurueck. */
+  failExpired(now: Date, errorCode: string, errorMessage: string): Promise<number>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Team-Gedaechtnis (ADR 0024 F)                                               */
+/* -------------------------------------------------------------------------- */
+
+export interface MemoryEntry {
+  readonly id: string;
+  /** Wer es sich gemerkt hat: ein Agent. */
+  readonly author: string;
+  readonly text: string;
+  /** Herkunft: alle Apps, deren Inhalte zu diesem Eintrag beitrugen. Sortiert. */
+  readonly apps: readonly string[];
+  readonly runId: string | null;
+  readonly createdAt: Date;
+}
+
+export type NewMemoryEntry = Omit<MemoryEntry, 'id' | 'createdAt'>;
+
+/**
+ * Der Speicher hinter dem Gedaechtnis. Zuerst Postgres (Migration 0024);
+ * eine zweite Implementierung (cognee, ADR 0024 F) bekommt dieselben
+ * Argumente. **`readableApps` ist Pflicht**: Ein Speicher liefert nur
+ * Eintraege, deren Herkunft ganz darin liegt, und die Domaene prueft das
+ * Ergebnis noch einmal.
+ */
+export interface TeamMemoryStore {
+  remember(entry: NewMemoryEntry): Promise<MemoryEntry>;
+  recall(input: {
+    readonly query: string;
+    readonly readableApps: readonly string[];
+    readonly limit: number;
+  }): Promise<readonly MemoryEntry[]>;
+  list(input: {
+    readonly authors?: readonly string[];
+    readonly readableApps: readonly string[];
+    readonly limit: number;
+  }): Promise<readonly MemoryEntry[]>;
+  findById(id: string): Promise<MemoryEntry | null>;
+  /** Hartes Loeschen. `false`, wenn es den Eintrag nicht gab. */
+  forget(id: string): Promise<boolean>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -366,6 +857,17 @@ export interface RepositoryCheckout {
 /** Legt Schema und DB-Rolle an (ruft provision_app_schema aus Migration 0006). */
 export interface SchemaProvisioner {
   provision(input: { schemaName: string; dbRole: string }): Promise<{ dsn: string }>;
+  /**
+   * Gleicht den Zugang der App-Rolle zum Schema `extensions` mit dem Manifest
+   * ab (ADR 0025, Migration 0025): mit Bedarf `USAGE`, ohne Bedarf keines,
+   * nie `CREATE`. Fehlt eine Erweiterung, wirft es
+   * `MissingDatabaseExtensionError`; die Domaene beendet den Deploy dann als
+   * `failed`.
+   */
+  syncExtensions(input: {
+    dbRole: string;
+    extensions: readonly DatabaseExtension[];
+  }): Promise<void>;
   /** Freigabe zwischen Apps auf Postgres-Ebene durchsetzen. */
   grantSelect(input: { grantee: string; schemaName: string; objectName: string }): Promise<void>;
   revokeSelect(input: { grantee: string; schemaName: string; objectName: string }): Promise<void>;

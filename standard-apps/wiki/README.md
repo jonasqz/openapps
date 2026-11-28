@@ -25,6 +25,7 @@ calls the same functions.
 | `pages.archive`   | write | Archive; not while subpages are still live                                                                   |
 | `pages.history`   | read  | History, newest change first, including moves and restores                                                   |
 | `pages.restore`   | write | Restore title, content and tags of an earlier revision                                                       |
+| `pages.resolve`   | read  | Title, path and status of pages for chips in other apps (ADR 0023)                                          |
 | `favorites.list`  | read  | The caller's own favorite pages                                                                              |
 | `favorites.set`   | write | Add a page to the caller's favorites or remove it                                                            |
 | `search.backfill` | write | Queue every page for the shared search again and deliver what fits into about 20 s; the rest follows         |
@@ -106,6 +107,29 @@ may read the wiki.
 - **Env.** `OPENAPPS_PLATFORM_URL` and `OPENAPPS_CALL_SECRET`, set by the
   control plane. Without them nothing is delivered and the rows wait.
 
+## Followed pages (inbox)
+
+Since 0.4.0 (ADR 0022) the wiki reports `page.updated` to the platform when
+someone changes the title, content or tags of a page (edit or restore). It
+goes to everyone who marked the page as a favorite, except the person who
+changed it; the platform shows it in their inbox (Home) if they may open the
+wiki. The event waits in `event_outbox` until the platform accepts it, so
+saving never depends on it. The grant is `execute` on `platform.emit_event`
+for `app:wiki`.
+
+## References and mentions (0.5.0, ADR 0023)
+
+In Markdown, `@{app:type:id}` links to an item of another app and
+`@{human:<email>}` mentions someone; "Mention or link" in the editor finds
+people with access to the wiki and items through the search across all apps
+and inserts only the reference. The page shows chips (title and status,
+"Restricted" without access), "Referenced in other apps" next to the wiki's
+own backlinks, and "Create task from section" per heading, which opens Tasks
+with the section as excerpt. The wiki reports the full set of a page's
+references (outside code) to `platform.set_refs` through `refs_outbox`; an
+archived page reports none. Mentioned people who may read the wiki get a
+notification on Home.
+
 ## Pages
 
 | Path                  | What                                                           |
@@ -133,10 +157,11 @@ may read the wiki.
 - `seeds/0001_beispielseiten.sql`, `seeds/0002_links_und_checklisten.sql` —
   sample pages of the fictional Northlight Ltd (local only)
 - `src/instrumentation.ts` — runs the migrations on start and starts the
-  delivery to the shared search
+  delivery to the shared search and of the events
 - `src/lib/pages.ts` — data access, one function per tool
-- `src/lib/search-sync.ts` — outbox, delivery to Knowledge, `search.backfill`
-  and `search.status`
+- `src/lib/search-sync.ts` — what goes to Knowledge, `search.backfill` and
+  `search.status`; the delivery loop is `createOutbox` from `@openapps/sdk`
+- `src/lib/events.ts` — `page.updated` for followers of a page
 - `src/lib/tools.ts`, `src/app/api/tools/[tool]/route.ts` — the tool route
 - `src/app/actions.ts` — server actions of the UI; they check `getUser` and
   call the same functions

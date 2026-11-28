@@ -168,6 +168,13 @@ export async function requestDeploy(
       let backendRef: string;
       try {
         backendRef = await ensureBackendApp(ctx, app, existing);
+        // Postgres-Erweiterungen (ADR 0025): vor dem Start, bei jedem Deploy,
+        // aus dem Manifest dieses Deploys. Mit Bedarf USAGE auf `extensions`,
+        // ohne Bedarf keines. Fehlt die Erweiterung, startet nichts.
+        await ctx.provisioner.syncExtensions({
+          dbRole: app.dbRole,
+          extensions: manifest.databaseExtensions ?? [],
+        });
       } catch (cause) {
         await ctx.deployments.patch(deployment.id, { status: 'failed' });
         throw cause;

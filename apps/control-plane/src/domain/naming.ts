@@ -17,6 +17,31 @@ export function assertAppName(name: string): void {
   }
 }
 
+/**
+ * Namen, die keine neue App tragen darf (ADR 0022 A). `platform` ist das
+ * reservierte Ziel fuer Plattform-Tools (`callAppTool('platform', …)`), die
+ * anderen sind die Arten von Subjekten (`human:`, `group:`, `agent:`,
+ * `app:`), damit kein App-Name wie eine Empfaenger-Angabe aussieht.
+ *
+ * Nur fuer neue Apps (`createApp`): `assertAppName` bleibt, wie es ist, damit
+ * eine schon registrierte App mit einem solchen Namen weiter erreichbar ist.
+ */
+export const RESERVED_APP_NAMES: readonly string[] = Object.freeze([
+  'platform',
+  'human',
+  'group',
+  'agent',
+  'app',
+]);
+
+/** Wie `assertAppName`, zusaetzlich ohne die gesperrten Namen. Fuer neue Apps. */
+export function assertNewAppName(name: string): void {
+  assertAppName(name);
+  if (RESERVED_APP_NAMES.includes(name)) {
+    throw new ValidationError(`the app name "${name}" is reserved for the platform`);
+  }
+}
+
 export function schemaNameFor(appName: string): string {
   assertAppName(appName);
   return `app_${appName.replaceAll('-', '_')}`;

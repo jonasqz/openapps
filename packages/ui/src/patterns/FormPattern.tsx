@@ -109,7 +109,8 @@ export function FormPattern({
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const fieldId = (name: string): string => `${baseId}-${name}`;
+  // Eigener Praefix: ein Feld namens "title" darf nicht die Id der Ueberschrift bekommen.
+  const fieldId = (name: string): string => `${baseId}-field-${name}`;
 
   const validateField = useCallback(
     (field: FormField, value: string | boolean, all: FormValues): string | undefined =>

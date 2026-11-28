@@ -90,6 +90,19 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-lokal-ohne-google}
       AUTH_ALLOWED_EMAIL_DOMAINS: ${AUTH_ALLOWED_EMAIL_DOMAINS:-example.com}
       AUTH_BOOTSTRAP_ADMINS: ${AUTH_BOOTSTRAP_ADMINS:-admin@example.com}
+      # Modelle (ADR 0024): lokal ohne Schluessel aus. Wer es lokal probieren
+      # will, setzt die Variablen in infra/lokal/.env, etwa fuer Ollama
+      # OPENAPPS_CHAT_PROVIDER=openai-compatible und eine lokale BASE_URL.
+      OPENAPPS_CHAT_PROVIDER: ${OPENAPPS_CHAT_PROVIDER:-}
+      OPENAPPS_CHAT_MODEL: ${OPENAPPS_CHAT_MODEL:-}
+      OPENAPPS_CHAT_API_KEY: ${OPENAPPS_CHAT_API_KEY:-}
+      OPENAPPS_CHAT_BASE_URL: ${OPENAPPS_CHAT_BASE_URL:-}
+      OPENAPPS_EMBEDDING_PROVIDER: ${OPENAPPS_EMBEDDING_PROVIDER:-}
+      OPENAPPS_EMBEDDING_MODEL: ${OPENAPPS_EMBEDDING_MODEL:-}
+      OPENAPPS_EMBEDDING_API_KEY: ${OPENAPPS_EMBEDDING_API_KEY:-}
+      OPENAPPS_EMBEDDING_BASE_URL: ${OPENAPPS_EMBEDDING_BASE_URL:-}
+      OPENAPPS_EMBEDDING_DIMENSIONS: ${OPENAPPS_EMBEDDING_DIMENSIONS:-}
+      OPENAPPS_MODEL_LOCAL_ONLY_APPS: ${OPENAPPS_MODEL_LOCAL_ONLY_APPS:-}
     volumes:
       - lokal-run:/lokal/run
       # Schreibbar: create_app legt hier den Ordner einer neuen App aus der

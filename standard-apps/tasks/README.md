@@ -16,6 +16,8 @@ functions as tools.
 | `tasks.assign`    | write | Assign by email, or unassign with `null`                            |
 | `tasks.complete`  | write | Set to done; returns `previousStatus` for undo                      |
 | `tasks.comment`   | write | Add a comment                                                       |
+| `tasks.create_from_ref` | write | Create a task from a wiki page or deal (`sourceRef`, `excerpt`); links back as `derived` (ADR 0023) |
+| `tasks.resolve`   | read  | Title, path and status of tasks and projects for chips in other apps (ADR 0023) |
 | `projects.list`   | read  | Projects with open, overdue and done counts                         |
 | `projects.create` | write | Create a project (unique name)                                      |
 | `search`          | read  | Tasks and projects at once (`query`, `limit`); the tool of Tasks for the search across all apps (ADR 0021) |
@@ -37,10 +39,27 @@ Typical agent calls:
 The platform gives an app no directory of people, so a task is assigned to an
 **email address**. "My tasks" and `mine: true` match the email that `getUser`
 returns for the caller (for an agent, its `…@agents.invalid` address).
-Nobody is notified by this app when a task is assigned.
+The app sends no mail. It reports `task.assigned`, `task.commented` and
+`task.status_changed` to the platform (since 0.4.0, ADR 0022); the platform
+shows them in the inbox (Home) of the assignee and the creator, if they may
+open Tasks, never to the person who made the change. Events wait in
+`event_outbox` until the platform accepts them, so saving never depends on it.
 
 In the history and as author, people appear with their email and agents as
 `agent:<name>`.
+
+## References (0.5.0, ADR 0023)
+
+`@{app:type:id}` in a description or comment links to an item of another app
+(`@{wiki:page:<id>}`, `@{crm:deal:<id>}`), `@{human:<email>}` mentions
+someone. The task page shows them as chips and lists what points to the task
+from other apps; both load in the browser through the platform with the
+viewer's rights. Tasks reports the full set of a task's references to
+`platform.set_refs` through `refs_outbox`. Other apps link to tasks and
+projects as `tasks:task:<id>` and `tasks:project:<id>` (resolver
+`tasks.resolve`). "Create task" on a wiki page or deal opens
+`/new?ref=…&excerpt=…`; the person confirms here, as themselves, and the task
+stores its source in `source_ref`.
 
 ## Status
 

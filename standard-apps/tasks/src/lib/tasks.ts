@@ -1,6 +1,15 @@
 import { ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { query, withTransaction, type Query } from './db';
-import type { TaskCreateArgs, TaskListArgs } from './schemas';
+import {
+  assignedEvent,
+  commentedEvent,
+  emitTaskEvents,
+  kickEvents,
+  statusChangedEvent,
+} from './events';
+import { acceptedSource, ACCEPTED_SOURCES, kickRefs, reportTaskRefs } from './refs';
+import type { TaskCreateArgs, TaskFromRefArgs, TaskListArgs } from './schemas';
+import { refTargetsFromText } from '@openapps/sdk';
 import {
   planChange,
   STATUS_LABELS,
@@ -37,6 +46,8 @@ export interface Task {
   completedAt: string | null;
   completedBy: string | null;
   commentCount: number;
+  /** Aus welchem Objekt einer anderen App die Aufgabe entstand (ADR 0023), oder null. */
+  sourceRef: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -72,6 +83,7 @@ interface TaskRow extends Record<string, unknown> {
   completed_at: Date | null;
   completed_by: string | null;
   comment_count: number;
+  source_ref: string | null;
   created_by: string;
   created_at: Date;
   updated_at: Date;
@@ -85,7 +97,7 @@ const SELECT_TASK = `
          t.project_id, p.name as project_name,
          t.completed_at, t.completed_by,
          (select count(*) from task_comments c where c.task_id = t.id)::int as comment_count,
-         t.created_by, t.created_at, t.updated_at
+         t.source_ref, t.created_by, t.created_at, t.updated_at
     from tasks t
     left join projects p on p.id = t.project_id`;
 
@@ -115,6 +127,7 @@ const toTask = (row: TaskRow): Task => ({
   completedAt: row.completed_at?.toISOString() ?? null,
   completedBy: row.completed_by,
   commentCount: row.comment_count,
+  sourceRef: row.source_ref,
   createdBy: row.created_by,
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
@@ -236,29 +249,46 @@ async function projectName(q: Query, projectId: string): Promise<string> {
   return name;
 }
 
+/** Schreibt einen Verlaufseintrag und gibt seine Id zurueck (auch die Id des Ereignisses). */
 async function insertEvent(
   q: Query,
   taskId: string,
   event: { kind: EventKind; from: string | null; to: string | null },
   actor: string,
-): Promise<void> {
-  await q(
-    `insert into task_events (task_id, kind, from_value, to_value, actor) values ($1, $2, $3, $4, $5)`,
+): Promise<string> {
+  const rows = await q<{ id: string }>(
+    `insert into task_events (task_id, kind, from_value, to_value, actor) values ($1, $2, $3, $4, $5)
+     returning id`,
     [taskId, event.kind, event.from, event.to, actor],
   );
+  const id = rows[0]?.id;
+  if (id === undefined) throw new Error('insert returned no row');
+  return id;
 }
 
-export async function createTask(input: TaskCreateArgs, actor: string): Promise<Task> {
-  return withTransaction(async (q) => {
+/** Enthaelt der Text einen Verweis `@{…}` (ADR 0023)? */
+const hasRefs = (text: string): boolean => refTargetsFromText(text).length > 0;
+
+/**
+ * Legt eine Aufgabe an. `sourceRef` nur ueber `tasks.create_from_ref`: das
+ * Objekt einer anderen App, aus dem sie entsteht; es wird als Verweis
+ * `derived` gemeldet.
+ */
+export async function createTask(
+  input: TaskCreateArgs,
+  actor: string,
+  options: { sourceRef?: string } = {},
+): Promise<Task> {
+  const task = await withTransaction(async (q) => {
     if (input.projectId !== undefined) await projectName(q, input.projectId);
     const status = input.status ?? 'todo';
     const rows = await q<{ id: string }>(
       `insert into tasks (title, description, status, priority, assignee, due_date, project_id,
-                          completed_at, completed_by, created_by)
+                          completed_at, completed_by, created_by, source_ref)
        values ($1, $2, $3, $4, $5, $6, $7,
                case when $3 = 'done' then now() end,
                case when $3 = 'done' then $8 end,
-               $8)
+               $8, $9)
        returning id`,
       [
         input.title,
@@ -269,13 +299,25 @@ export async function createTask(input: TaskCreateArgs, actor: string): Promise<
         input.dueDate ?? null,
         input.projectId ?? null,
         actor,
+        options.sourceRef ?? null,
       ],
     );
     const id = rows[0]?.id;
     if (id === undefined) throw new Error('insert returned no row');
-    await insertEvent(q, id, { kind: 'created', from: null, to: null }, actor);
-    return fetchTask(q, id);
+    const historyId = await insertEvent(q, id, { kind: 'created', from: null, to: null }, actor);
+    const created = await fetchTask(q, id);
+    // Gleich beim Anlegen zugewiesen: dasselbe Ereignis wie eine Zuweisung.
+    const assigned = assignedEvent(created, historyId, actor);
+    await emitTaskEvents(q, assigned === null ? [] : [assigned]);
+    // Verweise nur, wenn es welche gibt (ADR 0023); eine leere Menge waere hier nichts.
+    if (options.sourceRef !== undefined || hasRefs(created.description)) {
+      await reportTaskRefs(q, id, actor);
+    }
+    return created;
   });
+  kickEvents();
+  kickRefs();
+  return task;
 }
 
 export interface UpdateResult {
@@ -306,7 +348,7 @@ export async function updateTask(
   actor: string,
   expectedStatus?: Status,
 ): Promise<UpdateResult> {
-  return withTransaction(async (q) => {
+  const result = await withTransaction(async (q): Promise<UpdateResult> => {
     const rows = await q<{
       title: string;
       description: string;
@@ -369,9 +411,32 @@ export async function updateTask(
     sets.push('updated_at = now()');
     await q(`update tasks set ${sets.join(', ')} where id = $1`, params);
 
-    for (const event of plan.events) await insertEvent(q, id, event, actor);
-    return { task: await fetchTask(q, id), changed: true, previousStatus: current.status };
+    const history: { kind: EventKind; to: string | null; id: string }[] = [];
+    for (const event of plan.events) {
+      history.push({ kind: event.kind, to: event.to, id: await insertEvent(q, id, event, actor) });
+    }
+    const task = await fetchTask(q, id);
+    const events = history.flatMap((entry) => {
+      if (entry.kind === 'assignee' && entry.to !== null) {
+        const assigned = assignedEvent(task, entry.id, actor);
+        return assigned === null ? [] : [assigned];
+      }
+      if (entry.kind === 'status') return [statusChangedEvent(task, entry.id, task.status, actor)];
+      return [];
+    });
+    await emitTaskEvents(q, events);
+    // Die ganze Menge neu, wenn die Beschreibung Verweise hatte oder hat; auch
+    // Titel und Stand der Quelle stehen in der Meldung.
+    if (hasRefs(current.description) || hasRefs(task.description) || task.sourceRef !== null) {
+      await reportTaskRefs(q, id, actor);
+    }
+    return { task, changed: true, previousStatus: current.status };
   });
+  if (result.changed) {
+    kickEvents();
+    kickRefs();
+  }
+  return result;
 }
 
 export async function addComment(
@@ -379,15 +444,24 @@ export async function addComment(
   body: string,
   author: string,
 ): Promise<TaskComment> {
-  const rows = await query<{ id: string; body: string; author: string; created_at: Date }>(
-    `insert into task_comments (task_id, body, author)
-     select id, $2, $3 from tasks where id = $1
-     returning id, body, author, created_at`,
-    [taskId, body, author],
-  );
-  const row = rows[0];
-  if (row === undefined) throw notFound(taskId);
-  return { id: row.id, body: row.body, author: row.author, createdAt: row.created_at.toISOString() };
+  const comment = await withTransaction(async (q) => {
+    const rows = await q<{ id: string; body: string; author: string; created_at: Date }>(
+      `insert into task_comments (task_id, body, author)
+       select id, $2, $3 from tasks where id = $1
+       returning id, body, author, created_at`,
+      [taskId, body, author],
+    );
+    const row = rows[0];
+    if (row === undefined) throw notFound(taskId);
+    // Kommentar und Ereignis zusammen oder gar nicht.
+    await emitTaskEvents(q, [commentedEvent(await fetchTask(q, taskId), row.id, author)]);
+    // Kommentare lassen sich nicht aendern: nur ein Kommentar mit Verweis aendert die Menge.
+    if (hasRefs(row.body)) await reportTaskRefs(q, taskId, author);
+    return { id: row.id, body: row.body, author: row.author, createdAt: row.created_at.toISOString() };
+  });
+  kickEvents();
+  kickRefs();
+  return comment;
 }
 
 /** Alle bisher zugewiesenen Adressen, fuer den Filter der Liste. */
@@ -397,4 +471,43 @@ export async function listAssignees(): Promise<string[]> {
       where assignee is not null order by 1 limit 200`,
   );
   return rows.map((row) => row.assignee);
+}
+
+/** Titel aus dem Auszug: erste Zeile ohne Markdown-Zeichen, gekuerzt. */
+export function titleFromExcerpt(excerpt: string | undefined): string {
+  const line =
+    (excerpt ?? '')
+      .split('\n')
+      .map((part) => part.replace(/^[#>*\-\s]+/, '').replace(/@\{[^{}\s]*\}/g, '').trim())
+      .find((part) => part !== '') ?? '';
+  if (line === '') return 'Follow up';
+  return line.length > 200 ? `${line.slice(0, 199)}…` : line;
+}
+
+/**
+ * `tasks.create_from_ref` (ADR 0023 E): legt eine Aufgabe aus einem Objekt
+ * einer anderen App an und meldet den Verweis `derived`. Wer ruft, bestimmt
+ * nur die Plattform: ein Agent mit `execute`, eine App mit eigener Freigabe,
+ * eine Person unter ihrer eigenen Identitaet in Tasks.
+ */
+export async function createTaskFromRef(args: TaskFromRefArgs, actor: string): Promise<Task> {
+  const sourceRef = acceptedSource(args.sourceRef);
+  if (sourceRef === null) {
+    const message = `sourceRef must be a reference to one of ${ACCEPTED_SOURCES.join(', ')}, e.g. wiki:page:<id>.`;
+    throw new ToolInputError(message, [{ path: ['sourceRef'], message }]);
+  }
+  const excerpt = args.excerpt?.trim() ?? '';
+  return createTask(
+    {
+      title: args.title ?? titleFromExcerpt(excerpt),
+      ...(excerpt === '' ? {} : { description: excerpt }),
+      ...(args.assignee === undefined ? {} : { assignee: args.assignee }),
+      ...(args.dueDate === undefined ? {} : { dueDate: args.dueDate }),
+      ...(args.priority === undefined ? {} : { priority: args.priority }),
+      ...(args.status === undefined ? {} : { status: args.status }),
+      ...(args.projectId === undefined ? {} : { projectId: args.projectId }),
+    },
+    actor,
+    { sourceRef },
+  );
 }

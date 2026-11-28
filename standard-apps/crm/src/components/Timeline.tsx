@@ -4,6 +4,7 @@ import type { Activity } from '@/lib/crm';
 import { ACTIVITY_KIND_LABELS } from '@/lib/domain';
 import { formatDateTime } from '@/lib/format';
 import { TextLink } from './links';
+import { CrmRefText } from './Refs';
 
 /**
  * Zeitleiste: Aktivitaeten, neueste zuerst. Serverfaehig, ohne Funktionen.
@@ -46,10 +47,12 @@ export function Timeline({
         <li key={activity.id} className="min-w-0 border-l border-border-strong pb-5 pl-4 last:pb-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Badge>{ACTIVITY_KIND_LABELS[activity.kind]}</Badge>
-            <span className="text-sm font-medium text-fg [overflow-wrap:anywhere]">{activity.subject}</span>
+            <CrmRefText text={activity.subject} className="text-sm font-medium text-fg" />
           </div>
           {activity.body === null ? null : (
-            <p className="mt-2 whitespace-pre-line text-sm text-fg [overflow-wrap:anywhere]">{activity.body}</p>
+            <p className="mt-2 text-sm text-fg">
+              <CrmRefText text={activity.body} />
+            </p>
           )}
           <p className="mt-2 flex min-w-0 flex-wrap gap-x-2 text-xs text-fg-muted [overflow-wrap:anywhere]">
             <span>{formatDateTime(activity.happenedAt)}</span>

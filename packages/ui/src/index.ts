@@ -6,6 +6,8 @@
  */
 export * from './components/index.ts';
 export * from './shell/index.ts';
+/* Verweise zwischen Apps (ADR 0023): Chip, Picker, Rueckverweise, Aktionen. */
+export * from './refs/index.ts';
 
 /* Muster. `EmptyState`/`ErrorState` kommen schon aus den Komponenten. */
 export { ListPattern } from './patterns/ListPattern.tsx';

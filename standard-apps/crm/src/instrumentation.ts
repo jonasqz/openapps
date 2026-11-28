@@ -35,4 +35,12 @@ export async function register(): Promise<void> {
   if (seeded !== null && seeded.applied.length > 0) {
     console.info(`[crm] sample data loaded: ${seeded.applied.join(', ')}`);
   }
+
+  // Ereignisse an die Plattform (ADR 0022): Outbox liefern, Faelliges melden.
+  // Haelt den Start nicht auf und laesst ihn nicht scheitern.
+  const { startCrmEvents } = await import('./lib/events');
+  startCrmEvents();
+  // Verweise und Erwaehnungen an die Plattform (ADR 0023), ebenso ohne Warten.
+  const { crmRefs } = await import('./lib/refs');
+  crmRefs.start();
 }

@@ -231,3 +231,15 @@ export type SearchBackfillArgs = z.infer<typeof SearchBackfillArgs>;
 /** search.status — keine Argumente. */
 export const SearchStatusArgs = z.object({}).strict();
 export type SearchStatusArgs = z.infer<typeof SearchStatusArgs>;
+
+/**
+ * pages.resolve — das feste Format der Plattform fuer Resolver (ADR 0023,
+ * `parseResolveArgs` in `@openapps/sdk`): `type` ist `page`, `ids` 1 bis 50.
+ */
+export const PagesResolveArgs = z
+  .object({
+    type: z.literal('page', { errorMap: () => ({ message: 'type must be page' }) }),
+    ids: z.array(z.string().min(1).max(128)).min(1).max(50),
+  })
+  .strict();
+export type PagesResolveArgs = z.infer<typeof PagesResolveArgs>;

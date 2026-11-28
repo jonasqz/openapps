@@ -1,4 +1,11 @@
-import { callerOf, parseArgs, ToolInputError, type ToolContext, type ToolHandler } from '@openapps/sdk';
+import {
+  callerOf,
+  parseArgs,
+  ToolInputError,
+  type ToolContext,
+  type ToolHandler,
+} from '@openapps/sdk';
+import { answerQuestion, askerOf } from './answer';
 import { query } from './db';
 import {
   addDocument,
@@ -9,13 +16,18 @@ import {
   upsertSourceDocument,
 } from './documents';
 import { searchOwnDocuments } from './document-search';
-import { createFulltextRetriever, type Retriever } from './retriever';
+import { backfillEmbeddings, embeddingStatus } from './embeddings';
+import { embeddingWorker, fulltextRetriever, hybridRetriever } from './knowledge-runtime';
+import { models } from './platform-models';
+import type { Retriever } from './retriever';
 import {
+  AnswerArgs,
   DeleteArgs,
   DocumentInput,
   DocumentSearchArgs,
   GetArgs,
   ListArgs,
+  NoArgs,
   RemoveArgs,
   SearchArgs,
   UpsertArgs,
@@ -38,12 +50,12 @@ import type { Visibility } from './visibility';
  *   `documents.remove`. Die strengen Schemas lehnen ein Feld `sourceApp` ab.
  */
 
-let retriever: Retriever | undefined;
-
-/** Heute Postgres-Volltext. Eine zweite Implementierung (pgvector) wird hier gewaehlt. */
+/**
+ * Die Suche fuer `search`, `answer` und die Suchseite: hybrid (ADR 0025),
+ * und ohne Embedding-Modell genau der Volltext aus 0.2.
+ */
 export function currentRetriever(): Retriever {
-  retriever ??= createFulltextRetriever(query);
-  return retriever;
+  return hybridRetriever();
 }
 
 /**
@@ -75,7 +87,39 @@ export const toolHandlers = {
   },
   'documents.search': async (args) => {
     const { query: text, limit } = parseArgs(DocumentSearchArgs, args);
-    return searchOwnDocuments(currentRetriever(), text, limit);
+    // Nur Volltext: Die Plattform fragt dieses Tool beim Tippen, mit etwa
+    // 2 s je App (ADR 0021). Ein Modell-Aufruf je Tastendruck waere zu
+    // langsam und zu teuer.
+    return searchOwnDocuments(fulltextRetriever(), text, limit);
+  },
+  answer: async (args, ctx) => {
+    const { question, limit } = parseArgs(AnswerArgs, args);
+    return answerQuestion(
+      { retriever: currentRetriever(), models: models() },
+      {
+        question,
+        limit,
+        visibility: visibilityOf(ctx),
+        onBehalfOf: askerOf(ctx.caller ?? callerOf(ctx.user)),
+      },
+    );
+  },
+  'embeddings.status': async (args, ctx) => {
+    parseArgs(NoArgs, args ?? {});
+    return embeddingStatus(query, models(), visibilityOf(ctx));
+  },
+  'embeddings.backfill': async (args, ctx) => {
+    parseArgs(NoArgs, args ?? {});
+    const { retriedWithheld, report } = await backfillEmbeddings(query, embeddingWorker());
+    return {
+      retriedWithheld,
+      embedded: report.embedded,
+      withheld: report.withheld,
+      pending: report.pending,
+      removedOld: report.removedOld,
+      stopped: report.stopped,
+      status: await embeddingStatus(query, models(), visibilityOf(ctx)),
+    };
   },
   'documents.add': async (args, ctx) => addDocument(parseArgs(DocumentInput, args), ctx.user.id),
   'documents.list': async (args, ctx) => ({

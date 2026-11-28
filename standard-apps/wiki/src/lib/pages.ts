@@ -2,6 +2,8 @@ import { ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { query, transaction, type Tx } from './db';
 import { extractPageLinks } from './markdown';
 import { moveProblem } from './move';
+import { emitPageUpdated, kickEvents } from './events';
+import { hasRefTokens, kickRefs, reportPageRefs } from './refs';
 import { enqueuePages, enqueueSubtree, kickSearchSync } from './search-sync';
 import {
   LIMITS,
@@ -291,17 +293,20 @@ export function toSearchHit(row: SearchRow): SearchHit {
   };
 }
 
+/** Schreibt eine Revision und gibt ihre Id zurueck (als Text, die Spalte ist bigint). */
 async function writeRevision(
   tx: Tx,
   pageId: string,
   change: RevisionChange,
   actor: string,
-): Promise<void> {
-  await tx.query(
+): Promise<string> {
+  const rows = await tx.query<{ id: string }>(
     `insert into page_revisions (page_id, change, title, content_md, tags, parent_id, edited_by, edited_at)
-     select id, $2, title, content_md, tags, parent_id, $3, updated_at from pages where id = $1`,
+     select id, $2, title, content_md, tags, parent_id, $3, updated_at from pages where id = $1
+     returning id::text as id`,
     [pageId, change, actor],
   );
+  return rows[0]?.id ?? '';
 }
 
 /**
@@ -360,9 +365,12 @@ export async function createPage(args: PagesCreateArgs, actor: string): Promise<
     await writeRevision(tx, created.id, 'create', actor);
     await syncLinks(tx, created.id, args.contentMd);
     await enqueuePages(tx, [created.id]);
+    // Verweise auf andere Apps und Erwaehnungen (ADR 0023), nur wenn es welche gibt.
+    if (hasRefTokens(args.contentMd)) await reportPageRefs(tx, created.id, actor);
     return created.id;
   });
   kickSearchSync();
+  kickRefs();
   return getPage({ id });
 }
 
@@ -401,13 +409,22 @@ export async function updatePage(args: PagesUpdateArgs, actor: string): Promise<
         where id = $1`,
       [args.id, title, contentMd, tags, actor],
     );
-    await writeRevision(tx, args.id, 'update', actor);
+    const revisionId = await writeRevision(tx, args.id, 'update', actor);
     if (contentMd !== current.content_md) await syncLinks(tx, args.id, contentMd);
+    // Die ganze Menge neu, wenn vorher oder jetzt Verweise im Inhalt stehen;
+    // auch ein neuer Titel geht so in die Erwaehnung.
+    if (hasRefTokens(current.content_md) || hasRefTokens(contentMd)) {
+      await reportPageRefs(tx, args.id, actor);
+    }
+    // An die, die die Seite als Favorit haben (ADR 0022), in derselben Transaktion.
+    await emitPageUpdated(tx, args.id, revisionId, actor);
     // Ein neuer Titel aendert den Pfad jeder Unterseite in der Suche.
     if (title !== current.title) await enqueueSubtree(tx, args.id);
     else await enqueuePages(tx, [args.id]);
   });
   kickSearchSync();
+  kickEvents();
+  kickRefs();
   return getPage({ id: args.id });
 }
 
@@ -457,8 +474,13 @@ export async function archivePage(args: PagesArchiveArgs, actor: string): Promis
     await writeRevision(tx, args.id, 'archive', actor);
     // Archiviert heisst fuer die Suche: entfernen (`search-sync.ts`).
     await enqueuePages(tx, [args.id]);
+    // Und fuer die Verweise: die leere Menge, die Rueckverweise verschwinden.
+    if (hasRefTokens(current.content_md)) await reportPageRefs(tx, args.id, actor);
     return { id: args.id, archivedAt: row.archived_at.toISOString() };
-  }).finally(kickSearchSync);
+  }).finally(() => {
+    kickSearchSync();
+    kickRefs();
+  });
 }
 
 interface RevisionRow extends Record<string, unknown> {
@@ -650,12 +672,18 @@ export async function restorePage(args: PagesRestoreArgs, actor: string): Promis
         where id = $1`,
       [args.id, revision.title, revision.content_md, revision.tags, actor],
     );
-    await writeRevision(tx, args.id, 'restore', actor);
+    const revisionId = await writeRevision(tx, args.id, 'restore', actor);
     await syncLinks(tx, args.id, revision.content_md);
+    if (hasRefTokens(current.content_md) || hasRefTokens(revision.content_md)) {
+      await reportPageRefs(tx, args.id, actor);
+    }
+    await emitPageUpdated(tx, args.id, revisionId, actor);
     if (revision.title !== current.title) await enqueueSubtree(tx, args.id);
     else await enqueuePages(tx, [args.id]);
   });
   kickSearchSync();
+  kickEvents();
+  kickRefs();
   return getPage({ id: args.id });
 }
 

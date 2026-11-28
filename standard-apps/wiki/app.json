@@ -2,12 +2,12 @@
   "manifestVersion": 1,
   "name": "wiki",
   "displayName": "Wiki",
-  "description": "Notes and documents for humans and agents: nested pages with a page tree, a Markdown editor with preview, links between pages with backlinks, favorites, full-text search and a history of every change with restore. Every page is also delivered to the shared search (Knowledge).",
+  "description": "Notes and documents for humans and agents: nested pages with a page tree, a Markdown editor with preview, links between pages with backlinks, mentions of people and links to tasks, deals and other items as @{app:type:id}, favorites, full-text search and a history of every change with restore. Every page is also delivered to the shared search (Knowledge).",
   "category": "knowledge",
-  "version": "0.3.2",
+  "version": "0.5.2",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "wiki-v0.3.2"
+    "tag": "wiki-v0.5.2"
   },
   "requiredTables": [
     {
@@ -33,6 +33,14 @@
     {
       "name": "search_sync",
       "description": "One row: when all pages were last queued for the shared search."
+    },
+    {
+      "name": "event_outbox",
+      "description": "Events waiting to be delivered to the platform (page changed, for people who marked it as a favorite): one row per event, written in the same transaction as the change, with attempts and the last error. Deleted after delivery."
+    },
+    {
+      "name": "refs_outbox",
+      "description": "References waiting to be delivered to the platform (set_refs): one row per page with the full set of its @{app:type:id} references and mentions, written in the same transaction as the change. Deleted after delivery."
     }
   ],
   "offeredTools": [
@@ -62,13 +70,13 @@
     },
     {
       "name": "pages.create",
-      "description": "Creates a page and the first history entry. Arguments: title (1 to 200 characters), contentMd (Markdown, may be empty), parentId (optional, a non-archived page; the new page becomes its subpage), tags (optional, at most 20 short words). Link to another page with [text](page:<id>). Returns the page like pages.get. Check with pages.search first whether the page exists.",
+      "description": "Creates a page and the first history entry. Arguments: title (1 to 200 characters), contentMd (Markdown, may be empty), parentId (optional, a non-archived page; the new page becomes its subpage), tags (optional, at most 20 short words). Link to another page with [text](page:<id>); mention someone or link an item of another app with @{human:<email>} or @{app:type:id}. Returns the page like pages.get. Check with pages.search first whether the page exists.",
       "operationId": "createPage",
       "verb": "write"
     },
     {
       "name": "pages.update",
-      "description": "Changes a page and writes a history entry with you as author. Arguments: id plus at least one of: title; contentMd (replaces all content); appendMd (appends after a blank line; not with contentMd); tags (replaces all). To add to a page prefer appendMd. Link to another page with [text](page:<id>). Returns the page like pages.get. Archived pages: 400. To change the parent use pages.move.",
+      "description": "Changes a page and writes a history entry with you as author. Arguments: id plus at least one of: title; contentMd (replaces all content); appendMd (appends after a blank line; not with contentMd); tags (replaces all). To add to a page prefer appendMd. Link to another page with [text](page:<id>); mention someone or link an item of another app with @{human:<email>} or @{app:type:id}. Returns the page like pages.get. Archived pages: 400. To change the parent use pages.move.",
       "operationId": "updatePage",
       "verb": "write"
     },
@@ -97,6 +105,12 @@
       "verb": "write"
     },
     {
+      "name": "pages.resolve",
+      "description": "Resolves page references (wiki:page:<id>) for chips in other apps. Arguments: type (page), ids (1 to 50 page ids). Returns {objects: [{id, title, path, status, updatedAt}]}; unknown ids are left out, archived pages have status Archived. The platform calls it for resolve_refs after checking that the viewer may read the wiki.",
+      "operationId": "resolvePages",
+      "verb": "read"
+    },
+    {
       "name": "favorites.list",
       "description": "Your own favorite pages (the caller's, person or agent), non-archived, sorted by title. No arguments. Returns {pages: [{id, parentId, title, tags, updatedAt, updatedBy}]}.",
       "operationId": "listFavorites",
@@ -104,7 +118,7 @@
     },
     {
       "name": "favorites.set",
-      "description": "Adds a page to your own favorites or removes it. Arguments: id; favorite (true adds, false removes). Idempotent. An archived page cannot be added (400) but can be removed. Unknown page: 404. Returns {id, favorite}.",
+      "description": "Adds a page to your own favorites or removes it. Arguments: id; favorite (true adds, false removes). Idempotent. An archived page cannot be added (400) but can be removed. Unknown page: 404. Returns {id, favorite}. People with a favorite get a notification in their platform inbox (Home) when someone else changes the page.",
       "operationId": "setFavorite",
       "verb": "write"
     },
@@ -124,6 +138,20 @@
   "search": {
     "tool": "pages.search"
   },
+  "events": [
+    {
+      "type": "page.updated",
+      "description": "The title, content or tags of a page changed (edited or restored). Goes to everyone who marked the page as a favorite.",
+      "importance": "normal"
+    }
+  ],
+  "objects": [
+    {
+      "type": "page",
+      "description": "A wiki page with its title. Reference: wiki:page:<id>.",
+      "resolver": "pages.resolve"
+    }
+  ],
   "requestedGrants": [
     {
       "subjectKind": "group",
@@ -155,6 +183,28 @@
         "name": "documents.remove"
       },
       "reason": "Archived pages are removed from the shared search. Without this grant they stay findable there until it is granted."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "wiki",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "emit_event"
+      },
+      "reason": "The wiki tells people who follow a page (favorites) that it changed, through the platform inbox. Without this grant events wait in the outbox; saving in the wiki is never affected."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "wiki",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "set_refs"
+      },
+      "reason": "The wiki reports the @{app:type:id} references and mentions on a page, so other apps show the page as a backlink and mentioned people get a notification in their inbox. Without this grant references wait in the outbox; saving in the wiki is never affected."
     }
   ],
   "env": [
@@ -192,7 +242,7 @@
       "name": "OPENAPPS_PLATFORM_URL",
       "secret": false,
       "required": false,
-      "description": "Address of the control plane in the platform network. The SDK calls Knowledge through it (callAppTool). Set by the control plane."
+      "description": "Address of the control plane in the platform network. The SDK calls Knowledge and delivers events and references through it (callAppTool). Set by the control plane."
     },
     {
       "name": "OPENAPPS_CALL_SECRET",
@@ -206,7 +256,7 @@
       "host": "openapps-control-plane",
       "protocol": "http",
       "port": 3000,
-      "reason": "Calls to other apps go through the control plane (OPENAPPS_PLATFORM_URL): delivering pages to the shared search."
+      "reason": "Calls to other apps and to the platform go through the control plane (OPENAPPS_PLATFORM_URL): delivering pages to the shared search, events to the inbox and references to the platform."
     }
   ]
 }

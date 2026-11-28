@@ -146,6 +146,38 @@ deploys. A path on the caller's machine is not needed.
 - `COOLIFY_GIT_BRANCH` is the branch that Coolify clones (default `main`). What
   gets built is always exactly the checked commit.
 
+## 7. Database extensions (pgvector, once per server)
+
+Apps that list `databaseExtensions: ["vector"]` in `app.json` (Knowledge from
+0.3.0 on, [ADR 0025](../../docs/decisions/0025-knowledge-als-optionales-rag.md),
+German) need pgvector in the schema `extensions` of the database `openapps`.
+The Postgres image of this stack brings the package; creating the extension
+needs the **superuser**, which the control plane deliberately does not have.
+On a fresh volume the init script `20-vector.sh` does it by itself. On a server
+whose volume already exists, run this **once, before the first deploy of an
+app with `databaseExtensions`**, after Coolify has redeployed the stack with
+the new image:
+
+```bash
+PG=$(docker ps --format '{{.Names}}' | grep postgres | grep -v coolify | head -1)
+docker exec "$PG" openapps-vector
+#    expected: "openapps-vector: vector 0.8.… in schema extensions of database openapps"
+
+# check: the control plane role may pass on USAGE, but has no CREATE there
+docker exec "$PG" psql -U postgres -d openapps -tA -c \
+  "SELECT has_schema_privilege('openapps_owner', 'extensions', 'USAGE WITH GRANT OPTION'),
+          has_schema_privilege('openapps_owner', 'extensions', 'CREATE')"
+#    expected: "t|f"
+```
+
+A second run changes nothing. The control plane then gives an app role
+`USAGE` on `extensions` on every deploy whose manifest asks for it, never
+`CREATE`, and takes it away again when the manifest no longer asks. If the
+step was forgotten, the deploy ends as `failed` with a message that names
+`openapps-vector`; the running version stays live. Without a model configured
+(ADR 0024) Knowledge 0.3 still only searches with full text, but it needs the
+extension all the same: its migration creates the vector column.
+
 ## What is deliberately still missing here
 
 - **A run against a real Coolify.** The adapter is written against the source

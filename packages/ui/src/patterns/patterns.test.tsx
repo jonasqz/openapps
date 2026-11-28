@@ -166,6 +166,19 @@ describe('FormPattern', () => {
     expect(screen.getByRole('link', { name: 'Titel' })).toHaveAttribute('href', `#${titel.id}`);
   });
 
+  it('ein Feld namens "title" bekommt nicht die Id der Ueberschrift', () => {
+    render(
+      <FormPattern
+        title="New page"
+        fields={[{ kind: 'text', name: 'title', label: 'Title', required: true }]}
+        onSubmit={() => {}}
+      />,
+    );
+    const input = screen.getByLabelText(/Title/);
+    expect(input.tagName).toBe('INPUT');
+    expect(document.querySelectorAll(`[id="${input.id}"]`)).toHaveLength(1);
+  });
+
   it('prüft E-Mail-Format beim Verlassen des Feldes', async () => {
     render(<FormPattern title="Antrag" fields={fields} onSubmit={() => {}} />);
     await userEvent.type(screen.getByLabelText(/E-Mail/), 'keine-mail');

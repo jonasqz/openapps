@@ -77,7 +77,58 @@ describe.skipIf(!enabled)('Wiki against Postgres', () => {
       '0004_favorites.sql',
       '0005_page_links.sql',
       '0006_search_outbox.sql',
+      '0007_event_outbox.sql',
+      '0008_refs_outbox.sql',
     ]);
+  });
+
+  it('queues the full set of references of a page and the empty set once it is archived (ADR 0023)', async () => {
+    const { wikiRefs } = await import('./refs');
+    await wikiRefs.settle();
+    delete process.env.OPENAPPS_PLATFORM_URL;
+    await query('delete from refs_outbox');
+    const page = await create({ title: 'Plan', contentMd: 'No refs yet' });
+    expect(await query('select key from refs_outbox')).toEqual([]);
+
+    await update({ id: page.id, contentMd: 'Ask @{human:kim@example.com} about @{tasks:task:42}' });
+    await wikiRefs.settle();
+    const queued = await query<{ key: string; targets: string[] }>(
+      `select key, array(select t->>'ref' from jsonb_array_elements(payload->'targets') t) as targets
+         from refs_outbox`,
+    );
+    expect(queued).toEqual([
+      { key: `wiki:page:${page.id}`, targets: ['human:kim@example.com', 'tasks:task:42'] },
+    ]);
+
+    await archivePage({ id: page.id }, AGENT);
+    await wikiRefs.settle();
+    const archived = await query<{ n: number }>(
+      `select jsonb_array_length(payload->'targets')::int as n from refs_outbox where key = $1`,
+      [`wiki:page:${page.id}`],
+    );
+    expect(archived).toEqual([{ n: 0 }]);
+  });
+
+  it('queues page.updated for the people who favorited a page, not for the editor (ADR 0022)', async () => {
+    const { wikiEvents } = await import('./events');
+    await wikiEvents.settle();
+    delete process.env.OPENAPPS_PLATFORM_URL;
+    await query('delete from event_outbox');
+    const page = await create({ title: 'Followed page', contentMd: 'v1' });
+    await setFavorite({ id: page.id, favorite: true }, 'usr_follower');
+    await setFavorite({ id: page.id, favorite: true }, AGENT);
+
+    await update({ id: page.id, contentMd: 'v2' });
+    // Nichts geaendert: keine Revision, kein Ereignis.
+    await update({ id: page.id, contentMd: 'v2' });
+    await wikiEvents.settle();
+    const rows = await query<{ type: string; audience: string[]; actor: string }>(
+      `select payload->>'type' as type, array(select jsonb_array_elements_text(payload->'audience')) as audience,
+              payload->>'actor' as actor
+         from event_outbox`,
+    );
+    expect(rows).toEqual([{ type: 'page.updated', audience: ['user:usr_follower'], actor: 'agent:editor' }]);
+    expect((await getPage({ id: page.id })).contentMd).toBe('v2');
   });
 
   it('shows the sample pages as a tree, each with a first history entry', async () => {

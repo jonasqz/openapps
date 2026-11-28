@@ -8,14 +8,16 @@
 openapi: 3.1.0
 info:
   title: Knowledge
-  version: 0.2.1
+  version: 0.3.0
   description: >-
-    The shared search of the platform and the retrieval half of a RAG. Store
-    documents, let other apps deliver their content (documents.upsert,
-    documents.remove), and find relevant passages with their source. The
-    calling agent writes the answer itself, from the returned passages and
-    citing their sources. Content from another app is only visible to callers
-    that may read that app.
+    The shared search of the platform, an optional RAG. Store documents, let
+    other apps deliver their content (documents.upsert, documents.remove), and
+    find relevant passages with their source. Without a model the search is
+    full text and the calling agent writes the answer itself, from the returned
+    passages and citing their sources. If the operator configured a model,
+    search also ranks by meaning (hybrid) and answer writes a short answer
+    whose citations are checked against the passages. Content from another
+    app is only visible to callers that may read that app.
 servers:
   # Every app lives under a path on the shared domain (ADR 0007).
   # `basePath` is the path the control plane sets per deployment in
@@ -41,10 +43,13 @@ paths:
         some of the words. Every passage comes back with chunkId, documentId,
         documentTitle, source, sourceApp and sourceUrl; excerpt marks the
         matches with « and ». Content from an app the caller may not read is
-        never returned. Answer only from these passages and cite the source for
-        every statement (documentTitle, sourceApp/sourceUrl or source, and
-        documentId/chunkId). An empty list means the documents say nothing
-        about it — do not guess.
+        never returned. If an embedding model is configured and every visible
+        section is embedded, full text and vector matches are merged
+        (reciprocal rank fusion); the input and the shape of the output stay
+        the same, only the order can change. Answer only from these passages
+        and cite the source for every statement (documentTitle,
+        sourceApp/sourceUrl or source, and documentId/chunkId). An empty list
+        means the documents say nothing about it — do not guess.
       x-openapps-verb: read
       requestBody:
         required: true
@@ -63,6 +68,70 @@ paths:
                   passages:
                     type: array
                     items: { $ref: '#/components/schemas/Passage' }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
+  /tools/answer:
+    post:
+      operationId: answer
+      summary: Answer a question with checked citations
+      description: >-
+        Searches like search, with the caller's visibility, and gives only
+        those passages to the platform model (platform.generate, counted on
+        app:knowledge). The model has to cite the chunkId of every passage it
+        relies on. Every citation is checked against the passages it was
+        given; an answer without a citation, or with one that points anywhere
+        else, is discarded and comes back as no_answer with the passages, so
+        the caller can answer from them instead of guessing. Passages from
+        apps the operator keeps in-house never reach an external provider.
+        Without a chat model the status is not_configured; use search then.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              additionalProperties: false
+              properties:
+                question: { type: string, minLength: 1, maxLength: 500 }
+                limit: { type: integer, minimum: 1, maximum: 20, default: 8, description: Maximum number of passages given to the model }
+      responses:
+        '200':
+          description: An answer with citations, no answer with the passages, or not configured
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [status, answer, citations, passages]
+                    properties:
+                      status: { type: string, enum: [answered] }
+                      answer: { type: string }
+                      citations:
+                        type: array
+                        minItems: 1
+                        items: { $ref: '#/components/schemas/Citation' }
+                      passages:
+                        type: array
+                        items: { $ref: '#/components/schemas/Passage' }
+                  - type: object
+                    required: [status, reason, message, passages]
+                    properties:
+                      status: { type: string, enum: [no_answer] }
+                      reason:
+                        type: string
+                        enum:
+                          [no_passages, not_in_sources, no_citation, invalid_citation, unreadable, withheld, budget_exceeded, model_error]
+                      message: { type: string }
+                      passages:
+                        type: array
+                        items: { $ref: '#/components/schemas/Passage' }
+                  - type: object
+                    required: [status, message]
+                    properties:
+                      status: { type: string, enum: [not_configured] }
+                      message: { type: string }
         '400': { description: The arguments do not match the tool }
         '401': { description: Not a valid call through the platform }
   /tools/documents.search:
@@ -307,6 +376,65 @@ paths:
                   removed: { type: boolean }
         '400': { description: The arguments do not match the tool, or the caller is not an app }
         '401': { description: Not a valid call through the platform }
+  /tools/embeddings.status:
+    post:
+      operationId: embeddingsStatus
+      summary: Show the state of the embeddings
+      description: >-
+        Whether search is hybrid or full text only for the caller, which
+        embedding model is used, how many visible sections are embedded,
+        withheld or pending, how many vectors of an old model still wait to be
+        removed, the last error, and the backfill progress. The backfill only
+        takes a share of the daily token limit (dailyShare) and continues the
+        next UTC day by itself; pausedUntil says until when it waits.
+      x-openapps-verb: read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '200':
+          description: State of the embeddings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmbeddingStatus' }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
+  /tools/embeddings.backfill:
+    post:
+      operationId: backfillEmbeddings
+      summary: Embed pending sections now
+      description: >-
+        Embeds pending sections, as many as fit into about 20 seconds and into
+        today's share of the token limit; the rest follows in the background.
+        Retries sections that were withheld before and lifts a pause caused by
+        an error, never the pause of the daily share. The token limit itself
+        is set by the operator, not here.
+      x-openapps-verb: write
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '200':
+          description: What this run did, and the state afterwards
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [retriedWithheld, embedded, withheld, pending, removedOld, stopped, status]
+                properties:
+                  retriedWithheld: { type: integer }
+                  embedded: { type: integer }
+                  withheld: { type: integer }
+                  pending: { type: integer }
+                  removedOld: { type: integer }
+                  stopped: { type: [string, 'null'], description: Why the run stopped early }
+                  status: { $ref: '#/components/schemas/EmbeddingStatus' }
+        '400': { description: The arguments do not match the tool }
+        '401': { description: Not a valid call through the platform }
 components:
   schemas:
     SearchInput:
@@ -341,6 +469,53 @@ components:
         score: { type: number, description: Rank, only comparable within one response }
         excerpt: { type: string, description: Excerpt, matches marked with « and » }
         text: { type: string, description: Full text of the section }
+    Citation:
+      type: object
+      required: [chunkId, documentId, documentTitle, ord, source, sourceApp, sourcePath, sourceUrl]
+      properties:
+        chunkId: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        documentTitle: { type: string }
+        ord: { type: integer, minimum: 0 }
+        source: { type: [string, 'null'] }
+        sourceApp: { type: [string, 'null'] }
+        sourcePath: { type: [string, 'null'] }
+        sourceUrl: { type: [string, 'null'], format: uri }
+    EmbeddingStatus:
+      type: object
+      required: [configured, model, search, coverage, oldVectors, backfill, lastRunAt, lastError, lastErrorAt, note]
+      properties:
+        configured: { type: boolean }
+        model:
+          type: [object, 'null']
+          properties:
+            provider: { type: string }
+            model: { type: string }
+            dimensions: { type: [integer, 'null'] }
+            local: { type: boolean }
+            since: { type: [string, 'null'], format: date-time }
+        search: { type: string, enum: [hybrid, fulltext] }
+        coverage:
+          type: [object, 'null']
+          properties:
+            sections: { type: integer }
+            embedded: { type: integer }
+            withheld: { type: integer }
+            pending: { type: integer }
+        oldVectors: { type: integer }
+        backfill:
+          type: object
+          properties:
+            dailyShare: { type: number }
+            allowanceToday: { type: [integer, 'null'] }
+            pendingTokens: { type: integer }
+            estimatedDays: { type: [integer, 'null'] }
+            pausedUntil: { type: [string, 'null'], format: date-time }
+            pausedReason: { type: [string, 'null'] }
+        lastRunAt: { type: [string, 'null'], format: date-time }
+        lastError: { type: [string, 'null'] }
+        lastErrorAt: { type: [string, 'null'], format: date-time }
+        note: { type: string }
     DocumentInput:
       type: object
       required: [title, content]

@@ -17,10 +17,11 @@ function row(kind: CrmSearchRow['kind'], extra: Partial<CrmSearchRow> = {}): Crm
 }
 
 describe('search', () => {
-  it('is the read tool named in the manifest, version 0.3.0', () => {
+  it('is the read tool named in the manifest, version 0.5.2', () => {
     expect(manifest.search).toEqual({ tool: 'search' });
     expect(manifest.offeredTools.find((tool) => tool.name === 'search')?.verb).toBe('read');
-    expect(manifest.version).toBe('0.3.0');
+    expect(manifest.version).toBe('0.5.2');
+    expect(manifest.source.tag).toBe('crm-v0.5.2');
   });
 
   it('rejects empty, too long and unknown arguments before the database', () => {

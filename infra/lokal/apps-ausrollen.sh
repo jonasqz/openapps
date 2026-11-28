@@ -27,7 +27,9 @@ lokal="$here/lokal.sh"
 services=()
 for app in "$@"; do services+=("app-$app"); done
 if [[ ${#services[@]} -eq 0 ]]; then
-  services=(control-plane)
+  # postgres zuerst: Das Image bringt pgvector mit (ADR 0025). Ein neues
+  # Image ersetzt nur den Container, das Volume mit den Daten bleibt.
+  services=(postgres control-plane)
   while read -r svc; do services+=("$svc"); done < <("$lokal" config --services 2>/dev/null | grep '^app-')
 fi
 for svc in "${services[@]}"; do
@@ -35,6 +37,16 @@ for svc in "${services[@]}"; do
   "$lokal" build --quiet "$svc"
 done
 "$lokal" up -d --remove-orphans >/dev/null
+
+# pgvector im Schema `extensions` (ADR 0025), als Superuser im Container der
+# Datenbank. Init-Skripte laufen nur bei leerem Volume; dieser Schritt deckt
+# das bestehende Volume ab und aendert beim zweiten Lauf nichts. Er muss vor
+# dem Deploy stehen: Eine App mit `databaseExtensions` startet sonst nicht.
+if ! "$lokal" exec -T postgres openapps-vector; then
+  echo "Database extensions: openapps-vector failed. Rebuild the database image with" >&2
+  echo "  ./infra/lokal/apps-ausrollen.sh   (without arguments)" >&2
+  exit 1
+fi
 
 umask 077
 mkdir -p "$here/.agents"

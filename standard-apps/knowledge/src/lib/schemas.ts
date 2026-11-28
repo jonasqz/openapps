@@ -25,6 +25,22 @@ export const SearchArgs = z
 export type SearchArgs = z.infer<typeof SearchArgs>;
 
 /**
+ * `answer` (ADR 0025 E): eine Frage, und wie viele Abschnitte das Modell
+ * hoechstens bekommt.
+ */
+export const ANSWER_LIMIT_DEFAULT = 8;
+export const AnswerArgs = z
+  .object({
+    question: z.string().trim().min(1, 'question must not be empty').max(QUERY_MAX),
+    limit: z.number().int().min(1).max(SEARCH_LIMIT_MAX).default(ANSWER_LIMIT_DEFAULT),
+  })
+  .strict();
+export type AnswerArgs = z.infer<typeof AnswerArgs>;
+
+/** Tools ohne Argumente: `{}` oder gar kein Body. */
+export const NoArgs = z.object({}).strict();
+
+/**
  * `documents.search`, das Such-Tool fuer die Suche ueber alle Apps (ADR 0021).
  * Dieselben Grenzen wie das feste Format der Plattform (`parseSearchArgs` in
  * `@openapps/sdk`): Suchtext bis 200 Zeichen, 1 bis 20 Treffer.

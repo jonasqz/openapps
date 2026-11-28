@@ -9,7 +9,7 @@
 openapi: 3.1.0
 info:
   title: Tasks
-  version: 0.2.0
+  version: 0.5.2
   description: >-
     Team tasks for people and agents: status (todo, in_progress, done),
     assignee (email), due date, priority, projects, comments and a history of
@@ -235,6 +235,86 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /tools/tasks.create_from_ref:
+    post:
+      operationId: createTaskFromRef
+      summary: Create a task from an item of another app
+      description: >-
+        Creates a task from a wiki page or a deal (ADR 0023, manifest field
+        actions). The task stores the reference to its source and reports it
+        to the platform as kind derived, so the source shows the task among
+        its backlinks.
+      x-openapps-verb: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceRef]
+              additionalProperties: false
+              properties:
+                sourceRef: { type: string, maxLength: 400, description: 'wiki:page:<id> or crm:deal:<id>' }
+                excerpt: { type: string, maxLength: 2000, description: Becomes the description; its first line is the title if title is missing. }
+                title: { type: string, minLength: 1, maxLength: 200 }
+                assignee: { type: string, format: email, maxLength: 200 }
+                dueDate: { type: string, format: date }
+                priority: { $ref: '#/components/schemas/Priority' }
+                status: { $ref: '#/components/schemas/Status' }
+                projectId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The new task
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task]
+                properties:
+                  task: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /tools/tasks.resolve:
+    post:
+      operationId: resolveTaskObjects
+      summary: Resolve task and project references for other apps
+      description: >-
+        The resolver of Tasks (manifest field objects). The platform calls it
+        for resolve_refs after checking that the viewer may read Tasks.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, ids]
+              additionalProperties: false
+              properties:
+                type: { type: string, enum: [task, project] }
+                ids: { type: array, minItems: 1, maxItems: 50, items: { type: string, maxLength: 128 } }
+      responses:
+        '200':
+          description: Found objects; unknown ids are left out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [objects]
+                properties:
+                  objects:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, path, updatedAt]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        path: { type: string, description: 'Path in Tasks without the base path' }
+                        status: { type: string }
+                        updatedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /tools/projects.list:
     post:
       operationId: listProjects
@@ -395,6 +475,7 @@ components:
         - completedAt
         - completedBy
         - commentCount
+        - sourceRef
         - createdBy
         - createdAt
         - updatedAt
@@ -413,6 +494,7 @@ components:
         completedAt: { type: [string, 'null'], format: date-time }
         completedBy: { type: [string, 'null'] }
         commentCount: { type: integer }
+        sourceRef: { type: [string, 'null'], description: 'Reference to the item of another app the task was created from, e.g. wiki:page:<id>.' }
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }

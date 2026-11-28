@@ -11,6 +11,8 @@ import {
   USER_ID_HEADER,
   type ToolRouteOptions,
 } from '@openapps/sdk';
+import { TASK_EVENT_TYPES } from './events';
+import { ACCEPTED_SOURCES } from './refs';
 import { TOOL_NAMES, toolHandlers } from './tools';
 
 /**
@@ -75,10 +77,52 @@ describe('Manifest', () => {
     expect(manifest.requiredTables.map((table) => table.name).sort()).toEqual(created.sort());
   });
 
-  it('steht auf Version 0.3.0 und behaelt die lokale Quelle', () => {
+  it('steht auf Version 0.5.2 und behaelt die lokale Quelle', () => {
     const manifest = parseAppManifest(JSON.parse(manifestText));
-    expect(manifest.version).toBe('0.3.0');
+    expect(manifest.version).toBe('0.5.2');
     expect(manifest.source.tag).toBe('lokal');
+  });
+
+  it('erklaert genau die Ereignisse, die der Code meldet, und beantragt emit_event fuer sich', () => {
+    const manifest = parseAppManifest(JSON.parse(manifestText));
+    expect((manifest.events ?? []).map((event) => event.type).sort()).toEqual([...TASK_EVENT_TYPES].sort());
+    expect(manifest.requestedGrants).toContainEqual(
+      expect.objectContaining({
+        subjectKind: 'app',
+        subjectId: 'tasks',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'platform', name: 'emit_event' },
+      }),
+    );
+    expect(manifest.env.map((entry) => entry.name)).toEqual(
+      expect.arrayContaining(['OPENAPPS_PLATFORM_URL', 'OPENAPPS_CALL_SECRET']),
+    );
+    expect(manifest.egress.map((entry) => entry.host)).toEqual(['openapps-control-plane']);
+  });
+
+  it('erklaert task und project mit Resolver, die Aktion aus Wiki und CRM und beantragt set_refs', () => {
+    const manifest = parseAppManifest(JSON.parse(manifestText));
+    expect((manifest.objects ?? []).map((object) => [object.type, object.resolver])).toEqual([
+      ['task', 'tasks.resolve'],
+      ['project', 'tasks.resolve'],
+    ]);
+    expect(manifest.actions).toEqual([
+      {
+        name: 'task_from_ref',
+        title: 'Create task',
+        accepts: [...ACCEPTED_SOURCES],
+        tool: 'tasks.create_from_ref',
+        path: '/new',
+      },
+    ]);
+    expect(manifest.requestedGrants).toContainEqual(
+      expect.objectContaining({
+        subjectKind: 'app',
+        subjectId: 'tasks',
+        verb: 'execute',
+        resource: { kind: 'tool', app: 'platform', name: 'set_refs' },
+      }),
+    );
   });
 
   it('haelt jede Tool-Beschreibung englisch und ohne Umlaute', () => {
@@ -102,8 +146,10 @@ describe('Tool-Zuordnung', () => {
       'tasks.comment',
       'tasks.complete',
       'tasks.create',
+      'tasks.create_from_ref',
       'tasks.get',
       'tasks.list',
+      'tasks.resolve',
       'tasks.update',
     ];
     expect([...TOOL_NAMES].sort()).toEqual(expected);
@@ -120,9 +166,13 @@ describe('Tool-Zuordnung', () => {
     expect(operations.length).toBe(manifest.offeredTools.length);
   });
 
-  it('beschreibt nur list, get und search als read, alles, was schreibt, als write', () => {
+  it('beschreibt nur list, get, resolve und search als read, alles, was schreibt, als write', () => {
     for (const tool of manifest.offeredTools) {
-      const reads = tool.name.endsWith('.list') || tool.name.endsWith('.get') || tool.name === 'search';
+      const reads =
+        tool.name.endsWith('.list') ||
+        tool.name.endsWith('.get') ||
+        tool.name.endsWith('.resolve') ||
+        tool.name === 'search';
       expect(tool.verb, tool.name).toBe(reads ? 'read' : 'write');
     }
   });
@@ -233,6 +283,18 @@ describe('Tool-Route mit den Handlern von tasks', () => {
       ['tasks.list', { mine: true, assignee: 'sam@example.com' }],
       ['tasks.list', { status: 'done', completed: true }],
       ['tasks.list', { projectId: 'website' }],
+      // create_from_ref: nur Verweise auf Wiki-Seiten und Deals
+      ['tasks.create_from_ref', {}],
+      ['tasks.create_from_ref', { sourceRef: 'nonsense' }],
+      ['tasks.create_from_ref', { sourceRef: 'tasks:task:1' }],
+      ['tasks.create_from_ref', { sourceRef: 'human:anna@example.com' }],
+      ['tasks.create_from_ref', { sourceRef: 'wiki:page:p1', createdBy: 'someone' }],
+      ['tasks.create_from_ref', { sourceRef: 'wiki:page:p1', excerpt: 'x'.repeat(2001) }],
+      // resolve: das feste Format der Plattform
+      ['tasks.resolve', {}],
+      ['tasks.resolve', { type: 'comment', ids: ['1'] }],
+      ['tasks.resolve', { type: 'task', ids: [] }],
+      ['tasks.resolve', { type: 'task', ids: Array.from({ length: 51 }, (_, i) => String(i)) }],
       // projects
       ['projects.create', {}],
       ['projects.create', { name: '  ' }],

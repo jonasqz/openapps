@@ -5,6 +5,7 @@ import type { JSX, KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, FormPattern, Select, Tabs, Textarea, type FormValues } from '@openapps/ui';
 import { Markdown } from '@/components/Markdown';
+import { WikiMentionPicker } from '@/components/Refs';
 import { draftKey, isStale, parseDraft, serializeDraft, type Draft } from '@/lib/draft';
 import {
   insertAt,
@@ -18,13 +19,17 @@ import {
 import { formatDateTime } from '@/lib/format';
 import { LIMITS, Tags, Title, splitTags } from '@/lib/schemas';
 import { createPageAction, updatePageAction, type ActionResult } from './actions';
+import type { MentionOption } from '@openapps/ui';
 
 /**
  * Anlegen und Bearbeiten einer Seite. Titel und Tags laufen durch
  * `FormPattern` (Validierung sichtbar am Feld), der Inhalt durch einen
  * Markdown-Editor aus `Textarea` und `Tabs` des Design Systems: Schreiben,
  * Vorschau, eine Leiste fuer Bloecke (Ueberschrift, Liste, Checkliste, Zitat,
- * Code) und Links auf andere Seiten.
+ * Code), Links auf andere Seiten und „Mention or link“: Personen erwaehnen und
+ * Objekte anderer Apps verlinken (ADR 0023). Eingefuegt wird nur der Verweis
+ * `@{app:typ:id}`, nie ein Titel; die Plattform loest ihn beim Lesen mit den
+ * Rechten der lesenden Person auf.
  *
  * Waehrend des Schreibens legt der Editor einen Entwurf im Browser ab (siehe
  * `lib/draft.ts`). Gespeichert wird erst mit „Save“ ueber die Server Actions,
@@ -96,6 +101,7 @@ export function PageForm(props: PageFormProps): JSX.Element {
   const [pendingDraft, setPendingDraft] = useState<Draft | undefined>(undefined);
   const [draftStatus, setDraftStatus] = useState<string | undefined>(undefined);
   const [linkChoice, setLinkChoice] = useState('');
+  const [mentioning, setMentioning] = useState(false);
 
   const textarea = useRef<HTMLTextAreaElement>(null);
   const nextSelection = useRef<{ start: number; end: number } | null>(null);
@@ -173,6 +179,11 @@ export function PageForm(props: PageFormProps): JSX.Element {
     setLinkChoice('');
     if (target === undefined) return;
     apply((text, start, end) => insertAt(text, start, end, pageLinkMarkdown(target)));
+  };
+
+  const onMention = (option: MentionOption): void => {
+    setMentioning(false);
+    apply((text, start, end) => insertAt(text, start, end, `@{${option.ref}}`));
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -299,6 +310,14 @@ export function PageForm(props: PageFormProps): JSX.Element {
               {block.label}
             </Button>
           ))}
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-expanded={mentioning}
+            onClick={() => setMentioning((open) => !open)}
+          >
+            Mention or link
+          </Button>
           {props.linkTargets === null ? (
             <span className="text-xs text-fg-muted">Pages for links could not be loaded.</span>
           ) : (
@@ -315,6 +334,12 @@ export function PageForm(props: PageFormProps): JSX.Element {
           )}
         </div>
 
+        {mentioning ? (
+          <div className="rounded-md border border-border p-3">
+            <WikiMentionPicker onSelect={onMention} onCancel={() => setMentioning(false)} />
+          </div>
+        ) : null}
+
         <Tabs
           label="Editor"
           tabId={tab}
@@ -327,7 +352,7 @@ export function PageForm(props: PageFormProps): JSX.Element {
                 <Textarea
                   ref={textarea}
                   label="Content (Markdown)"
-                  hint="# Heading, - list, - [ ] checklist, > quote, **bold** (⌘B), *italic* (⌘I), [link](https://…). ⌘Enter saves."
+                  hint="# Heading, - list, - [ ] checklist, > quote, **bold** (⌘B), *italic* (⌘I), [link](https://…), @{human:email} mentions. ⌘Enter saves."
                   value={content}
                   onChange={(event) => setContent(event.target.value)}
                   onKeyDown={onKeyDown}

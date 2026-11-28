@@ -140,6 +140,7 @@ describe('tool mapping', () => {
         'contacts.get',
         'contacts.list',
         'contacts.update',
+        'crm.resolve',
         'deals.create',
         'deals.get',
         'deals.list',
@@ -157,7 +158,7 @@ describe('tool mapping', () => {
 
   it('declares reads as read and everything that writes as write', () => {
     for (const tool of manifest.offeredTools) {
-      const reads = /\.(list|get|summary)$/.test(tool.name) || tool.name === 'search';
+      const reads = /\.(list|get|summary|resolve)$/.test(tool.name) || tool.name === 'search';
       expect(tool.verb, tool.name).toBe(reads ? 'read' : 'write');
     }
   });
@@ -238,6 +239,10 @@ describe('tool route with the CRM handlers', () => {
       ['next_steps.list', { status: 'late' }],
       ['next_steps.complete', { id: 'x' }],
       ['next_steps.reopen', { id: '0e000000-0000-4000-8000-000000000001', note: 'not allowed' }],
+      ['crm.resolve', {}],
+      ['crm.resolve', { type: 'task', ids: ['1'] }],
+      ['crm.resolve', { type: 'deal', ids: [] }],
+      ['crm.resolve', { type: 'deal', ids: ['1'], limit: 5 }],
     ];
     for (const [tool, args] of cases) {
       const response = await call(tool, args);

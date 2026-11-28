@@ -119,6 +119,85 @@ entry `search` per search, without the query text. Logic in
 and `tests/platform-search-http.spec.ts`. Locally, the viewing proxy on 8090
 answers `/_platform/search` itself, as the viewer (`ansichtSearch`).
 
+## Events, inbox and Home
+
+Apps report events through the reserved target `platform`
+(`POST /api/apps/platform/tools/emit_event`, ADR 0022), signed like any app
+call (ADR 0020) and only with `execute` on `tool:platform.emit_event`. The type
+must be declared under `events` in the manifest of the running version
+(otherwise 400 with an audit entry); the same id twice is `duplicate`.
+Accepted events live in `events` (migration 0017), not in the audit log. The
+control plane derives one row in `notifications` (0018) per recipient: groups
+are resolved to their members of now, the actor gets nothing, and only
+subjects with `read` on the source app get a row. `GET /api/inbox` (also as
+`/_platform/inbox` on the app domain) and `POST /api/inbox/mark` check `read`
+again on every call, so a revoke hides the rows at once; the MCP tools are
+`list_inbox` and `mark_inbox`, the page is `/home`. Apps subscribe with
+`subscriptions` in the manifest and `platform.poll_events` /
+`platform.ack_events`; the cursor per subscription is in `event_cursors`
+(0019). A daily run deletes events and their notifications after
+`OPENAPPS_EVENTS_RETENTION_DAYS` (default 90). Logic in `src/domain/events.ts`,
+tests in `tests/events*.spec.ts`.
+
+## References between apps
+
+Apps report the full set of an item's outgoing references through
+`platform.set_refs` (ADR 0023), signed like any app call and only with
+`execute` on `tool:platform.set_refs`; the source must be the caller's own
+item of a type it declares under `objects`. `ref_sources` and `refs`
+(migration 0020) keep the state per source; an older state is `stale`, an
+empty set deletes. A newly mentioned person, group or agent gets
+`platform.mentioned` in the inbox, only with `read` on the source app.
+`GET /api/refs/resolve`, `/api/refs/backlinks`, `/api/refs/actions` and
+`/api/people` (also as `/_platform/refs/…` and `/_platform/people` on the app
+domain) read the person from the session only; the MCP tools are
+`resolve_refs`, `list_backlinks`, `list_actions` and `list_people`.
+Resolving checks `read` (agents also `execute` on the resolver) before every
+call to the app and before the 60-second cache. Logic in `src/domain/refs.ts`,
+tests in `tests/refs*.spec.ts`.
+
+## Models, platform agents and team memory
+
+The platform calls a model only with the operator's own key (ADR 0024), set
+in the env and nowhere else: `OPENAPPS_CHAT_PROVIDER` (`anthropic`, `gemini`,
+`openai-compatible`), `OPENAPPS_CHAT_MODEL`, `OPENAPPS_CHAT_API_KEY`,
+`OPENAPPS_CHAT_BASE_URL` (only `openai-compatible`, also local such as Ollama)
+and the same four with `OPENAPPS_EMBEDDING_` plus
+`OPENAPPS_EMBEDDING_DIMENSIONS`. There is no default model. Without them every
+model function answers `not_configured`, `/healthz` shows the state as a note,
+and Home shows neither the summary nor "Ask agent". The adapters live in
+`src/adapters/models`; the key stays in the adapter, only in a header, and
+never appears in an error, the audit log or a response.
+
+Every call writes a row to `model_usage` (migration 0021) and an audit entry
+`model_call` without prompt or answer. Daily limits per UTC day are checked
+before the call: `OPENAPPS_MODEL_DAILY_TOKENS` (default 1 000 000 per
+installation) and `OPENAPPS_MODEL_DAILY_TOKENS_PER_SUBJECT` (default 200 000);
+exceeded is `budget_exceeded` (429). Content from the apps in
+`OPENAPPS_MODEL_LOCAL_ONLY_APPS` never goes to an external provider: it is
+`withheld` (audit without content), runs do not see those apps' tools, and the
+memory does not pass their notes on. Local means only `openai-compatible` with
+a loopback, private or dotless base URL.
+
+Apps use the model through `platform.generate` and `platform.embed`
+(`execute` grant each); `platform.model_info` (ADR 0025) needs one of the two
+grants, calls no model and returns the model per granted tool and today's
+budget of the app (`limit`, `used`, `resetsAt`). An app that lists
+`databaseExtensions: ["vector"]` gets `USAGE` on the schema `extensions` on
+every deploy, never `CREATE` (`app_database_extensions`, migration 0025); a
+missing extension fails the deploy with the hint to `openapps-vector`. Platform agents are agent identities with a profile
+(`agent_profiles`, 0022; `configure_agent`, `PUT /api/agents/:agent/profile`).
+A run (`agent_runs`, 0023) starts with `start_agent_run`
+(`POST /api/agent-runs`, "Ask agent" on Home) or when a mention of the agent
+reaches its inbox; starting needs `execute` on `agent:<name>`. Its rights are
+the agent's grants intersected with those of the person who started it
+(`src/domain/run-rights.ts`). The team memory (`memories`, 0024) lives behind
+the port `TeamMemoryStore`; a note is visible only to callers who may read
+every app of its origin. Logic in `src/domain/models.ts`,
+`src/domain/agent-runs.ts` and `src/domain/team-memory.ts`, tests in
+`tests/model*.spec.ts`, `tests/agent-runs*.spec.ts` and
+`tests/team-memory.spec.ts`.
+
 ## Repo backend
 
 `create_app` creates the repo before it registers. If that fails, nothing is

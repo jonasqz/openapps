@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { ToolNotFoundError } from '@openapps/sdk';
 import { Badge, Card, CardBody, CardHeader, ErrorState, PageHeader } from '@openapps/ui';
 import { AppLinks } from '@/components/AppLinks';
+import { CrmActions, CrmBacklinks } from '@/components/Refs';
 import { ButtonLink, TextLink } from '@/components/links';
 import { NextStepList } from '@/components/NextStepList';
 import { Properties } from '@/components/Properties';
@@ -10,6 +11,7 @@ import { Timeline } from '@/components/Timeline';
 import { getDeal, type DealDetail } from '@/lib/crm';
 import { isClosedStage, STAGE_LABELS, STAGE_PROBABILITY } from '@/lib/domain';
 import { formatDate, formatDateTime, formatDay, formatEuro } from '@/lib/format';
+import { crmRef } from '@/lib/refs';
 import { uuid } from '@/lib/schemas';
 import { nextStepView } from '@/lib/views';
 
@@ -18,6 +20,8 @@ export const dynamic = 'force-dynamic';
 /**
  * Ein Deal mit Stage, naechsten Schritten und Zeitleiste. Dieselben Daten
  * liefert das Tool `deals.get`; die Stage aendert `deals.update_stage`.
+ * Dazu (ADR 0023): Rueckverweise aus anderen Apps und „Create task“ in
+ * Tasks (`list_actions`), beides im Browser ueber die Plattform.
  */
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const parsed = uuid.safeParse((await params).id);
@@ -144,6 +148,17 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               { label: 'Updated', value: formatDay(deal.updatedAt) },
             ]}
           />
+          <Card>
+            <CardHeader as="h2" title="Create from this deal" description="You confirm it in the other app." />
+            <CardBody>
+              <CrmActions refValue={crmRef('deal', deal.id)} excerpt={deal.title} />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <CrmBacklinks refValue={crmRef('deal', deal.id)} />
+            </CardBody>
+          </Card>
         </div>
       </div>
     </AppLinks>

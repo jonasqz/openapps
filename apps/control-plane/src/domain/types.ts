@@ -163,6 +163,7 @@ export interface AgentIdentity {
 export type {
   AppManifest,
   AppManifestInput,
+  DatabaseExtension,
   EgressTarget,
   EnvVar,
   ManifestSource,

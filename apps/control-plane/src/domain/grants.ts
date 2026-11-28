@@ -17,6 +17,7 @@ import { audited } from './audit';
 import { requireAppPermission } from './apps';
 import { can, requirePermission } from './can';
 import { ConflictError, NotFoundError } from './errors';
+import { PLATFORM_AGENT_TOOLS, PLATFORM_APP_TOOLS, PLATFORM_TARGET } from './events';
 import { parseObjectResourceId } from './naming';
 import type { DomainContext } from './context';
 import type { Actor, Grant, ResourceRef, SubjectRef, Verb } from './types';
@@ -56,9 +57,24 @@ async function requireAuthorityOver(
     return;
   }
 
-  const { appName } = parseObjectResourceId(resource.id, {
+  const { appName, objectName } = parseObjectResourceId(resource.id, {
     allowDotInObject: resource.kind === 'tool',
   });
+
+  // Die Plattform-Tools fuer Apps (ADR 0022 A, `tool:platform.<name>`)
+  // gehoeren keiner App. Ueber sie entscheidet, wer ueber alle Apps
+  // entscheidet: dasselbe Verb auf `app:*`, also die Plattform-Administration.
+  // Ein Name ausserhalb der Liste ist kein Tool und wird nicht freigegeben.
+  if (resource.kind === 'tool' && appName === PLATFORM_TARGET) {
+    // Seit ADR 0024 auch `generate` und `embed` (Apps) und das Gedaechtnis
+    // (`remember`, `recall`, Agents).
+    if (!PLATFORM_APP_TOOLS.includes(objectName) && !PLATFORM_AGENT_TOOLS.includes(objectName)) {
+      throw new NotFoundError(`the platform offers no tool "${objectName}" to apps`);
+    }
+    await requirePermission(ctx, actor, verb, { kind: 'app', id: '*' });
+    return;
+  }
+
   const owner = await ctx.apps.findByName(appName);
   if (owner === null) throw new NotFoundError(`App "${appName}" does not exist`);
   await requireAppPermission(ctx, actor, verb, owner);

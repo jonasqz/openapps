@@ -50,6 +50,13 @@ export function createHarness(): Harness {
     reviewGate: createPipeline([]),
     provisioner: createRecordingProvisioner(),
     authMasterSecret: TEST_MASTER_SECRET,
+    events: store.events,
+    users: store.users,
+    refs: store.refs,
+    modelUsage: store.modelUsage,
+    agentProfiles: store.agentProfiles,
+    agentRuns: store.agentRuns,
+    memories: store.memories,
   };
   return { ctx, store };
 }

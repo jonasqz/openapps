@@ -125,6 +125,26 @@ export async function createTaskAction(values: FormInput): Promise<ActionResult>
 }
 
 /**
+ * Tool `tasks.create_from_ref` (ADR 0023 E): die Person bestaetigt in Tasks,
+ * unter ihrer eigenen Identitaet aus der Forward-Auth, eine Aufgabe aus einem
+ * Objekt einer anderen App. Der Verweis kommt aus der Adresse, die die
+ * Plattform gebaut hat; das Tool prueft ihn trotzdem.
+ */
+export async function createTaskFromRefAction(
+  sourceRef: string,
+  values: FormInput,
+): Promise<ActionResult> {
+  const args: Record<string, string> = { sourceRef };
+  for (const key of ['title', 'assignee', 'dueDate', 'priority', 'status', 'projectId'] as const) {
+    const value = text(values, key);
+    if (value !== '') args[key] = value;
+  }
+  const description = typeof values.description === 'string' ? values.description : '';
+  if (description.trim() !== '') args.excerpt = description;
+  return runTool('tasks.create_from_ref', args, idOf('task'));
+}
+
+/**
  * Tool `tasks.update` aus dem Bearbeiten-Formular. Nur geaenderte Felder
  * gehen mit; ein geleertes Feld wird zu `null` (Zuweisung, Datum, Projekt).
  * So scheitert ein Speichern nicht an einem alten Wert, den niemand anfasste.

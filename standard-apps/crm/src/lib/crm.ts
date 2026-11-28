@@ -1,5 +1,7 @@
 import { ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { query, withTransaction, type Query } from './db';
+import { kickRefs, reportActivityRefs, reportNextStepRefs } from './refs';
+import { dealClosedEvent, emitCrmEvents, kickEvents, stepAssignedEvent } from './events';
 import { CLOSED_STAGES, OPEN_STAGES, type ActivityKind, type Stage } from './domain';
 import { summarizePipeline, type PipelineSummary, type StageAggregate } from './pipeline';
 import type {
@@ -709,8 +711,8 @@ export async function updateDealStage(
   args: DealUpdateStageArgs,
   callerId: string,
 ): Promise<StageChange> {
-  return translated(() =>
-    withTransaction(async (q) => {
+  const change = await translated(() =>
+    withTransaction(async (q): Promise<StageChange> => {
       const current = await q<{ stage: Stage; company_id: string; contact_id: string | null }>(
         'select stage, company_id, contact_id from deals where id = $1 for update',
         [args.id],
@@ -739,10 +741,16 @@ export async function updateDealStage(
 
       const deal = await getDealById(q, args.id);
       if (deal === null) throw new ToolNotFoundError('Deal not found.');
+      // Gewonnen oder verloren: Ereignis in derselben Transaktion (ADR 0022).
+      if (args.stage === 'won' || args.stage === 'lost') {
+        await emitCrmEvents(q, [dealClosedEvent(deal, args.stage, activityId, callerId)]);
+      }
       const activities = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [activityId]);
       return { deal, changed: true, activity: toActivity(firstOrThrow(activities, 'Activity')) };
     }),
   );
+  if (change.changed) kickEvents();
+  return change;
 }
 
 // --- Aktivitaeten -----------------------------------------------------------
@@ -828,10 +836,12 @@ export async function logActivity(args: ActivityLogArgs, callerId: string): Prom
         ],
       );
       const { id } = firstOrThrow(inserted, 'Activity');
+      // Verweise und Erwaehnungen in Betreff und Text (ADR 0023), in derselben Transaktion.
+      await reportActivityRefs(q, id, callerId);
       const rows = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [id]);
       return toActivity(firstOrThrow(rows, 'Activity'));
     }),
-  );
+  ).finally(kickRefs);
 }
 
 // --- Naechste Schritte -----------------------------------------------------
@@ -883,7 +893,7 @@ async function getNextStepById(q: Query, id: string): Promise<NextStep | null> {
 }
 
 export async function createNextStep(args: NextStepCreateArgs, callerId: string): Promise<NextStep> {
-  return translated(() =>
+  const created = await translated(() =>
     withTransaction(async (q) => {
       const companyId = await companyFor(q, args.companyId, args.dealId, args.contactId);
       const inserted = await q<{ id: string }>(
@@ -902,9 +912,16 @@ export async function createNextStep(args: NextStepCreateArgs, callerId: string)
       );
       const step = await getNextStepById(q, firstOrThrow(inserted, 'Next step').id);
       if (step === null) throw new Error('Next step not readable after create');
+      // Fuer jemand anderen geplant: Ereignis in derselben Transaktion (ADR 0022).
+      const assigned = stepAssignedEvent(step, callerId);
+      await emitCrmEvents(q, assigned === null ? [] : [assigned]);
+      await reportNextStepRefs(q, step.id, callerId);
       return step;
     }),
   );
+  kickEvents();
+  kickRefs();
+  return created;
 }
 
 export interface NextStepChange {
@@ -972,9 +989,10 @@ export async function setNextStepDone(
           callerId,
         ],
       );
-      const activities = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [
-        firstOrThrow(inserted, 'Activity').id,
-      ]);
+      const activityId = firstOrThrow(inserted, 'Activity').id;
+      // Eine Notiz beim Erledigen kann Verweise tragen (ADR 0023).
+      await reportActivityRefs(q, activityId, callerId);
+      const activities = await q<ActivityRow>(`${ACTIVITY_SELECT} where a.id = $1`, [activityId]);
       const step = await getNextStepById(q, id);
       if (step === null) throw new ToolNotFoundError('Next step not found.');
       return {
@@ -987,7 +1005,7 @@ export async function setNextStepDone(
 }
 
 export const completeNextStep = (args: NextStepCompleteArgs, callerId: string) =>
-  setNextStepDone(args.id, true, args.note, callerId);
+  setNextStepDone(args.id, true, args.note, callerId).finally(kickRefs);
 
 export const reopenNextStep = (id: string, callerId: string) =>
   setNextStepDone(id, false, undefined, callerId);

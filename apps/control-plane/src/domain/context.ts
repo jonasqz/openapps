@@ -6,18 +6,26 @@
 
 import type {
   AgentIdentityRepository,
+  AgentProfileRepository,
+  AgentRunRepository,
   AlarmSink,
   AppRepository,
   AuditRepository,
   Clock,
   DeploymentBackend,
   DeploymentRepository,
+  EventRepository,
   GatewayConfigStore,
   GrantRepository,
   GroupRepository,
   IdGenerator,
+  ModelSetup,
+  ModelUsageRepository,
+  RefRepository,
   RepositoryBackend,
   SchemaProvisioner,
+  TeamMemoryStore,
+  UserDirectory,
 } from './ports';
 import type { ReviewPipeline } from './review-gate/types';
 import type { GatewayConfigInput } from './gateway-config';
@@ -79,6 +87,41 @@ export interface DomainContext {
    * geht nie verloren, er ist nur weniger sichtbar.
    */
   readonly alarms?: AlarmSink;
+  /**
+   * Ereignisse, Benachrichtigungen und Abonnements (ADR 0022). Fehlt der
+   * Anschluss, scheitern die Plattform-Tools dafuer mit einem Fehler; nichts
+   * wird ohne Pruefung angenommen oder gezeigt.
+   */
+  readonly events?: EventRepository;
+  /**
+   * Wer sich schon angemeldet hat (Better Auth). Fehlt er, faellt eine
+   * Empfaenger-Angabe `user:<id>` weg und Freigaben auf eine Nutzer-Id zaehlen
+   * beim Ableiten nicht: weniger Benachrichtigungen, nie mehr.
+   */
+  readonly users?: UserDirectory;
+  /**
+   * Verweise zwischen Apps (ADR 0023). Fehlt der Anschluss, scheitern
+   * `set_refs` und `list_backlinks` mit einem Fehler; Aufloesen geht ohne ihn.
+   */
+  readonly refs?: RefRepository;
+  /**
+   * Modell-Anbieter aus der Env (ADR 0024). Fehlt der Anschluss oder ist
+   * darin kein Chat- bzw. Embedding-Modell, antwortet jede Funktion dafuer
+   * `not_configured` und ruft nichts auf.
+   */
+  readonly models?: ModelSetup;
+  /**
+   * Nutzungszeilen fuer die Tagesgrenzen. Fehlt er, ruft die Plattform kein
+   * Modell auf: Ohne Zaehlung gibt es keine Grenze, und „unbegrenzt“ ist nie
+   * der Default.
+   */
+  readonly modelUsage?: ModelUsageRepository;
+  /** Profile der Plattform-Agents (ADR 0024 E). */
+  readonly agentProfiles?: AgentProfileRepository;
+  /** Laeufe der Plattform-Agents, zugleich ihre Warteschlange. */
+  readonly agentRuns?: AgentRunRepository;
+  /** Team-Gedaechtnis (ADR 0024 F). */
+  readonly memories?: TeamMemoryStore;
 }
 
 export const systemClock: Clock = { now: () => new Date() };

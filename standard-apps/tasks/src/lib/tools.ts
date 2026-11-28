@@ -9,12 +9,15 @@ import {
   TaskCommentArgs,
   TaskCompleteArgs,
   TaskCreateArgs,
+  TaskFromRefArgs,
   TaskGetArgs,
   TaskListArgs,
+  TaskResolveArgs,
   TaskUpdateArgs,
 } from './schemas';
 import { searchTasks } from './task-search';
-import { addComment, createTask, getTask, listTasks, updateTask } from './tasks';
+import { resolveTaskObjects } from './refs';
+import { addComment, createTask, createTaskFromRef, getTask, listTasks, updateTask } from './tasks';
 import { actorOf } from './workflow';
 
 /**
@@ -47,6 +50,10 @@ export const toolHandlers = {
     const { id, body } = parseArgs(TaskCommentArgs, args);
     return { comment: await addComment(id, body, actorOf(user)) };
   },
+  'tasks.create_from_ref': async (args, { user }) => ({
+    task: await createTaskFromRef(parseArgs(TaskFromRefArgs, args), actorOf(user)),
+  }),
+  'tasks.resolve': async (args) => resolveTaskObjects(query, parseArgs(TaskResolveArgs, args)),
   'projects.list': async (args) => {
     parseArgs(ProjectListArgs, args ?? {});
     return { projects: await listProjects() };

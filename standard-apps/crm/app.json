@@ -4,10 +4,10 @@
   "displayName": "CRM",
   "description": "CRM for humans and agents: companies, contacts, a deal pipeline with stages and close reasons, a timeline of activities, and next steps with due dates.",
   "category": "sales",
-  "version": "0.3.0",
+  "version": "0.5.2",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "crm-v0.3.0"
+    "tag": "crm-v0.5.2"
   },
   "requiredTables": [
     {
@@ -29,6 +29,18 @@
     {
       "name": "next_steps",
       "description": "Next steps with a due date on a deal, company or contact, with owner. Completing one writes an activity to the timeline."
+    },
+    {
+      "name": "event_outbox",
+      "description": "Events waiting to be delivered to the platform (deal won or lost, next step assigned or due): one row per event, written in the same transaction as the change, with attempts and the last error. Deleted after delivery."
+    },
+    {
+      "name": "next_step_due_notices",
+      "description": "For which due date a next step was already reported as due, so each due step is reported once."
+    },
+    {
+      "name": "refs_outbox",
+      "description": "References waiting to be delivered to the platform (set_refs): one row per note or next step with the full set of its @{app:type:id} references and mentions, written in the same transaction as the change. Deleted after delivery."
     }
   ],
   "offeredTools": [
@@ -106,7 +118,7 @@
     },
     {
       "name": "activities.log",
-      "description": "Logs an activity. Arguments: kind (required: note, call, email, meeting), subject (required, short line), body (optional, free text), contactId, companyId, dealId (at least one of them), happenedAt (optional, ISO timestamp, default now). If companyId is missing, it is taken from the deal or contact. Returns { activity }.",
+      "description": "Logs an activity. Arguments: kind (required: note, call, email, meeting), subject (required, short line), body (optional, free text), contactId, companyId, dealId (at least one of them), happenedAt (optional, ISO timestamp, default now). If companyId is missing, it is taken from the deal or contact. Returns { activity }. Mention someone or link an item of another app with @{human:<email>} or @{app:type:id} in subject or body.",
       "operationId": "logActivity",
       "verb": "write"
     },
@@ -151,11 +163,66 @@
       "description": "Searches companies (name, industry, website), contacts (name, email, phone, role) and deals (title) at once, case-insensitive. Arguments: query (1 to 200 characters), limit (1 to 20, default 5). Returns {hits: [{id, title, snippet, url, kind}]}: kind is company, contact or deal, url the path in the CRM (/deals/<id>), names starting with the query first. The CRM's tool for the platform search; use the get tool of the kind for details.",
       "operationId": "searchCrm",
       "verb": "read"
+    },
+    {
+      "name": "crm.resolve",
+      "description": "Resolves references to companies, contacts, deals, activities and next steps for chips in other apps. Arguments: type (company, contact, deal, activity or next-step), ids (1 to 50 ids). Returns {objects: [{id, title, path, status, updatedAt}]}; unknown ids are left out, deals carry their stage. The platform calls it for resolve_refs after checking that the viewer may read the CRM.",
+      "operationId": "resolveCrmObjects",
+      "verb": "read"
     }
   ],
   "search": {
     "tool": "search"
   },
+  "events": [
+    {
+      "type": "deal.won",
+      "description": "A deal moved to won. Goes to the deal owner.",
+      "importance": "normal"
+    },
+    {
+      "type": "deal.lost",
+      "description": "A deal moved to lost. Goes to the deal owner.",
+      "importance": "normal"
+    },
+    {
+      "type": "next_step.assigned",
+      "description": "Someone planned a next step for another person. Goes to that person.",
+      "importance": "high"
+    },
+    {
+      "type": "next_step.due",
+      "description": "An open next step is due today or overdue (Europe/Berlin). Goes to its owner, once per due date.",
+      "importance": "high"
+    }
+  ],
+  "objects": [
+    {
+      "type": "company",
+      "description": "A company. Reference: crm:company:<id>.",
+      "resolver": "crm.resolve"
+    },
+    {
+      "type": "contact",
+      "description": "A contact person. Reference: crm:contact:<id>.",
+      "resolver": "crm.resolve"
+    },
+    {
+      "type": "deal",
+      "description": "A deal with its stage. Reference: crm:deal:<id>.",
+      "resolver": "crm.resolve"
+    },
+    {
+      "type": "activity",
+      "description": "A logged note, call, mail or meeting. Reference: crm:activity:<id>.",
+      "resolver": "crm.resolve"
+    },
+    {
+      "type": "next-step",
+      "description": "A next step with due date. Reference: crm:next-step:<id>.",
+      "resolver": "crm.resolve"
+    }
+  ],
   "requestedGrants": [
     {
       "subjectKind": "group",
@@ -165,6 +232,28 @@
         "app": "crm"
       },
       "reason": "Who may open the CRM. Which group is decided by the grant in the control plane; a requested right is a request, not an assignment."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "crm",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "emit_event"
+      },
+      "reason": "The CRM reports won and lost deals and next steps to the platform inbox. Without this grant events wait in the outbox; saving in the CRM is never affected."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "crm",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "set_refs"
+      },
+      "reason": "The CRM reports the @{app:type:id} references and mentions in notes and next steps, so other apps show them as backlinks and mentioned people get a notification. Without this grant references wait in the outbox; saving is never affected."
     }
   ],
   "env": [
@@ -197,7 +286,26 @@
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
       "description": "Path the app lives under (/crm). Must be set at build time, otherwise links and images point nowhere."
+    },
+    {
+      "name": "OPENAPPS_PLATFORM_URL",
+      "secret": false,
+      "required": false,
+      "description": "Address of the control plane in the platform network. The SDK delivers events and references through it. Set by the control plane."
+    },
+    {
+      "name": "OPENAPPS_CALL_SECRET",
+      "secret": true,
+      "required": false,
+      "description": "The app's own secret for calls to the platform. Set by the control plane per deployment; never logged."
     }
   ],
-  "egress": []
+  "egress": [
+    {
+      "host": "openapps-control-plane",
+      "protocol": "http",
+      "port": 3000,
+      "reason": "Events and references go to the platform through the control plane (OPENAPPS_PLATFORM_URL)."
+    }
+  ]
 }

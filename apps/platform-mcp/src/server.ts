@@ -22,6 +22,7 @@ import {
   LOSLEGEN_DESCRIPTION,
   readAgentsMd,
 } from './prompts';
+import type { AppToolRef, MemoryRunScope, RefCache } from '@openapps/control-plane/domain';
 import { platformTools, runTool, type AnyToolDefinition } from './tools';
 
 export interface PlatformServerOptions {
@@ -29,7 +30,13 @@ export interface PlatformServerOptions {
   /** Der angemeldete Aufrufer. Es gibt keinen anonymen Zugang. */
   readonly actor: Actor;
   readonly invoker: AppToolInvoker;
+  /** Cache der Resolver-Antworten (ADR 0023 B); ohne ihn fragt jeder Aufruf die App. */
+  readonly refCache?: RefCache;
   readonly correlationId?: string;
+  /** Ein Lauf eines Plattform-Agents (ADR 0024 E): Herkunft fuer `remember`. */
+  readonly run?: MemoryRunScope;
+  /** Meldet je angemeldetem App-Tool seinen Namen im MCP (fuer den Lauf). */
+  readonly onAppTool?: (mcpName: string, tool: AppToolRef) => void;
 }
 
 export async function createPlatformServer(options: PlatformServerOptions): Promise<McpServer> {
@@ -38,7 +45,9 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
     ctx: options.ctx,
     actor: options.actor,
     invoker: options.invoker,
+    ...(options.refCache === undefined ? {} : { refCache: options.refCache }),
     ...(options.correlationId === undefined ? {} : { correlationId: options.correlationId }),
+    ...(options.run === undefined ? {} : { run: options.run }),
   };
 
   for (const tool of platformTools) {
@@ -61,6 +70,7 @@ export async function createPlatformServer(options: PlatformServerOptions): Prom
   for (const appTool of await listAppTools(options.ctx, options.actor)) {
     const mcpName = mcpToolName(appTool.resourceId, taken);
     taken.add(mcpName);
+    options.onAppTool?.(mcpName, appTool);
     server.registerTool(
       mcpName,
       {

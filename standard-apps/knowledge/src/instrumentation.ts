@@ -5,6 +5,9 @@
  *    eine, wirft `register` und die App startet nicht — lieber kein Start als
  *    ein Stand, den die Datenbank nicht hat.
  * 2. Dokumente ohne Abschnitte zerlegen (`chunkPendingDocuments`).
+ * 3. Die Warteschlange der Embeddings starten (ADR 0025). Ohne
+ *    Embedding-Modell steht einmal ein Hinweis im Log, sonst nichts; die
+ *    Suche ist dann der Volltext wie in 0.2.
  *
  * Warum die Beispieldokumente erst hier zerlegt werden und nicht als
  * vorberechnete Abschnitte in `seeds/` stehen:
@@ -57,4 +60,8 @@ export async function register(): Promise<void> {
   } catch (error) {
     console.error('[knowledge] Splitting pending documents failed:', error);
   }
+
+  // Wirft nicht: Jeder Durchlauf faengt seine Fehler selbst.
+  const { startEmbeddings } = await import('./lib/knowledge-runtime');
+  startEmbeddings();
 }

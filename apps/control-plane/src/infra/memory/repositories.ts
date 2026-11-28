@@ -8,9 +8,26 @@
  */
 
 import { grantMatches } from '../../domain/can';
+import {
+  createMemoryEventRepository,
+  createMemoryUserDirectory,
+  type MemoryEventRepository,
+  type MemoryUserDirectory,
+} from './events';
+import { createMemoryRefRepository, type MemoryRefRepository } from './refs';
+import {
+  createMemoryAgentProfiles,
+  createMemoryAgentRuns,
+  createMemoryModelUsage,
+  createMemoryTeamMemory,
+  type MemoryAgentRuns,
+  type MemoryModelUsage,
+  type MemoryTeamMemory,
+} from './agents';
 import { ConflictError, NotFoundError } from '../../domain/errors';
 import type {
   AgentIdentityRepository,
+  AgentProfileRepository,
   AppRepository,
   AuditRepository,
   DeploymentPatch,
@@ -36,6 +53,17 @@ import type {
 } from '../../domain/types';
 
 export interface MemoryStore {
+  /** Ereignisse und Eingaenge (ADR 0022). */
+  readonly events: MemoryEventRepository;
+  /** Wer sich angemeldet hat; in Tests mit `users.add` gefuellt. */
+  readonly users: MemoryUserDirectory;
+  /** Verweise zwischen Apps (ADR 0023). */
+  readonly refs: MemoryRefRepository;
+  /** Modell-Nutzung, Profile, Laeufe und Gedaechtnis (ADR 0024). */
+  readonly modelUsage: MemoryModelUsage;
+  readonly agentProfiles: AgentProfileRepository;
+  readonly agentRuns: MemoryAgentRuns;
+  readonly memories: MemoryTeamMemory;
   readonly apps: AppRepository;
   readonly deployments: DeploymentRepository;
   readonly grants: GrantRepository;
@@ -328,6 +356,13 @@ export function createMemoryStore(options?: { now?: () => Date }): MemoryStore {
   };
 
   return {
+    events: createMemoryEventRepository({ now }),
+    users: createMemoryUserDirectory(),
+    refs: createMemoryRefRepository(),
+    modelUsage: createMemoryModelUsage(),
+    agentProfiles: createMemoryAgentProfiles({ now }),
+    agentRuns: createMemoryAgentRuns({ now }),
+    memories: createMemoryTeamMemory({ now }),
     apps: appRepo,
     deployments: deploymentRepo,
     grants: grantRepo,

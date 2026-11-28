@@ -7,6 +7,8 @@
  * nichts darüber, welche Apps es gibt oder wie es ihnen geht. Eine Prüfung,
  * die die Datenbank anfasst, wäre ein ungeprüfter Pfad in die Datenbank.
  */
+import { modelSetupFromEnv } from '../../adapters/models';
+import { modelStatus } from '../../domain/models';
 import { platformAlarms } from '../../infra/alarms';
 import { gatewayAlarm } from '../../infra/gateway-guard';
 
@@ -24,8 +26,15 @@ export function GET(): Response {
   // Auch sie bleiben ein 200: Der Grund steht bei `createAlarmSink`.
   const alarms = platformAlarms();
 
+  // Modelle (ADR 0024 A): ein Hinweis, nie ein Fehler, nie ein Wert. Weder
+  // Anbieter noch Modell stehen hier, nur ob konfiguriert und welche
+  // Variable nicht passt. Gelesen aus der Env, ohne Datenbank.
+  const models = modelStatus({ models: modelSetupFromEnv() });
+
   const lines = [
     'ok',
+    `models: chat ${models.chat}, embedding ${models.embedding}`,
+    ...models.problems.map((problem) => `models: NOTE ${problem}`),
     ...(problems === undefined ? [] : [`gateway: ALARM ${problems.join(' | ')}`]),
     ...alarms.map((alarm) => `${alarm.kind} ${alarm.subject}: ALARM ${alarm.problems.join(' | ')}`),
   ];

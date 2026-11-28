@@ -19,7 +19,18 @@ services:
     # Postgres 16, weil die Nachweise dagegen gelaufen sind. Fuer die Pruefungen
     # hier (Rollen, Schemata, GRANT/REVOKE, search_path) verhaelt sich 17
     # gleich; wer wechselt, laesst `grants-postgres.spec.ts` einmal laufen.
-    image: postgres:16
+    # Mit demselben Paket pgvector wie das Image im Betrieb
+    # (infra/betrieb/postgres/Dockerfile, ADR 0025), aber ohne dessen
+    # Init-Skripte: Hier ist openapps_owner der Superuser zum Aufraeumen, die
+    # Tests legen ihre Rolle ohne Superuser selbst an (tests/pg-helpers.ts).
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM postgres:16
+        RUN apt-get update \
+          && apt-get install -y --no-install-recommends postgresql-16-pgvector \
+          && rm -rf /var/lib/apt/lists/*
+    image: openapps-control-plane-test-postgres
     # Port 55432, damit eine lokal laufende Postgres-Instanz auf 5432
     # unberührt bleibt.
     ports:

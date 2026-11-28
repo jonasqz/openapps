@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { ToolNotFoundError } from '@openapps/sdk';
 import { Badge, Card, CardBody, CardHeader, ErrorState, PageHeader, Tabs } from '@openapps/ui';
 import { AppLinks } from '@/components/AppLinks';
+import { CrmBacklinks } from '@/components/Refs';
 import { DealSummaryTable } from '@/components/DealSummaryTable';
 import { ButtonLink, TextLink } from '@/components/links';
 import { NextStepList } from '@/components/NextStepList';
@@ -11,6 +12,7 @@ import { getContact, type ContactDetail } from '@/lib/crm';
 import { formatDay } from '@/lib/format';
 import { uuid } from '@/lib/schemas';
 import { nextStepView } from '@/lib/views';
+import { crmRef } from '@/lib/refs';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,6 +143,11 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
               { label: 'Updated', value: formatDay(contact.updatedAt) },
             ]}
           />
+          <Card>
+            <CardBody>
+              <CrmBacklinks refValue={crmRef('contact', contact.id)} />
+            </CardBody>
+          </Card>
         </div>
       </div>
     </AppLinks>

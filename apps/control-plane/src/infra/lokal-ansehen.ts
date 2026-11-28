@@ -25,9 +25,21 @@ import { Readable } from 'node:stream';
 import type { PlatformNav } from '@openapps/sdk';
 import type { LokalAuth } from './lokal-ansehen-cp';
 import {
+  actionHref,
+  actionsAccepting,
   appContainerPort,
   appPathFor,
+  cleanExcerpt,
   federateSearch,
+  filterBacklinks,
+  parseRefList,
+  PLATFORM_PEOPLE_PATH,
+  PLATFORM_REFS_ACTIONS_PATH,
+  PLATFORM_REFS_BACKLINKS_PATH,
+  PLATFORM_REFS_RESOLVE_PATH,
+  REF_LIST_LIMITS,
+  REF_RESOLVE_LIMITS,
+  resolveInApp,
   gatewayAliasFor,
   gatewayHost,
   GATEWAY_RESPONSE_HEADERS,
@@ -43,9 +55,14 @@ import {
   wantsReadableApps,
   type App,
   type AppToolInvoker,
+  type Person,
   type PlatformSearchResult,
+  type RefCache,
+  type RefRepository,
+  type RefResolution,
   type SearchTarget,
 } from '../domain';
+import { parseObjectRef, parseRef, type ObjectRef } from '@openapps/sdk';
 
 export const ANSICHT_IDENTITY = {
   userId: 'local-viewer',
@@ -264,6 +281,154 @@ export async function ansichtSearch(params: {
   return { query, ...outcome };
 }
 
+/**
+ * Verweise fuer den Betrachter (ADR 0023 F). Auf dem Server fuehrt Traefik
+ * `/_platform/refs/…` und `/_platform/people` zur Control Plane, die die
+ * Session prueft. Hier gibt es keine Session (Dateikopf): Der Betrachter
+ * sieht wie in der Leiste alle deployten Apps, der Proxy loest mit
+ * denselben Funktionen auf wie die Control Plane, als der Betrachter.
+ */
+export interface AnsichtRefsOptions {
+  /** Eingehende Verweise; ohne sie sind die Rueckverweise leer. */
+  readonly refs?: Pick<RefRepository, 'listIncoming'>;
+  /** Wer in einer App erwaehnt werden kann; ohne sie ist die Liste leer. */
+  readonly people?: (
+    app: App,
+    options: { readonly query: string; readonly limit: number },
+  ) => Promise<readonly Person[]>;
+  readonly cache?: RefCache;
+}
+
+export async function ansichtRefs(params: {
+  readonly path: string;
+  readonly apps: readonly AnsichtApp[];
+  readonly url: URL;
+  readonly invoker: AppToolInvoker;
+  readonly origin?: string;
+  readonly options?: AnsichtRefsOptions;
+  readonly timeoutMs?: number;
+}): Promise<unknown> {
+  const origin = (params.origin ?? DEFAULT_ANSICHT_ORIGIN).replace(/\/+$/, '');
+  // Wie bei der Suche: Im Betrieb traegt jede Zeile alle Felder einer App.
+  const deployed = (params.apps as readonly App[]).filter((app) => app.primaryDomain !== null);
+  const byName = new Map(deployed.map((app) => [app.name, app]));
+  const appHref = (app: App) => `${origin}${appPathFor(app.name)}`;
+  const actor = { kind: 'user' as const, id: ANSICHT_IDENTITY.userId, groups: [] };
+  const search = params.url.searchParams;
+
+  if (params.path === PLATFORM_REFS_RESOLVE_PATH) {
+    const refs = parseRefList(
+      [...search.getAll('ref'), ...search.getAll('refs').flatMap((value) => value.split(','))]
+        .map((ref) => ref.trim())
+        .filter((ref) => ref !== ''),
+    );
+    const results = new Map<string, RefResolution>();
+    const perApp = new Map<string, ObjectRef[]>();
+    for (const value of refs) {
+      const parsed = parseRef(value);
+      if (parsed === null) results.set(value, { ref: value, state: 'not_found' });
+      else if (parsed.kind === 'subject') {
+        results.set(value, {
+          ref: value,
+          state: 'resolved',
+          kind: parsed.subjectKind,
+          title: parsed.id,
+        });
+      } else perApp.set(parsed.app, [...(perApp.get(parsed.app) ?? []), parsed]);
+    }
+    await Promise.all(
+      [...perApp.entries()].map(async ([name, appRefs]) => {
+        const app = byName.get(name);
+        if (app === undefined) {
+          for (const ref of appRefs) results.set(ref.ref, { ref: ref.ref, state: 'restricted' });
+          return;
+        }
+        const resolved = await resolveInApp({
+          app,
+          refs: appRefs,
+          now: Date.now(),
+          timeoutMs: params.timeoutMs ?? REF_RESOLVE_LIMITS.timeoutMs,
+          appHref,
+          ...(params.options?.cache === undefined ? {} : { cache: params.options.cache }),
+          call: (tool, args, signal) =>
+            params.invoker.invoke({
+              app,
+              toolName: tool,
+              actor,
+              args: { type: args.type, ids: [...args.ids] },
+              readableApps: null,
+              humanIdentity: { ...ANSICHT_IDENTITY, groups: [] },
+              signal,
+            }),
+        });
+        for (const [ref, resolution] of resolved) results.set(ref, resolution);
+      }),
+    );
+    return {
+      results: refs.map((ref): RefResolution => results.get(ref) ?? { ref, state: 'unavailable' }),
+    };
+  }
+
+  if (params.path === PLATFORM_REFS_BACKLINKS_PATH) {
+    const target = parseObjectRef(search.get('ref'));
+    if (target === null)
+      throw new ValidationError('ref must be an object reference <app>:<type>:<id>');
+    if (params.options?.refs === undefined || !byName.has(target.app)) {
+      return { ref: target.ref, backlinks: [] };
+    }
+    const incoming = await params.options.refs.listIncoming(target.ref, REF_LIST_LIMITS.backlinks);
+    const backlinks = await filterBacklinks({
+      incoming,
+      findApp: async (name) => byName.get(name) ?? null,
+      mayRead: async () => true,
+    });
+    return { ref: target.ref, backlinks };
+  }
+
+  if (params.path === PLATFORM_REFS_ACTIONS_PATH) {
+    const source = parseObjectRef(search.get('ref'));
+    if (source === null)
+      throw new ValidationError('ref must be an object reference <app>:<type>:<id>');
+    const excerpt = cleanExcerpt(search.get('excerpt'));
+    return {
+      ref: source.ref,
+      actions: actionsAccepting(deployed, source)
+        .filter(({ action }) => action.path !== undefined)
+        .map(({ app, action }) => ({
+          app: app.name,
+          appTitle: app.displayName,
+          name: action.name,
+          title: action.title,
+          tool: `${app.name}.${action.tool}`,
+          href: actionHref(appHref(app), action.path ?? '/', source.ref, excerpt),
+        })),
+    };
+  }
+
+  if (params.path === PLATFORM_PEOPLE_PATH) {
+    const app = byName.get(search.get('app') ?? '');
+    const query = (search.get('q') ?? '').trim().toLowerCase().slice(0, REF_LIST_LIMITS.queryMax);
+    if (app === undefined || params.options?.people === undefined) {
+      return { app: search.get('app') ?? '', people: [] };
+    }
+    const people = await params.options.people(app, {
+      query,
+      limit: REF_LIST_LIMITS.peopleDefault,
+    });
+    return { app: app.name, people };
+  }
+
+  throw new ValidationError(`unknown platform path ${params.path}`);
+}
+
+/** Die Pfade der Verweise, die der Proxy selbst beantwortet. */
+export const ANSICHT_REFS_PATHS: readonly string[] = [
+  PLATFORM_REFS_RESOLVE_PATH,
+  PLATFORM_REFS_BACKLINKS_PATH,
+  PLATFORM_REFS_ACTIONS_PATH,
+  PLATFORM_PEOPLE_PATH,
+];
+
 /** `isSearchable` fuer die schmalere Form; `listAll` liefert nur nicht archivierte Apps. */
 function isSearchableAnsicht(app: AnsichtApp): boolean {
   return isSearchable({ ...app, archivedAt: null });
@@ -312,6 +477,8 @@ export function createAnsichtServer(options: {
   readonly platformUrl?: string;
   /** Fuer die Suche ueber alle Apps (ADR 0021). Ohne ihn antwortet sie mit 404. */
   readonly invoker?: AppToolInvoker;
+  /** Verweise (ADR 0023): Rueckverweise und Personen; Aufloesen braucht nur `invoker`. */
+  readonly refs?: AnsichtRefsOptions;
 }) {
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const path = req.url ?? '/';
@@ -323,6 +490,10 @@ export function createAnsichtServer(options: {
     const url = new URL(path, 'http://ansicht.invalid');
     if (url.pathname === PLATFORM_SEARCH_PATH) {
       await searchResponse(req, res, url);
+      return;
+    }
+    if (ANSICHT_REFS_PATHS.includes(url.pathname)) {
+      await refsResponse(req, res, url);
       return;
     }
     const name = appNameFromPath(path);
@@ -415,6 +586,37 @@ export function createAnsichtServer(options: {
     }
   };
 
+  const refsResponse = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+  ): Promise<void> => {
+    if (req.method !== 'GET' || options.invoker === undefined) {
+      json(res, 404, { error: 'not_found', message: 'no references here' });
+      return;
+    }
+    try {
+      json(
+        res,
+        200,
+        await ansichtRefs({
+          path: url.pathname,
+          apps: await options.listApps(),
+          url,
+          invoker: options.invoker,
+          ...(options.origin === undefined ? {} : { origin: options.origin }),
+          ...(options.refs === undefined ? {} : { options: options.refs }),
+        }),
+      );
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        json(res, 422, { error: error.code, message: error.message });
+        return;
+      }
+      throw error;
+    }
+  };
+
   return createServer((req, res) => {
     handle(req, res).catch((error: unknown) => {
       console.error('[view]', error);
@@ -433,8 +635,20 @@ async function main(): Promise<void> {
     throw new Error('OPENAPPS_AUTH_MASTER_SECRET is missing');
   }
   const { getPool } = await import('./pg/pool');
-  const { createAppRepository } = await import('./pg/repositories');
+  const { createAppRepository, createAgentIdentityRepository, createGrantRepository } =
+    await import('./pg/repositories');
+  const { createGroupRepository } = await import('./pg/groups');
+  const { createRefRepository } = await import('./pg/refs');
+  const { createUserDirectory } = await import('./pg/events');
+  const { createRefCache, peopleWithRead } = await import('../domain');
   const apps = createAppRepository(getPool());
+  // Fuer die Verweise (ADR 0023): lesend auf Freigaben, Gruppen, Agents und Nutzer.
+  const directory = {
+    grants: createGrantRepository(getPool()),
+    groups: createGroupRepository(getPool()),
+    agents: createAgentIdentityRepository(getPool()),
+    users: createUserDirectory(getPool()),
+  };
 
   const port = Number(process.env.ANSEHEN_PORT ?? '8090');
   const cpPort = Number(process.env.ANSEHEN_CP_PORT ?? '8091');
@@ -448,6 +662,11 @@ async function main(): Promise<void> {
     invoker: (await import('./app-tool-invoker')).createHttpInvoker({
       authMasterSecret: masterSecret,
     }),
+    refs: {
+      refs: createRefRepository(getPool()),
+      people: (app, peopleOptions) => peopleWithRead(directory, app, peopleOptions),
+      cache: createRefCache(),
+    },
   }).listen(port, '0.0.0.0', () => {
     console.log(`[view] http://127.0.0.1:${String(port)} (local only)`);
   });

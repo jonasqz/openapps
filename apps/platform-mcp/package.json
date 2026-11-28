@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Platform MCP: the control plane tools, the prompts how_to_build_app and get_started, and forwarding of app tools.",
+  "description": "Platform MCP: the control plane tools, the prompts how_to_build_app and get_started, forwarding of app tools, and the runner for platform agent runs.",
   "exports": {
     ".": "./src/server.ts",
     "./tools": "./src/tools.ts",
@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "prettier --check \"**/*.{ts,json,md}\"",
     "test": "vitest run",
-    "test:lokal": "LOKAL_E2E=1 vitest run tests/lokal-e2e.spec.ts"
+    "test:lokal": "LOKAL_E2E=1 vitest run tests/lokal-e2e.spec.ts",
+    "start:runner": "tsx src/runner.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.12.1",

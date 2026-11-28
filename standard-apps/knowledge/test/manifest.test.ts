@@ -73,7 +73,15 @@ describe('app.json', () => {
   it('heißt knowledge und nennt sich in jeder angefragten App-Freigabe selbst', () => {
     const m = manifest();
     expect(m.name).toBe('knowledge');
-    for (const grant of m.requestedGrants) expect(grant.resource.app).toBe('knowledge');
+    for (const grant of m.requestedGrants) {
+      if (grant.resource.app === 'platform') {
+        // Plattform-Tools (ADR 0025) nur fuer die App selbst, nie fuer andere.
+        expect(grant.subjectKind).toBe('app');
+        expect(grant.subjectId).toBe('knowledge');
+      } else {
+        expect(grant.resource.app).toBe('knowledge');
+      }
+    }
   });
 
   it('beschreibt bei search, dass Passagen mit Quelle zurückkommen und mit Quelle geantwortet wird', () => {
@@ -134,7 +142,44 @@ describe('Suche ueber alle Apps (ADR 0021)', () => {
     expect(m.offeredTools.find((tool) => tool.name === 'documents.search')?.verb).toBe('read');
   });
 
-  it('steht auf Version 0.2.2', () => {
-    expect(manifest().version).toBe('0.2.2');
+  it('steht auf Version 0.3.0, mit passendem Tag', () => {
+    expect(manifest().version).toBe('0.3.0');
+    expect(manifest().source.tag).toBe('v0.3.0');
+    expect(openapi).toMatch(/^ {2}version: 0\.3\.0$/m);
+  });
+});
+
+describe('optionales RAG (ADR 0025)', () => {
+  it('erklaert vector als Datenbank-Erweiterung, sonst keine', () => {
+    expect(manifest().databaseExtensions).toEqual(['vector']);
+  });
+
+  it('beantragt embed und generate nur fuer sich selbst, und nichts sonst auf der Plattform', () => {
+    const platform = manifest()
+      .requestedGrants.filter((grant) => grant.resource.app === 'platform')
+      .map((grant) => `${grant.subjectKind}:${grant.subjectId ?? ''} ${grant.verb} ${grant.resource.name ?? ''}`)
+      .sort();
+    expect(platform).toEqual(['app:knowledge execute embed', 'app:knowledge execute generate']);
+  });
+
+  it('answer ist ein lesendes Tool mit eigener Freigabe, getrennt von search', () => {
+    const m = manifest();
+    expect(m.offeredTools.find((tool) => tool.name === 'answer')?.verb).toBe('read');
+    const answerGrant = m.requestedGrants.find((grant) => grant.resource.name === 'answer');
+    expect(answerGrant).toMatchObject({ subjectKind: 'agent', verb: 'execute' });
+  });
+
+  it('embeddings.status liest, embeddings.backfill schreibt', () => {
+    const tools = manifest().offeredTools;
+    expect(tools.find((tool) => tool.name === 'embeddings.status')?.verb).toBe('read');
+    expect(tools.find((tool) => tool.name === 'embeddings.backfill')?.verb).toBe('write');
+  });
+
+  it('spricht die Plattform nur ueber die Control Plane an', () => {
+    const m = manifest();
+    expect(m.egress.map((target) => target.host)).toEqual(['openapps-control-plane']);
+    const env = m.env.map((entry) => entry.name);
+    expect(env).toContain('OPENAPPS_PLATFORM_URL');
+    expect(env).toContain('OPENAPPS_CALL_SECRET');
   });
 });

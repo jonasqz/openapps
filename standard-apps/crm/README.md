@@ -34,6 +34,7 @@ second way into the data.
 | `activities.list`     | read  | History, newest first                                                                        |
 | `pipeline.summary`    | read  | Count, total and weighted total per stage                                                    |
 | `search`              | read  | Companies, contacts and deals at once (`query`, `limit`); the CRM's tool for the search across all apps (ADR 0021) |
+| `crm.resolve`         | read  | Title, path and status of companies, contacts, deals, activities and next steps for chips in other apps (ADR 0023) |
 
 ## Rules agents can rely on
 
@@ -49,6 +50,23 @@ second way into the data.
   them changes nothing. Each deal shows its earliest open step as `nextStep`.
 - **Activity kinds:** `note`, `call`, `email`, `meeting`. Automatic entries
   are `note`.
+- **Events (0.4.0, ADR 0022):** the CRM reports `deal.won` and `deal.lost` to
+  the deal owner, `next_step.assigned` when someone plans a step for another
+  person, and `next_step.due` once per due date when an open step is due today
+  or overdue (checked hourly). The platform shows them in the inbox (Home) of
+  people who may open the CRM, never to the person who made the change. Events
+  wait in `event_outbox` until the platform accepts them; saving never depends
+  on it. The app needs the grant `execute` on `platform.emit_event`.
+
+## References (0.5.0, ADR 0023)
+
+`@{app:type:id}` in a note or next step links to an item of another app,
+`@{human:<email>}` mentions someone; the timeline and the next steps show
+chips. Notes and next steps with references are reported to
+`platform.set_refs` through `refs_outbox`. Deals, companies and contacts list
+what points to them from other apps, and a deal offers "Create task" in Tasks.
+Other apps link to `crm:company:<id>`, `crm:contact:<id>` and `crm:deal:<id>`
+(resolver `crm.resolve`).
 
 ## Pages
 

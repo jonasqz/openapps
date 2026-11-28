@@ -31,11 +31,23 @@ export async function can(
   verb: Verb,
   resource: ResourceRef,
 ): Promise<boolean> {
-  const matches = await ctx.grants.findActive({
-    subjects: subjectsOf(actor),
-    verb,
-    resource,
-  });
+  return canSubjects(ctx, subjectsOf(actor), verb, resource);
+}
+
+/**
+ * Dieselbe Pruefung fuer eine Liste von Subjekten, wenn es keinen Aufrufer
+ * gibt, sondern einen Empfaenger: eine Person, die nur ueber ihre E-Mail
+ * bekannt ist und vielleicht noch nie angemeldet war (ADR 0022, Ableiten der
+ * Benachrichtigungen). Leere Liste: `false`.
+ */
+export async function canSubjects(
+  ctx: DomainContext,
+  subjects: readonly SubjectRef[],
+  verb: Verb,
+  resource: ResourceRef,
+): Promise<boolean> {
+  if (subjects.length === 0) return false;
+  const matches = await ctx.grants.findActive({ subjects, verb, resource });
   return matches.length > 0;
 }
 

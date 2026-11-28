@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ToolNotFoundError } from '@openapps/sdk';
 import { Badge, Card, CardBody, CardHeader, ErrorState, PageHeader, Table, Tabs } from '@openapps/ui';
 import { AppLinks } from '@/components/AppLinks';
+import { CrmBacklinks } from '@/components/Refs';
 import { DealSummaryTable } from '@/components/DealSummaryTable';
 import { ButtonLink, TextLink } from '@/components/links';
 import { NextStepList } from '@/components/NextStepList';
@@ -13,6 +14,7 @@ import { isClosedStage } from '@/lib/domain';
 import { formatDay, formatEuro } from '@/lib/format';
 import { uuid } from '@/lib/schemas';
 import { nextStepView } from '@/lib/views';
+import { crmRef } from '@/lib/refs';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,6 +170,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
               { label: 'Updated', value: formatDay(company.updatedAt) },
             ]}
           />
+          <Card>
+            <CardBody>
+              <CrmBacklinks refValue={crmRef('company', company.id)} />
+            </CardBody>
+          </Card>
         </div>
       </div>
     </AppLinks>

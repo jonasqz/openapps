@@ -28,6 +28,8 @@ export interface PlatformSearchHit {
   kind?: string;
   /** Volle Adresse zum Oeffnen; nur http(s) und `/…`, sonst faellt der Treffer weg. */
   href: string;
+  /** Verweis auf das Objekt (ADR 0023), `<app>:<typ>:<id>`, wenn die App ihn kennt. */
+  ref?: string;
 }
 
 export interface PlatformSearchGroup {
@@ -66,6 +68,12 @@ export class PlatformSearchError extends Error {
   }
 }
 
+/**
+ * Die Form eines Objekt-Verweises (ADR 0023 A), nur grob: Die Plattform hat
+ * ihn gebildet, das Design System prueft nur, dass er sich einfuegen laesst.
+ */
+const OBJECT_REF = /^[a-z][a-z0-9-]{1,38}[a-z0-9]:[a-z][a-z0-9-]{0,39}:[A-Za-z0-9._~-]{1,128}$/;
+
 function text(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.replace(/\s+/g, ' ').trim();
@@ -100,12 +108,14 @@ export function parsePlatformSearchResponse(value: unknown): PlatformSearchRespo
       if (hit === null || id === null || title === null || href === null) continue;
       const snippet = text(hit.snippet, 300);
       const kind = text(hit.kind, 40);
+      const ref = typeof hit.ref === 'string' && OBJECT_REF.test(hit.ref) ? hit.ref : null;
       hits.push({
         id,
         title,
         href,
         ...(snippet === null ? {} : { snippet }),
         ...(kind === null ? {} : { kind }),
+        ...(ref === null ? {} : { ref }),
       });
     }
     if (hits.length > 0) results.push({ app, title: text(group.title, 64) ?? app, hits });

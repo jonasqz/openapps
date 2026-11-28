@@ -181,3 +181,37 @@ export const ProjectCreateArgs = z
   })
   .strict();
 export type ProjectCreateArgs = z.infer<typeof ProjectCreateArgs>;
+
+/**
+ * `tasks.create_from_ref` (ADR 0023 E): eine Aufgabe aus einem Objekt einer
+ * anderen App. `sourceRef` ist der Verweis (`wiki:page:<id>`,
+ * `crm:deal:<id>`), `excerpt` ein kurzer Auszug, der Beschreibung wird. Ohne
+ * Titel nimmt die Aufgabe die erste Zeile des Auszugs.
+ */
+export const TaskFromRefArgs = z
+  .object({
+    sourceRef: z
+      .string()
+      .trim()
+      .min(1, 'sourceRef is missing.')
+      .max(400, 'sourceRef can have at most 400 characters.'),
+    excerpt: z.string().max(2000, 'excerpt can have at most 2000 characters.').optional(),
+    title: Title.optional(),
+    assignee: Assignee.optional(),
+    dueDate: DateString.optional(),
+    priority: PriorityArg.optional(),
+    status: StatusArg.optional(),
+    projectId: ProjectId.optional(),
+  })
+  .strict();
+export type TaskFromRefArgs = z.infer<typeof TaskFromRefArgs>;
+
+/** `tasks.resolve`: das feste Format der Plattform (`parseResolveArgs` in `@openapps/sdk`). */
+export const TaskResolveArgs = z
+  .object({
+    type: z.enum(['task', 'project'], {
+      errorMap: () => ({ message: 'type must be task or project.' }),
+    }),
+    ids: z.array(z.string().min(1).max(128)).min(1).max(50, 'ids can have at most 50 entries.'),
+  })
+  .strict();

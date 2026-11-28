@@ -62,6 +62,11 @@ write function does the same. Delivery goes through the platform with
 `callAppTool` from `@openapps/sdk`; never call Knowledge directly and never
 let a failed delivery fail the save (ADR 0020).
 
+Edits and restores also queue `page.updated` for the people who favorited the
+page (`emitPageUpdated` from `src/lib/events.ts`, ADR 0022), in the same
+transaction, and call `kickEvents()` after the commit. Who gets notified is
+decided by the platform, not here.
+
 ## Where the UI comes from
 
 ```ts

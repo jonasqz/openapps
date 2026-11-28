@@ -9,7 +9,10 @@
  * Unterstuetzt: Ueberschriften (`#` bis `######`), Absaetze, Listen (`-`, `*`,
  * `+`, `1.`), Checklisten (`- [ ]`, `- [x]`), Zitate (`>`), Trennlinien,
  * Code-Bloecke (```), Inline-Code, Fett (`**`), Kursiv (`*`, `_`), Links
- * `[Text](URL)` und Links auf andere Wiki-Seiten `[Text](page:<uuid>)`.
+ * `[Text](URL)`, Links auf andere Wiki-Seiten `[Text](page:<uuid>)` und
+ * Verweise auf Objekte anderer Apps und Personen `@{app:typ:id}` (ADR 0023).
+ * Ein Verweis traegt nur den geprueften Verweis weiter, nie einen Titel; den
+ * laedt der Chip im Browser ueber die Plattform.
  *
  * Links nur mit http(s) oder als `page:` mit einer UUID. Alles andere
  * (`javascript:`, `data:`, relative Pfade, `//host`) wird als Text gezeigt,
@@ -23,7 +26,8 @@ export type Inline =
   | { type: 'em'; children: Inline[] }
   | { type: 'code'; text: string }
   | { type: 'link'; href: string; children: Inline[] }
-  | { type: 'pagelink'; id: string; children: Inline[] };
+  | { type: 'pagelink'; id: string; children: Inline[] }
+  | { type: 'ref'; ref: string };
 
 export type Block =
   | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: Inline[] }
@@ -39,6 +43,8 @@ export type Block =
   | { type: 'quote'; children: Inline[] }
   | { type: 'code'; lang: string; text: string }
   | { type: 'hr' };
+
+import { parseRef } from '@openapps/app-manifest/refs';
 
 /** Tiefe, ab der verschachtelte Hervorhebungen als Text bleiben. */
 const MAX_INLINE_DEPTH = 8;
@@ -311,6 +317,18 @@ function parseInlineAt(text: string, depth: number, noClose: Map<string, number>
       }
     }
 
+    if (char === '@' && text[i + 1] === '{') {
+      const close = findClose('}', i + 2);
+      const token = close === -1 ? '' : text.slice(i + 2, close);
+      const parsed = token === '' || /[\s{]/.test(token) ? null : parseRef(token);
+      if (parsed !== null) {
+        flush();
+        out.push({ type: 'ref', ref: parsed.ref });
+        i = close + 1;
+        continue;
+      }
+    }
+
     if (char === '[' && depth < MAX_INLINE_DEPTH) {
       const link = readLink(text, i, findClose);
       if (link !== undefined) {
@@ -411,4 +429,64 @@ export function extractPageLinks(source: string, max = Number.POSITIVE_INFINITY)
     }
   }
   return [...found];
+}
+
+/**
+ * Die Verweise `@{…}` eines Markdown-Texts (ADR 0023), wie `extractPageLinks`:
+ * Reihenfolge des ersten Vorkommens, ohne Dubletten, Code zaehlt nicht.
+ * Hoechstens `max`.
+ */
+export function extractRefTokens(source: string, max = Number.POSITIVE_INFINITY): string[] {
+  const found = new Set<string>();
+  const visit = (nodes: readonly Inline[]): void => {
+    for (const node of nodes) {
+      if (found.size >= max) return;
+      if (node.type === 'ref') found.add(node.ref);
+      if (node.type === 'strong' || node.type === 'em' || node.type === 'link' || node.type === 'pagelink') {
+        visit(node.children);
+      }
+    }
+  };
+  for (const block of parseMarkdown(source)) {
+    if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'quote') {
+      visit(block.children);
+    } else if (block.type === 'list') {
+      for (const item of block.items) visit(item);
+    }
+  }
+  return [...found];
+}
+
+/** Ein Abschnitt einer Seite fuer „Create task from section“: Ueberschrift und Text darunter. */
+export interface PageSection {
+  heading: string;
+  /** Der Markdown-Text des Abschnitts samt Ueberschrift, gekuerzt. */
+  excerpt: string;
+}
+
+/**
+ * Die Abschnitte einer Seite: je Ueberschrift der Text bis zur naechsten
+ * Ueberschrift gleicher oder hoeherer Ebene. Ausserhalb von Code-Bloecken.
+ * Ohne Ueberschrift gibt es keinen Abschnitt.
+ */
+export function pageSections(source: string, excerptMax = 500): PageSection[] {
+  const lines = source.split(/\r?\n/);
+  const headings: { index: number; level: number; text: string }[] = [];
+  let fenced = false;
+  lines.forEach((line, index) => {
+    if (/^\s*```/.test(line)) fenced = !fenced;
+    if (fenced) return;
+    const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (match?.[1] !== undefined && match[2] !== undefined) {
+      headings.push({ index, level: match[1].length, text: match[2] });
+    }
+  });
+  return headings.map((heading, position) => {
+    const next = headings.slice(position + 1).find((candidate) => candidate.level <= heading.level);
+    const body = lines.slice(heading.index, next?.index ?? lines.length).join('\n').trim();
+    return {
+      heading: heading.text,
+      excerpt: body.length > excerptMax ? `${body.slice(0, excerptMax - 1)}…` : body,
+    };
+  });
 }

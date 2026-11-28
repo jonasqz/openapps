@@ -1,6 +1,7 @@
 # Zielbild
 
-Stand 2026-11-11. Was openapps werden soll, wenn v1 trägt. Die Roadmap
+Stand 2026-11-11, Nachtrag 2026-11-27 (ADR 0022 bis 0025). Was openapps
+werden soll, wenn v1 trägt. Die Roadmap
 ([`02-roadmap.md`](02-roadmap.md)) sagt, was als Nächstes dran ist; diese Seite
 sagt, wohin.
 
@@ -13,13 +14,13 @@ dieselben Funktionen über MCP.
 
 ## Was fest ist
 
-| Baustein                        | Bedeutung                                                                                                                         |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Headless zuerst                 | Jede Aktion ist API und MCP-Tool, bevor sie einen Button bekommt. Die Oberfläche ist ein Client unter mehreren.                   |
-| Ein Stack                       | Starter-Template, SDK, Design System. Agents bauen schneller und sicherer, wenn es nur einen Weg gibt.                            |
-| Regeln, die eine Maschine prüft | Review-Gate vor jedem Deploy: gitleaks, semgrep, UI-Linter, Manifest-Abgleich. Immer an, in jeder Ausgabe.                        |
-| Modell egal                     | Die Plattform ruft selbst kein Modell auf, außer im optionalen Review. Gebaut wird mit Claude Code, Codex, Cursor oder was kommt. |
-| Open Source und selbst gehostet | Ein Compose-Stapel neben Coolify. Kein Fork.                                                                                      |
+| Baustein                        | Bedeutung                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Headless zuerst                 | Jede Aktion ist API und MCP-Tool, bevor sie einen Button bekommt. Die Oberfläche ist ein Client unter mehreren.                                                                                                                                                                                                                  |
+| Ein Stack                       | Starter-Template, SDK, Design System. Agents bauen schneller und sicherer, wenn es nur einen Weg gibt.                                                                                                                                                                                                                           |
+| Regeln, die eine Maschine prüft | Review-Gate vor jedem Deploy: gitleaks, semgrep, UI-Linter, Manifest-Abgleich. Immer an, in jeder Ausgabe.                                                                                                                                                                                                                       |
+| Modell egal                     | Die Plattform ruft ein Modell nur mit einem eigenen Schlüssel des Betreibers auf (Bring your own key: Anthropic, Google, OpenAI-kompatibel, auch lokal), ohne Schlüssel nie. Es gibt kein Standard-Modell ([ADR 0024](decisions/0024-agents-und-modell-anbieter.md)). Gebaut wird mit Claude Code, Codex, Cursor oder was kommt. |
+| Open Source und selbst gehostet | Ein Compose-Stapel neben Coolify. Kein Fork.                                                                                                                                                                                                                                                                                     |
 
 ## Zwei Wege, ein Code
 
@@ -36,6 +37,13 @@ Tokens je Deployment im Audit-Log. Die gibt es noch nicht.
 
 ## Was dazukommt, in dieser Reihenfolge
 
+**Nutzerentscheidung vom 2026-11-27:** Ereignisse und Home, Verweise
+zwischen Apps, Agents in der Plattform mit Modell-Anbieter und Knowledge als
+optionales RAG ([ADR 0022](decisions/0022-ereignisse-und-home.md) bis
+[ADR 0025](decisions/0025-knowledge-als-optionales-rag.md)) werden jetzt
+gebaut, vor den übrigen Schritten dieser Liste. Die Reihenfolge der Liste
+selbst bleibt.
+
 1. **Erster echter Lauf bei blyck.** Der Stapel auf einem Server, eine erste
    App aus dem Starter, ein Agent, der sie über `/mcp` anlegt und deployt.
    Vorher ist alles Weitere Vermutung.
@@ -51,7 +59,9 @@ Tokens je Deployment im Audit-Log. Die gibt es noch nicht.
    Freigaben, kein Sonderweg. Die OAuth-Tokens der Nutzer liegen in der
    Control Plane, nie in der App.
 5. **Gedächtnis als Add-on.** pgvector im selben Postgres, ein Schema pro App
-   wie bisher, Suche als Tool. Kein zweiter Datenspeicher.
+   wie bisher, Suche als Tool. Kein zweiter Datenspeicher. Vorgezogen:
+   pgvector und hybride Suche in Knowledge (ADR 0025), Team-Gedächtnis der
+   Agents hinter einem Port, zuerst in Postgres (ADR 0024).
 6. **OAuth für MCP.** Damit sich Clients ohne festen Header verbinden können
    (claude.ai als Connector). Heute geht jeder Client, der einen Bearer-Header
    setzt.
@@ -65,4 +75,7 @@ Tokens je Deployment im Audit-Log. Die gibt es noch nicht.
 - Kein Ersatz für Coolify und kein eigenes PaaS.
 - Kein Baukasten ohne Code. Apps sind Code in einem Repo, geprüft und
   versioniert.
-- Kein Modell-Proxy. Schlüssel für Modelle gehören dem, der baut.
+- Kein Modell-Proxy für fremde Clients. Externe Agents bringen ihr Modell
+  selbst mit. Die Plattform nutzt ein Modell nur für eigene Funktionen und
+  nur mit dem Schlüssel des Betreibers; ohne Schlüssel ruft sie keins auf
+  (ADR 0024).

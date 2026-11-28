@@ -137,6 +137,9 @@ importers:
 
   packages/sdk:
     dependencies:
+      '@openapps/app-manifest':
+        specifier: workspace:*
+        version: link:../app-manifest
       pg:
         specifier: 8.13.1
         version: 8.13.1
@@ -225,6 +228,9 @@ importers:
 
   standard-apps/crm:
     dependencies:
+      '@openapps/app-manifest':
+        specifier: workspace:*
+        version: link:../../packages/app-manifest
       '@openapps/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -244,9 +250,6 @@ importers:
         specifier: 3.24.1
         version: 3.24.1
     devDependencies:
-      '@openapps/app-manifest':
-        specifier: workspace:*
-        version: link:../../packages/app-manifest
       '@types/node':
         specifier: 22.10.2
         version: 22.10.2
@@ -390,6 +393,9 @@ importers:
 
   standard-apps/wiki:
     dependencies:
+      '@openapps/app-manifest':
+        specifier: workspace:*
+        version: link:../../packages/app-manifest
       '@openapps/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -409,9 +415,6 @@ importers:
         specifier: 3.24.1
         version: 3.24.1
     devDependencies:
-      '@openapps/app-manifest':
-        specifier: workspace:*
-        version: link:../../packages/app-manifest
       '@types/node':
         specifier: 22.10.2
         version: 22.10.2

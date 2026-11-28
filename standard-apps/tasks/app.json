@@ -2,9 +2,9 @@
   "manifestVersion": 1,
   "name": "tasks",
   "displayName": "Tasks",
-  "description": "Team tasks with status, assignee, due date, priority, projects, comments and history. For people and agents.",
+  "description": "Team tasks with status, assignee, due date, priority, projects, comments and history. Tasks link to items in other apps and can be created from a wiki page or a deal. For people and agents.",
   "category": "internal",
-  "version": "0.3.0",
+  "version": "0.5.2",
   "source": {
     "git": "https://lokal.invalid/tasks",
     "tag": "lokal"
@@ -12,7 +12,7 @@
   "requiredTables": [
     {
       "name": "tasks",
-      "description": "Team tasks: title, description, status (todo, in_progress, done), priority, assignee email, due date, project, who completed it, creator and timestamps."
+      "description": "Team tasks: title, description, status (todo, in_progress, done), priority, assignee email, due date, project, who completed it, the item of another app it was created from (reference only), creator and timestamps."
     },
     {
       "name": "projects",
@@ -25,6 +25,14 @@
     {
       "name": "task_events",
       "description": "History of a task: who changed which field from what to what, and when."
+    },
+    {
+      "name": "event_outbox",
+      "description": "Events waiting to be delivered to the platform (task assigned, commented, status changed): one row per event, written in the same transaction as the change, with attempts and the last error. Deleted after delivery."
+    },
+    {
+      "name": "refs_outbox",
+      "description": "References waiting to be delivered to the platform (set_refs): one row per task with the full set of its outgoing references (from description, comments and the item it was created from), written in the same transaction as the change. Deleted after delivery."
     }
   ],
   "offeredTools": [
@@ -54,7 +62,7 @@
     },
     {
       "name": "tasks.assign",
-      "description": "Assigns a task to a person by email, or unassigns it with assignee null. Arguments: id (UUID from tasks.list), assignee. The person does not get notified by this app. Returns { task, changed, previousStatus }; changed is false if the task already had this assignee.",
+      "description": "Assigns a task to a person by email, or unassigns it with assignee null. Arguments: id (UUID from tasks.list), assignee. The platform notifies the person in their inbox (Home) if they may open Tasks. Returns { task, changed, previousStatus }; changed is false if the task already had this assignee.",
       "operationId": "assignTask",
       "verb": "write"
     },
@@ -69,6 +77,18 @@
       "description": "Adds a comment to a task. Arguments: id (UUID of the task), body (1-5000 chars, plain text). The caller is stored as author. Comments cannot be edited or deleted. Returns { comment }. An unknown id returns 404.",
       "operationId": "commentTask",
       "verb": "write"
+    },
+    {
+      "name": "tasks.create_from_ref",
+      "description": "Creates a task from an item of another app, for example a wiki page section or a deal. Arguments: sourceRef (required, a reference wiki:page:<id> or crm:deal:<id>), excerpt (optional short text, up to 2000 characters, becomes the description; its first line is the title if title is missing), title, assignee (email), dueDate (YYYY-MM-DD), priority, status, projectId. The task links back to the source: list_backlinks of the source shows it with kind derived. Returns { task }.",
+      "operationId": "createTaskFromRef",
+      "verb": "write"
+    },
+    {
+      "name": "tasks.resolve",
+      "description": "Resolves references to tasks and projects for chips in other apps. Arguments: type (task or project), ids (1 to 50 ids). Returns { objects: [{ id, title, path, status, updatedAt }] }; unknown ids are left out. The platform calls it for resolve_refs after checking that the viewer may read Tasks.",
+      "operationId": "resolveTaskObjects",
+      "verb": "read"
     },
     {
       "name": "projects.list",
@@ -92,6 +112,47 @@
   "search": {
     "tool": "search"
   },
+  "events": [
+    {
+      "type": "task.assigned",
+      "description": "A task was assigned to someone. Goes to the new assignee.",
+      "importance": "high"
+    },
+    {
+      "type": "task.commented",
+      "description": "Someone commented on a task. Goes to its assignee and its creator.",
+      "importance": "normal"
+    },
+    {
+      "type": "task.status_changed",
+      "description": "The status of a task changed. Goes to its assignee and its creator.",
+      "importance": "normal"
+    }
+  ],
+  "objects": [
+    {
+      "type": "task",
+      "description": "A task with title and status. Reference: tasks:task:<id>.",
+      "resolver": "tasks.resolve"
+    },
+    {
+      "type": "project",
+      "description": "A project that groups tasks. Reference: tasks:project:<id>.",
+      "resolver": "tasks.resolve"
+    }
+  ],
+  "actions": [
+    {
+      "name": "task_from_ref",
+      "title": "Create task",
+      "accepts": [
+        "wiki:page",
+        "crm:deal"
+      ],
+      "tool": "tasks.create_from_ref",
+      "path": "/new"
+    }
+  ],
   "requestedGrants": [
     {
       "subjectKind": "group",
@@ -101,6 +162,28 @@
         "app": "tasks"
       },
       "reason": "Who may open the app. Which group is decided by the grant in the control plane — a requested right is an application, not a grant."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "tasks",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "emit_event"
+      },
+      "reason": "Tasks reports assignments, comments and status changes to the platform inbox. Without this grant events wait in the outbox; saving a task is never affected."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "tasks",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "set_refs"
+      },
+      "reason": "Tasks reports the references in a task (links in description and comments, the item it was created from) so they show up as backlinks and mentions in other apps. Without this grant references wait in the outbox; saving a task is never affected."
     }
   ],
   "env": [
@@ -133,7 +216,26 @@
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
       "description": "Path the app lives under (/tasks). Must be set at build time, otherwise links and images point nowhere."
+    },
+    {
+      "name": "OPENAPPS_PLATFORM_URL",
+      "secret": false,
+      "required": false,
+      "description": "Address of the control plane in the platform network. The SDK delivers events and references through it. Set by the control plane."
+    },
+    {
+      "name": "OPENAPPS_CALL_SECRET",
+      "secret": true,
+      "required": false,
+      "description": "The app's own secret for calls to the platform. Set by the control plane per deployment; never logged."
     }
   ],
-  "egress": []
+  "egress": [
+    {
+      "host": "openapps-control-plane",
+      "protocol": "http",
+      "port": 3000,
+      "reason": "Events and references go to the platform through the control plane (OPENAPPS_PLATFORM_URL)."
+    }
+  ]
 }

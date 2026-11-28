@@ -1,22 +1,59 @@
 # @openapps/platform-mcp
 
 The platform's MCP server. It offers the six tools of the brief plus lookup,
-the search across all apps and group management, serves `AGENTS.md` and the get-started guide as prompts,
+the search across all apps, group management, platform agents and the team
+memory, serves `AGENTS.md` and the get-started guide as prompts,
 and forwards the apps' tools — each only to callers that have a grant.
 
 ## The tools
 
-| Tool             | What it does                                                                      |
-| ---------------- | --------------------------------------------------------------------------------- |
-| `create_app`     | create a repo from the starter template, register the app, set up schema and role |
-| `request_deploy` | start the review gate, deploy if it passes                                        |
-| `list_apps`      | list the apps the caller has `read` on                                            |
-| `rollback`       | roll back to the previous version                                                 |
-| `grant`          | grant a permission                                                                |
-| `revoke`         | revoke a grant                                                                    |
-| `list_grants`    | look up grants                                                                    |
-| `whoami`         | who you are: identity, groups, apps you can open, grants with their source        |
-| `search`         | search all apps you may search at once, hits grouped by app (ADR 0021)            |
+| Tool                  | What it does                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `create_app`          | create a repo from the starter template, register the app, set up schema and role             |
+| `request_deploy`      | start the review gate, deploy if it passes                                                    |
+| `list_apps`           | list the apps the caller has `read` on                                                        |
+| `rollback`            | roll back to the previous version                                                             |
+| `grant`               | grant a permission                                                                            |
+| `revoke`              | revoke a grant                                                                                |
+| `list_grants`         | look up grants                                                                                |
+| `whoami`              | who you are: identity, groups, apps you can open, grants with their source                    |
+| `search`              | search all apps you may search at once, hits grouped by app (ADR 0021)                        |
+| `list_inbox`          | your own inbox: notifications from apps you may read (ADR 0022)                               |
+| `mark_inbox`          | mark items of your own inbox as read, unread or done                                          |
+| `resolve_refs`        | resolve `@{app:type:id}` references to title and status, `restricted` without read (ADR 0023) |
+| `list_backlinks`      | what points to an item, only if you may read both apps                                        |
+| `list_people`         | people and agents with `read` on an app, to mention them                                      |
+| `list_actions`        | what other apps can create from an item (for example a task from a wiki page)                 |
+| `configure_agent`     | create or change the profile of a platform agent (needs `write` on `agent:<name>`, ADR 0024)  |
+| `list_agent_profiles` | platform agents you may see or start, and whether a chat model is configured                  |
+| `start_agent_run`     | start a run of a platform agent (needs `execute` on `agent:<name>`)                           |
+| `get_agent_run`       | one run: status, result, steps, tokens, origin, tool calls                                    |
+| `list_agent_runs`     | runs you started and runs of agents you look after                                            |
+| `remember`            | write a note to the team memory, with its origin (needs `execute` on `platform.remember`)     |
+| `recall`              | search the team memory, only notes whose whole origin you may read                            |
+| `list_memories`       | the newest notes, or those of one agent                                                       |
+| `forget`              | delete a note for good                                                                        |
+
+`list_inbox` and `mark_inbox` need no grant of their own and only ever touch
+the caller's inbox. Every item needs `read` on its source app at the time of
+the call; after a revoke the items disappear on the next call.
+
+The four reference tools need no grant of their own. `resolve_refs` gives an
+agent a title only with `read` on the target app and `execute` on its
+resolver tool (`tasks.tasks.resolve`, `wiki.pages.resolve`, `crm.crm.resolve`);
+titles are cached for up to 60 seconds, permissions are checked on every call.
+`list_actions` lists an action only with `execute` on its tool.
+
+Platform agents (ADR 0024) run inside the platform with the configured chat
+model only; without `OPENAPPS_CHAT_*` every agent tool answers
+`not_configured` and nothing else breaks. A run sees exactly the tools its
+agent sees here, limited to what the person who started it may do, and
+without `create_agent`, `start_agent_run` and `configure_agent`. Every call in
+a run is audited with the run id as `correlationId`. The runs are executed by
+`src/runner.ts`, the third process in the control plane container
+(`start.sh`), concurrency `OPENAPPS_AGENT_RUN_CONCURRENCY` (default 2, 1 to
+10); its tools come from this server through an in-process MCP connection
+(`src/run-toolbox.ts`).
 
 `whoami` needs no grant and only ever shows the caller's own grants: those
 made to the caller directly and those made to one of the caller's groups. An
@@ -158,6 +195,9 @@ src/server.ts      thin wiring to the MCP SDK
 src/prompts.ts     the prompts
 src/index.ts       start over stdio
 src/http.ts        start over HTTP, identity per call
+src/runner.ts      runner for platform agent runs (third process, ADR 0024)
+src/runner-loop.ts queue loop of the runner, testable without a process
+src/run-toolbox.ts the tools of a run: this server, in process, with the run's rights
 tests/             DoD 6
 ```
 
@@ -176,6 +216,7 @@ call through the gateway, signed with the secret of **that** app
 ```bash
 pnpm --filter @openapps/platform-mcp start        # stdio, for Claude Code
 pnpm --filter @openapps/platform-mcp start:http   # HTTP, for agents
+pnpm --filter @openapps/platform-mcp start:runner # runner for platform agent runs
 pnpm --filter @openapps/platform-mcp test         # DoD 6 test
 ```
 

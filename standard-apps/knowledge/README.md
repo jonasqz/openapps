@@ -3,24 +3,30 @@
 Standard app of openapps and the **shared search of the platform**: store
 documents, let other apps deliver their content (the wiki is the first),
 split everything into sections and find relevant passages with their source.
-This is the **retrieval half of a RAG** — the calling agent writes the answer
-itself, from the returned passages and citing their sources (ADR 0020).
+Without a model this is the **retrieval half of a RAG** — the calling agent
+writes the answer itself, from the returned passages and citing their sources
+(ADR 0020). If the operator configured a model (ADR 0024), Knowledge is an
+**optional RAG** (ADR 0025): search also ranks by meaning, and `answer` writes
+a short answer whose citations are checked against the passages.
 
 ## Tools
 
 Every function is a tool first (`app.json` → `offeredTools`, `openapi.yaml`
 → `POST /tools/<name>`); the UI calls the same domain logic.
 
-| Tool               | Verb  | What it does                                                                                                                                                                                                          |
-| ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `search`           | read  | `query`, `limit` (default 5, at most 20). Returns `passages` with `chunkId`, `documentId`, `documentTitle`, `source`, `sourceApp`, `sourcePath`, `sourceUrl`, `ord`, `score`, `excerpt` (matches in `«»`) and `text`. |
-| `documents.search` | read  | `query`, `limit`. One hit per document stored in Knowledge itself (`id`, `title`, `snippet`, `url`, `kind`), without content of other apps. Knowledge's tool for the search across all apps (ADR 0021). |
-| `documents.add`    | write | `title`, `content`, `source?`. Splits and stores in one transaction, returns `id` and `chunkCount`. Documents added this way have no source app.                                                                      |
-| `documents.list`   | read  | `q?` filters by title or source. Without full text. Only what the caller can see.                                                                                                                                     |
-| `documents.get`    | read  | `id`, `includeChunks?`. Deleted documents and documents from apps the caller may not read return 404.                                                                                                                 |
-| `documents.delete` | write | `id`. Soft delete: afterwards neither in search nor in the list. Refused (400) for documents of a source app; they are removed there.                                                                                 |
-| `documents.upsert` | write | Apps only. `key`, `title`, `content`, `source?`, `path?`, `updatedAt?`. Replaces the calling app's own document with this key, sections included, in one transaction. Returns `id`, `key`, `status`, `chunkCount`.    |
-| `documents.remove` | write | Apps only. `key`. Removes the calling app's own document with this key for good. Idempotent: `removed` is `false` if there was nothing.                                                                               |
+| Tool                  | Verb  | What it does                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search`              | read  | `query`, `limit` (default 5, at most 20). Returns `passages` with `chunkId`, `documentId`, `documentTitle`, `source`, `sourceApp`, `sourcePath`, `sourceUrl`, `ord`, `score`, `excerpt` (matches in `«»`) and `text`.                                                                                                                                          |
+| `answer`              | read  | `question`, `limit` (default 8). Searches with the caller's visibility, gives only those passages to `platform.generate` and checks every citation. `status`: `answered` (`answer`, `citations`, `passages`), `no_answer` (`reason`, `message`, `passages`: answer from them yourself) or `not_configured` (no chat model: use `search`). Needs its own grant. |
+| `embeddings.status`   | read  | Model, `search` (`hybrid` or `fulltext` for the caller), coverage of the visible sections (`embedded`, `withheld`, `pending`), old vectors, last error, backfill progress (`dailyShare`, `allowanceToday`, `pendingTokens`, `estimatedDays`, `pausedUntil`).                                                                                                   |
+| `embeddings.backfill` | write | Embeds pending sections now (about 20 s, within today's share), retries withheld sections, lifts a pause after an error but never the daily share.                                                                                                                                                                                                             |
+| `documents.search`    | read  | `query`, `limit`. One hit per document stored in Knowledge itself (`id`, `title`, `snippet`, `url`, `kind`), without content of other apps. Knowledge's tool for the search across all apps (ADR 0021).                                                                                                                                                        |
+| `documents.add`       | write | `title`, `content`, `source?`. Splits and stores in one transaction, returns `id` and `chunkCount`. Documents added this way have no source app.                                                                                                                                                                                                               |
+| `documents.list`      | read  | `q?` filters by title or source. Without full text. Only what the caller can see.                                                                                                                                                                                                                                                                              |
+| `documents.get`       | read  | `id`, `includeChunks?`. Deleted documents and documents from apps the caller may not read return 404.                                                                                                                                                                                                                                                          |
+| `documents.delete`    | write | `id`. Soft delete: afterwards neither in search nor in the list. Refused (400) for documents of a source app; they are removed there.                                                                                                                                                                                                                          |
+| `documents.upsert`    | write | Apps only. `key`, `title`, `content`, `source?`, `path?`, `updatedAt?`. Replaces the calling app's own document with this key, sections included, in one transaction. Returns `id`, `key`, `status`, `chunkCount`.                                                                                                                                             |
+| `documents.remove`    | write | Apps only. `key`. Removes the calling app's own document with this key for good. Idempotent: `removed` is `false` if there was nothing.                                                                                                                                                                                                                        |
 
 ## Content from other apps
 
@@ -62,12 +68,12 @@ calls). An agent sees wiki hits only with `read` on `app:wiki`.
 
 ## Pages
 
-| Path              | What it shows                                           |
-| ----------------- | ------------------------------------------------------- |
-| `/`               | Search with matching sections and their source          |
-| `/documents`      | All stored documents, newest first                      |
-| `/documents/new`  | Form to add a document                                  |
-| `/documents/<id>` | One document with its sections (anchors `#section-<n>`) |
+| Path              | What it shows                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `/`               | Search with matching sections and their source; with a chat model also "Answer with sources" (tool `answer`) |
+| `/documents`      | All stored documents, newest first                                                                           |
+| `/documents/new`  | Form to add a document                                                                                       |
+| `/documents/<id>` | One document with its sections (anchors `#section-<n>`)                                                      |
 
 ## How search works
 
@@ -88,11 +94,43 @@ and `»` instead of HTML; the UI renders them as `<mark>`, without
 `dangerouslySetInnerHTML`.
 
 Search sits behind the `Retriever` interface in `src/lib/retriever.ts`, and
-the visibility is a required argument of every implementation. When
-pgvector arrives, that becomes a second implementation of the same interface
-(vector column in a new migration, embeddings on store, selection in
-`currentRetriever()` in `src/lib/tools.ts`) — tools, response format and UI
-stay unchanged. A hybrid variant that merges both rankings would be a third.
+the visibility is a required argument of every implementation.
+
+### Hybrid search (0.3.0, ADR 0025)
+
+`src/lib/hybrid.ts` is the second implementation: full text as above and an
+exact vector search (pgvector, cosine distance, no ANN index yet), merged by
+reciprocal rank fusion (`k = 60`). Both lists apply **the same visibility in
+`where`, before ranking and limit**: a section the caller may not read is in
+neither list. The vector part is only on if
+
+1. an embedding model is known (`embedding_state`),
+2. every embeddable section the caller can see has a vector of the current
+   model (provider/model/dimension); sections the platform withheld
+   (local-only apps, external provider) do not count against this, and
+3. the query itself gets a vector of the same model within 3 seconds.
+
+Otherwise the result is exactly the full-text search, with the same
+arguments as in 0.2. Without an embedding model Knowledge does not even ask
+the platform. `documents.search` (the search across all apps) always uses full
+text only: it is called while people type.
+
+Vectors come from `platform.embed` as `app:knowledge`; the provider key never
+reaches Knowledge. The queue (`src/lib/embeddings.ts`) is derived: every live
+section without a row for the current model is pending, so new and changed
+sections and a model change need no enqueuing. It runs on start, every 60 s
+and after every save, never inside a save. `documents.upsert` keeps sections
+whose text did not change, with their vectors. After a model change search is
+full text until everything is embedded again; then vectors of old models are
+deleted.
+
+**Budget:** the daily limit per subject (ADR 0024) covers everything Knowledge
+does. A backfill takes at most half of it (and at most half of the
+installation's limit), measured against what the platform already counts for
+`app:knowledge` today (`platform.model_info`). Then it pauses until the next
+UTC day and continues by itself; `embeddings.status` shows the progress.
+Knowledge never raises the limit; the operator can, consciously, in the
+control plane's env.
 
 ## How documents are split
 
@@ -108,6 +146,11 @@ dropped.
 - `migrations/0002_document_sources.sql` — source app, key, path and state
   per document, unique per (app, key).
 - `migrations/0003_german_search.sql` — the German full-text column.
+- `migrations/0004_embeddings.sql` — `chunk_embeddings` (vector per section
+  and model, `extensions.vector` without a fixed dimension, `withheld` for
+  sections kept from an external provider) and `embedding_state`. Needs
+  pgvector in the schema `extensions` and `USAGE` on it, which the platform
+  grants because `app.json` lists `databaseExtensions: ["vector"]`.
 - `seeds/0001_sample_documents.sql` — four fictional documents of Northlight
   Ltd (travel expenses, quotes, IT security, product sheet), local only. The
   seed only creates the documents; they are split on start in
@@ -126,11 +169,14 @@ pnpm dev
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
-The database tests (`test/documents.db.test.ts`) only run with
+The database tests (`test/*.db.test.ts`) only run with
 `KNOWLEDGE_TEST_DATABASE_URL` and `KNOWLEDGE_TEST_DATABASE_SCHEMA` — as the
-app role with its own empty schema. They cover hits from apps the caller may
-not read, replacing and removing foreign sources, older states and German word
-forms.
+app role with its own empty schema, pgvector in the schema `extensions`
+(`infra/betrieb/postgres/vector.sql` as superuser) and `USAGE` on it for the
+role. They cover hits from apps the caller may not read (full text and
+vector), replacing and removing foreign sources, older states, German word
+forms, coverage, model changes and withheld sections. With a database the test
+files run one after another (`vitest.config.ts`).
 
 Without the gateway there is no user locally; calls need the five `X-Auth-*`
 headers, signed with `signatureFor` from `@openapps/sdk` (see the README of

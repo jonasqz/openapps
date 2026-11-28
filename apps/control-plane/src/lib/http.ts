@@ -38,6 +38,16 @@ export function errorResponse(error: unknown): Response {
       422,
     );
   }
+  // ADR 0024: ohne Modell 503, Tagesgrenze 429, Anbieter weg 502.
+  if (error instanceof DomainError && error.code === 'not_configured') {
+    return jsonResponse({ error: error.code, message: error.message }, 503);
+  }
+  if (error instanceof DomainError && error.code === 'budget_exceeded') {
+    return jsonResponse({ error: error.code, message: error.message }, 429);
+  }
+  if (error instanceof DomainError && error.code === 'model_error') {
+    return jsonResponse({ error: error.code, message: error.message }, 502);
+  }
   if (error instanceof DomainError) {
     return jsonResponse({ error: error.code, message: error.message }, 400);
   }

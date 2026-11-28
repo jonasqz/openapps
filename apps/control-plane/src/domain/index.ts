@@ -8,7 +8,7 @@ export * from './errors';
 export * from './ports';
 export * from './naming';
 export { type DomainContext, type GatewaySettings, systemClock, uuidIds } from './context';
-export { can, requirePermission, grantMatches, subjectsOf } from './can';
+export { can, canSubjects, requirePermission, grantMatches, subjectsOf } from './can';
 export { appAuthSecret, appCallSecret, type AppSecretInput } from './app-secret';
 export { appIdOf, gatewayHost } from './gateway-identity';
 export { appContainerPort, DEFAULT_APP_PORT } from './app-port';
@@ -87,11 +87,17 @@ export {
 export {
   federateSearch,
   gatewayAppHref,
+  hitRef,
   isSearchable,
   maySearchApp,
   parseSearchRequest,
+  PLATFORM_INBOX_PATH,
   PLATFORM_PATH_PREFIX,
   PLATFORM_PATHS,
+  PLATFORM_PEOPLE_PATH,
+  PLATFORM_REFS_ACTIONS_PATH,
+  PLATFORM_REFS_BACKLINKS_PATH,
+  PLATFORM_REFS_RESOLVE_PATH,
   PLATFORM_SEARCH_LIMITS,
   PLATFORM_SEARCH_PATH,
   searchApps,
@@ -126,7 +132,137 @@ export {
   type ProposedGrant,
 } from './manifest-grants';
 export { record as recordAudit, audited } from './audit';
-export { createApp, listApps, getApp, canAccessApp, requireAppPermission } from './apps';
+export {
+  createApp,
+  listApps,
+  getApp,
+  canAccessApp,
+  requireAppPermission,
+  subjectsCanAccessApp,
+} from './apps';
+export {
+  AGENT_RUN_FINISHED_EVENT_TYPE,
+  PLATFORM_AGENT_TOOLS,
+  storePlatformEvent,
+  type PlatformNotice,
+  type StoredOutcome,
+} from './events';
+export { isLocalBaseUrl, isLocalProvider } from './model-locality';
+export {
+  callChat,
+  callEmbed,
+  chatConfigured,
+  embedForApp,
+  estimateChatTokens,
+  generateForApp,
+  MODEL_CALL_LIMITS,
+  MODEL_LIMIT_DEFAULTS,
+  modelStatus,
+  parseSourcedContents,
+  partitionByApp,
+  recordWithheld,
+  startOfUtcDay,
+  withheldAppsFor,
+  type EmbedResult,
+  type GenerateResult,
+  type ModelStatus,
+  type SourcedContent,
+} from './models';
+export {
+  AGENT_PROFILE_LIMITS,
+  AGENT_RUN_LIMITS,
+  appsForAppTool,
+  appsInToolResult,
+  claimAgentRun,
+  configureAgent,
+  contextForRun,
+  executeAgentRun,
+  failInterruptedRuns,
+  getAgentRun,
+  listAgentProfiles,
+  listAgentRuns,
+  mayViewRun,
+  RUN_EXCLUDED_TOOLS,
+  startAgentRun,
+  startMentionRuns,
+  type AgentProfilesResult,
+  type AgentProfileView,
+  type AgentRunView,
+  type RunScope,
+  type RunToolbox,
+  type RunToolboxFactory,
+  type RunToolOutcome,
+} from './agent-runs';
+export { intersectedGrants, runContext, triggerSubjects, type RunRights } from './run-rights';
+export {
+  forget,
+  listMemories,
+  MEMORY_LIMITS,
+  recall,
+  remember,
+  type MemoryRunScope,
+  type MemoryView,
+} from './team-memory';
+export { summarizeInbox, SUMMARY_LIMITS, type InboxSummary } from './inbox-summary';
+export {
+  ackEvents,
+  callPlatformTool,
+  compareInboxRows,
+  emitEvent,
+  EVENTS_RETENTION_DAYS_DEFAULT,
+  INBOX_LIMITS,
+  listInbox,
+  markInbox,
+  MENTIONED_EVENT_TYPE,
+  PLATFORM_APP_TOOLS,
+  PLATFORM_EVENT_PREFIX,
+  PLATFORM_TARGET,
+  POLL_LIMITS,
+  pollEvents,
+  purgeExpiredEvents,
+  retentionDaysFrom,
+  type EmitOutcome,
+  type InboxCaller,
+  type InboxFilterState,
+  type InboxItem,
+  type InboxResult,
+  type PolledEvent,
+} from './events';
+export {
+  actionHref,
+  actionsAccepting,
+  cleanExcerpt,
+  createRefCache,
+  filterBacklinks,
+  listActions,
+  listBacklinks,
+  listPeople,
+  mayResolveIn,
+  parseRefList,
+  peopleWithRead,
+  REF_LIST_LIMITS,
+  REF_RESOLVE_LIMITS,
+  resolveInApp,
+  resolverOf,
+  resolveRefs,
+  setRefs,
+  type ActionsResult,
+  type Backlink,
+  type BacklinksResult,
+  type CachedResolution,
+  type PeopleResult,
+  type Person,
+  type RefAction,
+  type RefCache,
+  type RefResolution,
+  type RefState,
+  type ResolvedObjectRef,
+  type ResolvedSubjectRef,
+  type ResolveRefsInput,
+  type ResolveRefsResult,
+  type SetRefsOutcome,
+  type UnresolvedRef,
+} from './refs';
 export {
   requestDeploy,
   rollback,

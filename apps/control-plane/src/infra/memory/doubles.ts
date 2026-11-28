@@ -20,8 +20,16 @@ import type {
   PlatformAlarm,
   RepositoryBackend,
   SchemaProvisioner,
+  ChatRequest,
+  ChatResponse,
+  EmbedRequest,
+  ModelLimits,
+  ModelProvider,
+  ModelProviderKind,
+  ModelSetup,
 } from '../../domain/ports';
 import type { GatewayDynamicConfig } from '../../domain/gateway-config';
+import { MissingDatabaseExtensionError } from '../../domain/errors';
 import type { ScannerOutput, ScannerProcess } from '../../domain/review-gate/types';
 
 export interface RecordingBackend extends DeploymentBackend {
@@ -121,17 +129,35 @@ export interface RecordingProvisioner extends SchemaProvisioner {
   /** Was in Postgres wirklich freigegeben waere: `<rolle>@<schema>.<objekt>`. */
   readonly selectGrants: ReadonlySet<string>;
   readonly provisioned: readonly string[];
+  /** Rollen mit USAGE auf `extensions` (ADR 0025). */
+  readonly extensionUsage: ReadonlySet<string>;
+  /** Erweiterungen, die im Schema `extensions` lagen. Default: `vector`. */
+  readonly installedExtensions: Set<string>;
 }
 
 export function createRecordingProvisioner(): RecordingProvisioner {
   const selectGrants = new Set<string>();
   const provisioned: string[] = [];
+  const extensionUsage = new Set<string>();
+  const installedExtensions = new Set<string>(['vector']);
   const key = (i: { grantee: string; schemaName: string; objectName: string }): string =>
     `${i.grantee}@${i.schemaName}.${i.objectName}`;
 
   return {
     selectGrants,
     provisioned,
+    extensionUsage,
+    installedExtensions,
+    async syncExtensions({ dbRole, extensions }) {
+      // Wie Migration 0025: erst pruefen, dann erteilen oder entziehen.
+      for (const extension of extensions) {
+        if (!installedExtensions.has(extension)) {
+          throw new MissingDatabaseExtensionError(extension);
+        }
+      }
+      if (extensions.length > 0) extensionUsage.add(dbRole);
+      else extensionUsage.delete(dbRole);
+    },
     async provision({ schemaName, dbRole }) {
       provisioned.push(`${dbRole}@${schemaName}`);
       return { dsn: `postgres://${dbRole}@localhost/openapps?schema=${schemaName}` };
@@ -272,5 +298,71 @@ export function createRecordingGatewayConfigStore(
         ? { state: 'match' }
         : { state: 'mismatch', problems: ['the published version is a different one'] };
     },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Modell-Anbieter (ADR 0024)                                                  */
+/* -------------------------------------------------------------------------- */
+
+export interface ScriptedModelProvider extends ModelProvider {
+  /** Jede Anfrage, wie der Anbieter sie bekam. */
+  readonly chats: ChatRequest[];
+  readonly embeds: EmbedRequest[];
+}
+
+/**
+ * Ein Anbieter mit festen Antworten, fuer Tests ohne Netz. Fehlen weitere
+ * Antworten, antwortet er mit „done“ ohne Tool-Aufruf.
+ */
+export function createScriptedModelProvider(options?: {
+  readonly kind?: ModelProviderKind;
+  readonly local?: boolean;
+  readonly replies?: readonly Partial<ChatResponse>[];
+  readonly usage?: { readonly inputTokens: number; readonly outputTokens: number };
+}): ScriptedModelProvider {
+  const chats: ChatRequest[] = [];
+  const embeds: EmbedRequest[] = [];
+  const replies = [...(options?.replies ?? [])];
+  const usage = options?.usage ?? { inputTokens: 10, outputTokens: 5 };
+  return {
+    kind: options?.kind ?? 'anthropic',
+    local: options?.local ?? false,
+    chats,
+    embeds,
+    async chat(request) {
+      chats.push(request);
+      const next = replies.shift() ?? {};
+      return {
+        text: next.text ?? 'done',
+        toolCalls: next.toolCalls ?? [],
+        stopReason: next.stopReason ?? ((next.toolCalls ?? []).length > 0 ? 'tool_use' : 'end'),
+        usage: next.usage ?? usage,
+      };
+    },
+    async embed(request) {
+      embeds.push(request);
+      return {
+        vectors: request.texts.map((text) => [text.length, 1, 0]),
+        usage: { inputTokens: request.texts.length * 3, outputTokens: 0 },
+      };
+    },
+  };
+}
+
+/** Ein `ModelSetup` mit diesem Anbieter fuer Chat und Embeddings. */
+export function scriptedModelSetup(
+  provider: ModelProvider,
+  options?: { readonly limits?: Partial<ModelLimits>; readonly localOnlyApps?: readonly string[] },
+): ModelSetup {
+  return {
+    chat: { provider, model: 'test-chat-model' },
+    embedding: { provider, model: 'test-embedding-model', dimensions: null },
+    limits: {
+      dailyTokens: options?.limits?.dailyTokens ?? 1_000_000,
+      dailyTokensPerSubject: options?.limits?.dailyTokensPerSubject ?? 200_000,
+    },
+    localOnlyApps: options?.localOnlyApps ?? [],
+    problems: [],
   };
 }

@@ -57,6 +57,11 @@ export interface PlatformShellProps {
    * Render neu.
    */
   search?: PlatformSearch;
+  /**
+   * Die Seite Home der Plattform ist gerade offen (nur die Verwaltung setzt
+   * das). Markiert den Eintrag „Home" als aktuelle Seite.
+   */
+  homeCurrent?: boolean;
   className?: string;
 }
 
@@ -75,6 +80,8 @@ interface SidebarModel {
   groups: ReadonlyArray<{ title: string | null; apps: readonly SidebarApp[] }>;
   sections: ReadonlyArray<{ title?: string; items: readonly ShellNavItem[] }>;
   home: string | null;
+  /** Home der Plattform: der eigene Eingang (ADR 0022), `/home`. */
+  inbox: string | null;
   newAgent: string | null;
   admin: string | null;
   settings: string | null;
@@ -156,6 +163,7 @@ function buildModel(
     groups,
     sections: cleanSections,
     home,
+    inbox: link('/home'),
     newAgent: link('/agents'),
     admin: platform?.isAdmin === true ? home : null,
     settings: link('/settings'),
@@ -189,6 +197,7 @@ export function PlatformShell({
   children,
   onNavigate,
   search,
+  homeCurrent = false,
   className,
 }: PlatformShellProps): JSX.Element {
   const baseId = useId().replace(/:/g, '');
@@ -299,6 +308,7 @@ export function PlatformShell({
       }
     }
     const platformGroup = strings.commandPalette.navigationGroup;
+    if (model.inbox !== null) list.push({ id: 'platform:home', label: strings.platformShell.homeLink, href: model.inbox, group: platformGroup, icon: <Icon name="home" /> });
     if (model.canCreateApps) list.push({ id: 'platform:new-app', label: strings.platformShell.newApp, href: '#', group: platformGroup, icon: <Icon name="plus" /> });
     if (model.newAgent !== null) list.push({ id: 'platform:new-agent', label: strings.platformShell.newAgent, href: model.newAgent, group: platformGroup, icon: <Icon name="agents" /> });
     if (model.admin !== null) list.push({ id: 'platform:admin', label: strings.platformShell.admin, href: model.admin, group: platformGroup, icon: <Icon name="grants" /> });
@@ -344,6 +354,7 @@ export function PlatformShell({
       onNewApp={openNewApp}
       onSearch={openPalette}
       onNavigateInApp={navigateInApp}
+      homeCurrent={homeCurrent}
       headerAction={
         inDrawer ? (
           <IconButton label={strings.shell.closeNavigation} onClick={() => setDrawerOpen(false)}>
@@ -456,6 +467,7 @@ interface SidebarProps {
   onNewApp: () => void;
   onSearch: () => void;
   onNavigateInApp: (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => void;
+  homeCurrent: boolean;
   headerAction: ReactNode;
 }
 
@@ -474,6 +486,7 @@ function Sidebar({
   onNewApp,
   onSearch,
   onNavigateInApp,
+  homeCurrent,
   headerAction,
 }: SidebarProps): JSX.Element {
   const productName = strings.shell.productName;
@@ -548,6 +561,25 @@ function Sidebar({
         aria-label={strings.platformShell.appsLabel}
         className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-3 pt-3', rail ? 'px-2' : 'px-3')}
       >
+        {model.inbox === null ? null : (
+          <div className={cn('mb-4 flex min-w-0 flex-col', rail ? 'items-center' : '')}>
+            <a
+              href={model.inbox}
+              aria-current={homeCurrent ? 'page' : undefined}
+              title={rail ? strings.platformShell.homeLink : undefined}
+              className={cn(
+                rail ? RAIL_ROW : ROW,
+                homeCurrent ? 'bg-surface-hover font-medium text-fg' : ROW_IDLE,
+                focusRing,
+              )}
+            >
+              <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center">
+                <Icon name="home" />
+              </span>
+              <span className={rail ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{strings.platformShell.homeLink}</span>
+            </a>
+          </div>
+        )}
         {model.groups.map((group, groupIndex) => (
           <div key={group.title ?? `oa-apps-${groupIndex}`} className={cn('min-w-0', groupIndex > 0 && 'mt-4')}>
             {rail ? (

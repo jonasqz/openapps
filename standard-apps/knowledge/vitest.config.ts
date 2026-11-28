@@ -9,5 +9,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-  test: { include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'test/**/*.test.ts'] },
+  test: {
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'test/**/*.test.ts'],
+    // Die Datenbank-Tests (`*.db.test.ts`) teilen sich ein Schema und raeumen
+    // es je Test auf. Mit Datenbank laufen die Dateien deshalb nacheinander.
+    fileParallelism: (process.env.KNOWLEDGE_TEST_DATABASE_URL ?? '') === '',
+  },
 });

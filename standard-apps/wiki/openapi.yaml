@@ -508,6 +508,49 @@ paths:
                         lastAttemptAt: { type: [string, 'null'], format: date-time }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /tools/pages.resolve:
+    post:
+      operationId: resolvePages
+      summary: Resolves page references for chips in other apps
+      description: >-
+        The resolver of the wiki (manifest field objects, ADR 0023). The
+        platform calls it for resolve_refs after checking that the viewer may
+        read the wiki. Unknown ids are left out; archived pages come with
+        status Archived.
+      x-openapps-verb: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, ids]
+              additionalProperties: false
+              properties:
+                type: { type: string, enum: [page] }
+                ids: { type: array, minItems: 1, maxItems: 50, items: { type: string, maxLength: 128 } }
+      responses:
+        '200':
+          description: Found pages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [objects]
+                properties:
+                  objects:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, path, updatedAt]
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        path: { type: string, description: 'Path in the wiki without the base path' }
+                        status: { type: string, enum: [Archived] }
+                        updatedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   responses:

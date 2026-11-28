@@ -2,12 +2,12 @@
   "manifestVersion": 1,
   "name": "knowledge",
   "displayName": "Knowledge",
-  "description": "The shared search of the platform: store internal documents, let other apps deliver their content, and find the relevant passages with their source. The retrieval half of a RAG: the calling agent writes the answer itself.",
+  "description": "The shared search of the platform: store internal documents, let other apps deliver their content, and find the relevant passages with their source. With a model configured by the operator, search also ranks by meaning and answer writes a short answer that cites the passages; without one, search is full text and the calling agent writes the answer itself.",
   "category": "knowledge",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "source": {
     "git": "https://github.com/jonasqz/openapps.git",
-    "tag": "v0.2.2"
+    "tag": "v0.3.0"
   },
   "requiredTables": [
     {
@@ -17,13 +17,27 @@
     {
       "name": "chunks",
       "description": "Sections of the documents, about 800 characters with overlap, with an English and a German full-text index (tsvector, GIN)."
+    },
+    {
+      "name": "chunk_embeddings",
+      "description": "One vector per section and embedding model (provider/model/dimension), in the pgvector type extensions.vector without a fixed dimension. withheld marks sections the platform kept from an external provider (local-only apps); they are only found through full text. Empty without an embedding model."
+    },
+    {
+      "name": "embedding_state",
+      "description": "One row: the current embedding model, when it was last checked, the last error and until when the backfill pauses (daily share of the token limit used up)."
     }
   ],
   "offeredTools": [
     {
       "name": "search",
-      "description": "Searches internal documents and content other apps delivered (e.g. wiki pages) for passages on a question (German and English full-text search, word forms match). Returns passages with chunkId, documentId, documentTitle, source, sourceApp, sourceUrl, an excerpt (matches in «») and the section text. Content from apps the caller may not read never appears. Answer only from these passages and cite the source (documentTitle, sourceUrl or source). An empty list means nothing was found: do not guess.",
+      "description": "Searches internal documents and content other apps delivered (e.g. wiki pages) for passages on a question: German and English full text, and by meaning if an embedding model is configured. Returns passages with chunkId, documentId, documentTitle, source, sourceApp, sourceUrl, excerpt (matches in «») and text. Content from apps the caller may not read never appears. Answer only from these passages and cite the source. An empty list means nothing was found: do not guess.",
       "operationId": "search",
+      "verb": "read"
+    },
+    {
+      "name": "answer",
+      "description": "Answers a question from passages the caller may read, with citations: {status: answered, answer, citations: [{chunkId, documentTitle, sourceUrl, ...}], passages}. Every citation is checked; an answer without a valid one is discarded and comes back as {status: no_answer, reason, passages}: then answer from those passages yourself, do not guess. Without a chat model: {status: not_configured}, use search. Args: question (1-500 chars), limit (1-20, default 8).",
+      "operationId": "answer",
       "verb": "read"
     },
     {
@@ -67,6 +81,18 @@
       "description": "For apps only: removes the calling app's own document with this key, sections included. The source app comes from the verified caller identity, so an app can only remove its own content. Idempotent: removed is false if there was nothing to remove.",
       "operationId": "removeDocument",
       "verb": "write"
+    },
+    {
+      "name": "embeddings.status",
+      "description": "Shows whether search is hybrid or full text only for the caller, which embedding model is used, how many of the visible sections are embedded, withheld (local-only apps, external provider) or pending, old vectors still waiting to be removed after a model change, the last error, and the backfill progress: dailyShare of the token limit, allowanceToday, pendingTokens, estimatedDays, pausedUntil. No arguments.",
+      "operationId": "embeddingsStatus",
+      "verb": "read"
+    },
+    {
+      "name": "embeddings.backfill",
+      "description": "Embeds pending sections now, as many as fit into about 20 seconds and into today's share of the token limit; the rest follows in the background, the next UTC day at the latest. Retries withheld sections and lifts a pause after an error, never the daily share. Use after configuring or changing the embedding model, or when embeddings.status shows an error. Returns {retriedWithheld, embedded, withheld, pending, removedOld, stopped, status}.",
+      "operationId": "backfillEmbeddings",
+      "verb": "write"
     }
   ],
   "search": {
@@ -91,6 +117,38 @@
         "name": "search"
       },
       "reason": "Agents should be able to find internal documents as sources for their answers. Which agent is decided by the grant in the control plane."
+    },
+    {
+      "subjectKind": "agent",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "knowledge",
+        "name": "answer"
+      },
+      "reason": "Agents may let Knowledge write a short answer with checked citations. It uses the platform model and counts on app:knowledge. Which agent is decided by the grant in the control plane."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "knowledge",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "embed"
+      },
+      "reason": "Knowledge embeds its sections and search queries with the platform model, if the operator configured one (ADR 0025). Without this grant or without a model, search stays full text; saving is never affected."
+    },
+    {
+      "subjectKind": "app",
+      "subjectId": "knowledge",
+      "verb": "execute",
+      "resource": {
+        "kind": "tool",
+        "app": "platform",
+        "name": "generate"
+      },
+      "reason": "Knowledge writes the answer of the tool answer with the platform model, only from passages the caller may read. Without this grant or without a model, answer reports not_configured."
     }
   ],
   "env": [
@@ -123,10 +181,32 @@
       "name": "OPENAPPS_APP_BASE_PATH",
       "secret": false,
       "description": "Path the app lives under (/knowledge). Must be set at build time, otherwise links and images point nowhere."
+    },
+    {
+      "name": "OPENAPPS_PLATFORM_URL",
+      "secret": false,
+      "required": false,
+      "description": "Address of the control plane in the platform network. Knowledge reaches the platform model through it (model_info, embed, generate). Set by the control plane."
+    },
+    {
+      "name": "OPENAPPS_CALL_SECRET",
+      "secret": true,
+      "required": false,
+      "description": "The app's own secret for calls to the platform. Set by the control plane per deployment; never logged."
     }
   ],
-  "egress": [],
+  "egress": [
+    {
+      "host": "openapps-control-plane",
+      "protocol": "http",
+      "port": 3000,
+      "reason": "Calls to the platform model go through the control plane (OPENAPPS_PLATFORM_URL): model_info, embed and generate. The key of the model provider never reaches Knowledge."
+    }
+  ],
   "gatewayContext": [
     "readableApps"
+  ],
+  "databaseExtensions": [
+    "vector"
   ]
 }

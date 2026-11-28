@@ -21,6 +21,7 @@ import {
   updateDealStage,
 } from './crm';
 import { searchCrm } from './crm-search';
+import { resolveCrmObjects } from './refs';
 import { query } from './db';
 import {
   ActivitiesListArgs,
@@ -39,6 +40,7 @@ import {
   NextStepCreateArgs,
   NextStepsListArgs,
   PipelineSummaryArgs,
+  ResolveArgs,
   SearchArgs,
 } from './schemas';
 
@@ -100,6 +102,7 @@ export const toolHandlers = {
   }),
 
   search: async (args) => searchCrm(query, parseArgs(SearchArgs, args)),
+  'crm.resolve': async (args) => resolveCrmObjects(query, parseArgs(ResolveArgs, args)),
 
   'pipeline.summary': async (args) => {
     parseArgs(PipelineSummaryArgs, args);

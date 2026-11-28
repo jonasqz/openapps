@@ -18,6 +18,7 @@
  * (Migration 0013).
  */
 
+import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { migrate } from '../src/infra/pg/migrate';
 import { closePool } from '../src/infra/pg/pool';
@@ -140,5 +141,58 @@ export async function sqlError(pool: Pool, sql: string): Promise<string | null> 
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
+  }
+}
+
+/**
+ * Das SQL aus `infra/betrieb/postgres/vector.sql` (ADR 0025) fuer `pg`
+ * statt `psql`: ohne die Meta-Befehle (`\set`, `\if` …) und mit der Rolle
+ * der Control Plane statt der psql-Variable. So prueft der Test die Datei,
+ * die im Image liegt, nicht eine Abschrift.
+ */
+export function vectorSetupSql(ownerRole: string): string {
+  const file = new URL('../../../infra/betrieb/postgres/vector.sql', import.meta.url);
+  return readFileSync(file, 'utf8')
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('\\'))
+    .join('\n')
+    .replaceAll(':"owner"', `"${ownerRole}"`);
+}
+
+/** Superuser-Verbindung zur Datenbank der Control Plane im Test. */
+export function superuserOnOwnerDatabase(): Pool {
+  const url = new URL(TEST_DATABASE_URL);
+  url.pathname = `/${OWNER_DATABASE}`;
+  return new Pool({ connectionString: url.toString() });
+}
+
+/** Rolle der Control Plane im Test (ohne Superuser, wie `openapps_owner`). */
+export const TEST_OWNER_ROLE = OWNER_ROLE;
+
+/**
+ * Bringt die Test-Instanz pgvector mit? Einmal beim Laden der Datei gefragt,
+ * damit `it.skipIf` die Antwort synchron hat. Nicht erreichbar: `false`.
+ */
+export async function vectorAvailable(): Promise<boolean> {
+  const probe = new Pool({ connectionString: TEST_DATABASE_URL, connectionTimeoutMillis: 1500 });
+  try {
+    const { rows } = await probe.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_available_extensions WHERE name = 'vector'`,
+    );
+    return (rows[0]?.n ?? 0) > 0;
+  } catch {
+    return false;
+  } finally {
+    await probe.end().catch(() => undefined);
+  }
+}
+
+/** Richtet pgvector wie `openapps-vector` ein, als Superuser, in der Datenbank der Tests. */
+export async function installVector(): Promise<void> {
+  const superuser = superuserOnOwnerDatabase();
+  try {
+    await superuser.query(vectorSetupSql(OWNER_ROLE));
+  } finally {
+    await superuser.end().catch(() => undefined);
   }
 }

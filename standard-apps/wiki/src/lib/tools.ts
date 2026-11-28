@@ -13,6 +13,7 @@ import {
   setFavorite,
   updatePage,
 } from './pages';
+import { resolvePages } from './refs';
 import { backfillSearch, searchSyncStatus } from './search-sync';
 import {
   FavoritesListArgs,
@@ -23,6 +24,7 @@ import {
   PagesHistoryArgs,
   PagesListArgs,
   PagesMoveArgs,
+  PagesResolveArgs,
   PagesRestoreArgs,
   PagesSearchArgs,
   PagesTreeArgs,
@@ -50,6 +52,7 @@ export const toolHandlers = {
   'pages.move': async (args, ctx) => movePage(parseArgs(PagesMoveArgs, args), ctx.user.id),
   'pages.archive': async (args, ctx) => archivePage(parseArgs(PagesArchiveArgs, args), ctx.user.id),
   'pages.history': async (args) => pageHistory(parseArgs(PagesHistoryArgs, args)),
+  'pages.resolve': async (args) => resolvePages(parseArgs(PagesResolveArgs, args)),
   'pages.restore': async (args, ctx) => restorePage(parseArgs(PagesRestoreArgs, args), ctx.user.id),
   'favorites.list': async (args, ctx) => {
     parseArgs(FavoritesListArgs, args);
@@ -79,6 +82,7 @@ export const toolSchemas = {
   'pages.move': PagesMoveArgs,
   'pages.archive': PagesArchiveArgs,
   'pages.history': PagesHistoryArgs,
+  'pages.resolve': PagesResolveArgs,
   'pages.restore': PagesRestoreArgs,
   'favorites.list': FavoritesListArgs,
   'favorites.set': FavoritesSetArgs,

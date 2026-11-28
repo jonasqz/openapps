@@ -1,6 +1,7 @@
 import { ToolInputError, ToolNotFoundError } from '@openapps/sdk';
 import { chunkText } from './chunk';
 import { query, withTransaction, type QueryFn } from './db';
+import { kickEmbeddings } from './knowledge-runtime';
 import type { DocumentInput, GetArgs, ListArgs, RemoveArgs, UpsertArgs } from './schemas';
 import { sourceUrlFor, visibleSourceApps, type Visibility } from './visibility';
 
@@ -84,6 +85,59 @@ async function insertChunks(tx: QueryFn, documentId: string, chunks: readonly st
   );
 }
 
+/**
+ * So weit schiebt `replaceChunks` die alten Abschnitte, bevor es die neue
+ * Reihenfolge setzt. Ein Dokument hat hoechstens einige hundert Abschnitte.
+ */
+const ORD_SHIFT = 1_000_000;
+
+/**
+ * Ersetzt die Abschnitte eines Dokuments, **behaelt aber jeden Abschnitt,
+ * dessen Text gleich geblieben ist** (mit Id und Vektoren, ADR 0025). Ein
+ * Wiki speichert oft nur einen Absatz neu; ohne das wuerde jedes Speichern
+ * das ganze Dokument noch einmal einbetten und das Tagesbudget aufbrauchen.
+ * Nur innerhalb einer Transaktion aufrufen.
+ *
+ * 1. Alle alten Abschnitte aus dem Weg schieben (`ord + ORD_SHIFT`).
+ * 2. In einer Anweisung: gleichen Text (je Vorkommen, `k`) auf die neue
+ *    Position setzen, den Rest neu anlegen. Die Positionen sind getrennt,
+ *    also verletzt keine Zeile `chunks_document_ord_key`.
+ * 3. Was noch verschoben ist, wird nicht mehr gebraucht. Seine Vektoren
+ *    gehen mit (`on delete cascade`).
+ */
+async function replaceChunks(tx: QueryFn, documentId: string, chunks: readonly string[]) {
+  await tx('update chunks set ord = ord + $2 where document_id = $1::uuid', [
+    documentId,
+    ORD_SHIFT,
+  ]);
+  await tx(
+    `with wanted as (
+       select u.t as text, (u.n - 1)::int as ord,
+              row_number() over (partition by u.t order by u.n) as k
+         from unnest($2::text[]) with ordinality as u(t, n)
+     ),
+     old as (
+       select id, text, row_number() over (partition by text order by ord) as k
+         from chunks where document_id = $1::uuid
+     ),
+     kept as (
+       update chunks c set ord = w.ord
+         from wanted w join old o on o.text = w.text and o.k = w.k
+        where c.id = o.id
+       returning c.id
+     )
+     insert into chunks (document_id, ord, text)
+     select $1::uuid, w.ord, w.text
+       from wanted w
+      where not exists (select 1 from old o where o.text = w.text and o.k = w.k)`,
+    [documentId, [...chunks]],
+  );
+  await tx('delete from chunks where document_id = $1::uuid and ord >= $2', [
+    documentId,
+    ORD_SHIFT,
+  ]);
+}
+
 /** `documents.add`: Dokument und Abschnitte in einer Transaktion. */
 export async function addDocument(
   input: DocumentInput,
@@ -94,7 +148,7 @@ export async function addDocument(
     // Das Schema laesst keinen leeren Text durch; das hier ist die zweite Huerde.
     throw new ToolInputError('content contains no text');
   }
-  return withTransaction(async (tx) => {
+  const created = await withTransaction(async (tx) => {
     const rows = await tx<{ id: string }>(
       `insert into documents (title, source, content, char_count, created_by)
        values ($1, $2, $3, char_length($3), $4)
@@ -106,6 +160,9 @@ export async function addDocument(
     await insertChunks(tx, id, chunks);
     return { id, chunkCount: chunks.length };
   });
+  // Nach dem Commit, ohne zu warten: Speichern scheitert nie am Modell.
+  kickEmbeddings();
+  return created;
 }
 
 /** `%` und `_` sind in `ilike` Platzhalter; aus der Eingabe gelten sie woertlich. */
@@ -240,7 +297,7 @@ export async function upsertSourceDocument(
   const chunks = chunkText(args.content);
   if (chunks.length === 0) throw new ToolInputError('content contains no text');
 
-  return withTransaction(async (tx) => {
+  const result = await withTransaction(async (tx) => {
     const rows = await tx<{ id: string; inserted: boolean }>(
       `insert into documents
          (title, source, content, char_count, created_by,
@@ -288,8 +345,7 @@ export async function upsertSourceDocument(
         chunkCount: Number(current.chunk_count),
       };
     }
-    await tx('delete from chunks where document_id = $1::uuid', [row.id]);
-    await insertChunks(tx, row.id, chunks);
+    await replaceChunks(tx, row.id, chunks);
     return {
       id: row.id,
       key: args.key,
@@ -297,6 +353,8 @@ export async function upsertSourceDocument(
       chunkCount: chunks.length,
     };
   });
+  if (result.status !== 'stale') kickEmbeddings();
+  return result;
 }
 
 /**

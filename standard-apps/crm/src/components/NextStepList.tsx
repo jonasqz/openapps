@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type JSX, type ReactNode } from 'react';
 import { Badge, Button, EmptyState, ErrorState, useToast } from '@openapps/ui';
+import { CrmRefText } from './Refs';
 import { completeNextStepAction, reopenNextStepAction } from '@/app/actions';
 
 /** Ein Schritt, wie ihn die Server-Seite fertig aufbereitet (keine Funktionen). */
@@ -103,7 +104,7 @@ export function NextStepList({
                     : 'text-sm font-medium text-fg [overflow-wrap:anywhere]'
                 }
               >
-                {step.title}
+                <CrmRefText text={step.title} />
               </p>
               <p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted">
                 {step.overdue ? (

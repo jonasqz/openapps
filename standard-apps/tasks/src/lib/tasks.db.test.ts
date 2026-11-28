@@ -77,6 +77,8 @@ describe.skipIf(!enabled)('Tasks against Postgres', () => {
       '0003_task_workflow.sql',
       '0004_task_comments.sql',
       '0005_task_events.sql',
+      '0006_event_outbox.sql',
+      '0007_refs.sql',
     ]);
     expect((await runSeeds(db.appPool(), seeds, sample))?.applied).toEqual([
       'seed/0001_sample.sql',
@@ -258,6 +260,88 @@ describe.skipIf(!enabled)('Tasks against Postgres', () => {
     expect(hit.tasks.map((task) => task.title)).toEqual(['Raise prices by 5%']);
     const none = (await run('tasks.list', { query: '_' })) as { tasks: Task[] };
     expect(none.tasks).toEqual([]);
+  });
+
+  it('queues events with the change and delivers them once the platform is back (ADR 0022)', async () => {
+    const { taskEvents } = await import('./events');
+    await taskEvents.settle();
+    await db.query('delete from event_outbox');
+    // Ohne Plattform: Speichern gelingt, das Ereignis wartet.
+    delete process.env.OPENAPPS_PLATFORM_URL;
+    await run('tasks.assign', { id: PHOTOS, assignee: 'kim@example.com' }, HUMAN);
+    await run('tasks.comment', { id: PHOTOS, body: 'Ping' }, HUMAN);
+    await taskEvents.settle();
+    const waiting = await db.query<{ type: string; audience: string[]; actor: string }>(
+      `select payload->>'type' as type, array(select jsonb_array_elements_text(payload->'audience')) as audience,
+              payload->>'actor' as actor
+         from event_outbox order by version`,
+    );
+    expect(waiting.map((row) => row.type)).toEqual(['task.assigned', 'task.commented']);
+    expect(waiting[0]?.audience).toEqual(['human:kim@example.com']);
+    expect(waiting[0]?.actor).toBe('human:viewer@local.test');
+    expect((await taskEvents.status()).failing).toBeGreaterThan(0);
+
+    // Die Plattform ist wieder da: geliefert, Outbox leer.
+    const received: unknown[] = [];
+    const { createServer } = await import('node:http');
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk: Buffer) => (body += chunk.toString()));
+      req.on('end', () => {
+        received.push({ url: req.url, caller: req.headers['x-openapps-caller'], body: JSON.parse(body) });
+        res.writeHead(200, { 'content-type': 'application/json' }).end('{"status":"accepted"}');
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+    process.env.OPENAPPS_PLATFORM_URL = `http://127.0.0.1:${String(port)}`;
+    process.env.OPENAPPS_CALL_SECRET = 'c'.repeat(64);
+    process.env.OPENAPPS_APP_ID = 'tasks';
+    try {
+      const report = await taskEvents.deliverPending();
+      expect(report).toMatchObject({ delivered: 2, pending: 0, stopped: false });
+      expect(received).toHaveLength(2);
+      expect(received[0]).toMatchObject({ url: '/api/apps/platform/tools/emit_event', caller: 'tasks' });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      delete process.env.OPENAPPS_PLATFORM_URL;
+      delete process.env.OPENAPPS_CALL_SECRET;
+    }
+  });
+
+  it('creates a task from a wiki page as the caller and reports the full set of references (ADR 0023)', async () => {
+    const { taskRefs } = await import('./refs');
+    await taskRefs.settle();
+    await db.query('delete from refs_outbox');
+    delete process.env.OPENAPPS_PLATFORM_URL;
+    const created = (await run(
+      'tasks.create_from_ref',
+      { sourceRef: 'wiki:page:p1', excerpt: '## Ship the offer\nAsk @{human:kim@example.com}' },
+      HUMAN,
+    )) as { task: Task };
+    expect(created.task).toMatchObject({
+      title: 'Ship the offer',
+      sourceRef: 'wiki:page:p1',
+      createdBy: 'viewer@local.test',
+    });
+    await run('tasks.comment', { id: created.task.id, body: 'See @{crm:deal:d1}' }, HUMAN);
+    await taskRefs.settle();
+    const rows = await db.query<{ key: string; payload: { targets: { ref: string; kind: string }[] } }>(
+      'select key, payload from refs_outbox',
+    );
+    expect(rows.map((row) => row.key)).toEqual([`tasks:task:${created.task.id}`]);
+    expect(rows[0]?.payload.targets).toEqual([
+      { ref: 'wiki:page:p1', kind: 'derived' },
+      { ref: 'human:kim@example.com', kind: 'mention' },
+      { ref: 'crm:deal:d1', kind: 'link' },
+    ]);
+    const resolved = (await run('tasks.resolve', { type: 'task', ids: [created.task.id, UNKNOWN] })) as {
+      objects: { id: string; title: string; path: string }[];
+    };
+    expect(resolved.objects).toEqual([
+      expect.objectContaining({ id: created.task.id, title: 'Ship the offer', path: `/task/${created.task.id}` }),
+    ]);
   });
 
   it('finds tasks and projects for the platform search (ADR 0021)', async () => {

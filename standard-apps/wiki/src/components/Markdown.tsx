@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
 import { Icon, cn } from '@openapps/ui';
 import { parseMarkdown, type Block, type Inline } from '@/lib/markdown';
+import { WikiRefChip } from './Refs';
 
 /**
  * Rendert Markdown als React-Elemente. Kein HTML-String, kein
@@ -9,6 +10,8 @@ import { parseMarkdown, type Block, type Inline } from '@/lib/markdown';
  * escapet. Links haben nur http(s)-Ziele — das prueft der Parser.
  * Seitenlinks (`page:<uuid>`) gehen ueber `next/link` auf `/pages/<uuid>`,
  * damit der basePath stimmt; der Pfad entsteht hier aus der geprueften UUID.
+ * Verweise `@{app:typ:id}` (ADR 0023) werden Chips, die ihren Titel im
+ * Browser ueber die Plattform laden, mit den Rechten der lesenden Person.
  *
  * Die Ueberschriften beginnen bei `h2`, weil der Seitentitel das `h1` ist.
  *
@@ -63,6 +66,9 @@ function renderInline(nodes: readonly Inline[], keyPrefix: string): ReactNode[] 
             {renderInline(node.children, key)}
           </a>,
         );
+        break;
+      case 'ref':
+        out.push(<WikiRefChip key={key} value={node.ref} />);
         break;
       case 'pagelink':
         out.push(

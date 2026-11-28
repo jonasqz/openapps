@@ -75,6 +75,8 @@ describe.skipIf(!enabled)('CRM against Postgres', () => {
       '0002_english_values.sql',
       '0003_deal_close.sql',
       '0004_next_steps.sql',
+      '0005_events.sql',
+      '0006_refs.sql',
     ]);
     expect((await runSeeds(db.appPool(), seeds, sample))?.applied).toEqual([
       'seed/0001_beispieldaten.sql',
@@ -419,6 +421,62 @@ describe.skipIf(!enabled)('CRM against Postgres', () => {
       id: '0e000000-0000-4000-8000-0000000000ff',
     }).catch((e: unknown) => e);
     expect(unknownStep).toBeInstanceOf(ToolNotFoundError);
+  });
+
+  it('queues deal.won, next_step.assigned and next_step.due once, with the change (ADR 0022)', async () => {
+    const { crmEvents, emitDueNextSteps } = await import('./events');
+    await crmEvents.settle();
+    delete process.env.OPENAPPS_PLATFORM_URL;
+    await db.query('delete from event_outbox');
+    const types = async () =>
+      (await db.query<{ type: string; audience: string }>(
+        `select payload->>'type' as type, payload->'audience'->>0 as audience from event_outbox order by version`,
+      )).map((row) => `${row.type} ${row.audience ?? '-'}`);
+
+    await run('deals.update_stage', { id: MAINTENANCE, stage: 'lost', note: 'Budget cut' });
+    await run('next_steps.create', { title: 'Call back', dueOn: '2000-01-01', dealId: MAINTENANCE, owner: 'u_sam' });
+    // Der Schritt ist schon faellig: einmal melden, beim zweiten Lauf nicht noch einmal.
+    expect(await emitDueNextSteps()).toBeGreaterThanOrEqual(1);
+    expect(await emitDueNextSteps()).toBe(0);
+    await crmEvents.settle();
+    const queued = await types();
+    expect(queued.filter((t) => t.startsWith('deal.lost'))).toHaveLength(1);
+    expect(queued).toContain('next_step.assigned user:u_sam');
+    expect(queued).toContain('next_step.due user:u_sam');
+    // Geliefert wurde nichts: keine Plattform. Gespeichert ist trotzdem alles.
+    expect((await crmEvents.status()).pending).toBe(queued.length);
+  });
+
+  it('queues the references of a note and resolves deals for other apps (ADR 0023)', async () => {
+    const { crmRefs } = await import('./refs');
+    await crmRefs.settle();
+    delete process.env.OPENAPPS_PLATFORM_URL;
+    await db.query('delete from refs_outbox');
+    await run('activities.log', { kind: 'note', subject: 'Plain note', dealId: PORTAL });
+    expect(await db.query('select key from refs_outbox')).toEqual([]);
+    const logged = (await run('activities.log', {
+      kind: 'note',
+      subject: 'Kickoff',
+      body: 'Ask @{human:kim@example.com}, see @{wiki:page:p1}',
+      dealId: PORTAL,
+    })) as { activity: { id: string } };
+    await crmRefs.settle();
+    const rows = await db.query<{ key: string; targets: string[]; path: string }>(
+      `select key, array(select t->>'ref' from jsonb_array_elements(payload->'targets') t) as targets,
+              payload->>'path' as path
+         from refs_outbox`,
+    );
+    expect(rows).toEqual([
+      {
+        key: `crm:activity:${logged.activity.id}`,
+        targets: ['human:kim@example.com', 'wiki:page:p1'],
+        path: `/deals/${PORTAL}`,
+      },
+    ]);
+    const resolved = (await run('crm.resolve', { type: 'deal', ids: [PORTAL, '0d000000-0000-4000-8000-0000000000ff'] })) as {
+      objects: { id: string; path: string }[];
+    };
+    expect(resolved.objects.map((o) => o.path)).toEqual([`/deals/${PORTAL}`]);
   });
 
   it('searches companies, contacts and deals for the platform search (ADR 0021)', async () => {

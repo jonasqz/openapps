@@ -336,3 +336,17 @@ export type NextStepCompleteArgs = z.infer<typeof NextStepCompleteArgs>;
 // --- Pipeline -------------------------------------------------------------
 
 export const PipelineSummaryArgs = z.object({}).strict();
+
+/**
+ * `crm.resolve` (ADR 0023): das feste Format der Plattform fuer Resolver
+ * (`parseResolveArgs` in `@openapps/sdk`).
+ */
+export const ResolveArgs = z
+  .object({
+    type: z.enum(['company', 'contact', 'deal', 'activity', 'next-step'], {
+      errorMap: () => ({ message: 'expected company, contact, deal, activity or next-step' }),
+    }),
+    ids: z.array(z.string().min(1).max(128)).min(1, 'at least 1').max(50, 'at most 50'),
+  })
+  .strict();
+export type ResolveArgs = z.infer<typeof ResolveArgs>;

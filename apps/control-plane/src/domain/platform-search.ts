@@ -30,7 +30,12 @@
  * einem Aufrufer, der gar nicht suchen darf.
  */
 
-import { normalizeSearchResult, SEARCH_QUERY_MAX_LENGTH, type SearchHit } from '@openapps/sdk';
+import {
+  normalizeSearchResult,
+  parseObjectRef,
+  SEARCH_QUERY_MAX_LENGTH,
+  type SearchHit,
+} from '@openapps/sdk';
 import type { AppToolInvoker, HumanIdentity } from './app-tools';
 import { canAccessApp } from './apps';
 import { audited } from './audit';
@@ -51,11 +56,31 @@ export const PLATFORM_PATH_PREFIX = '/_platform/';
 /** Die Suche ueber alle Apps auf dem Host der Apps, fuer die Leiste im Browser. */
 export const PLATFORM_SEARCH_PATH = '/_platform/search';
 
+/** Der eigene Eingang auf dem Host der Apps (ADR 0022 D), nur lesend. */
+export const PLATFORM_INBOX_PATH = '/_platform/inbox';
+
 /**
  * Die Pfade unter `PLATFORM_PATH_PREFIX`, die die Forward-Auth durchlaesst,
  * und zwar genau diese, ohne Praefix-Vergleich. Alles andere dort: 403.
  */
-export const PLATFORM_PATHS: readonly string[] = Object.freeze([PLATFORM_SEARCH_PATH]);
+/**
+ * Verweise zwischen Apps (ADR 0023 F): Chips, Rueckverweise, Aktionen und
+ * Picker laden im Browser auf dem Host der Apps, nur lesend (`GET`), die
+ * Person allein aus der Session.
+ */
+export const PLATFORM_REFS_RESOLVE_PATH = '/_platform/refs/resolve';
+export const PLATFORM_REFS_BACKLINKS_PATH = '/_platform/refs/backlinks';
+export const PLATFORM_REFS_ACTIONS_PATH = '/_platform/refs/actions';
+export const PLATFORM_PEOPLE_PATH = '/_platform/people';
+
+export const PLATFORM_PATHS: readonly string[] = Object.freeze([
+  PLATFORM_SEARCH_PATH,
+  PLATFORM_INBOX_PATH,
+  PLATFORM_REFS_RESOLVE_PATH,
+  PLATFORM_REFS_BACKLINKS_PATH,
+  PLATFORM_REFS_ACTIONS_PATH,
+  PLATFORM_PEOPLE_PATH,
+]);
 
 export const PLATFORM_SEARCH_LIMITS = Object.freeze({
   /** Kuerzere Suchtexte fragen keine App: Ein Zeichen trifft fast alles. */
@@ -80,6 +105,12 @@ export interface PlatformSearchHit {
   readonly url: string;
   /** Volle Adresse zum Oeffnen: Adresse der App plus `url`. */
   readonly href: string;
+  /**
+   * Verweis auf das Objekt (ADR 0023 A), `<app>:<kind>:<id>`, wenn `kind`
+   * eine Objektart aus dem Manifest der App ist. Damit fuegt der Picker einen
+   * Treffer als `@{…}` ein.
+   */
+  readonly ref?: string;
 }
 
 export interface PlatformSearchAppResult {
@@ -135,6 +166,19 @@ export function isSearchable(app: Pick<App, 'archivedAt' | 'primaryDomain' | 'ma
 export function gatewayAppHref(app: Pick<App, 'name' | 'primaryDomain'>): string | null {
   if (app.primaryDomain === null) return null;
   return `https://${gatewayHost(app.primaryDomain)}${appPathFor(app.name)}`;
+}
+
+/**
+ * Der Verweis eines Treffers (ADR 0023 A): nur, wenn seine Art eine im
+ * Manifest erklaerte Objektart ist und die Id ins Format passt.
+ */
+export function hitRef(
+  app: Pick<App, 'name' | 'manifest'>,
+  hit: Pick<SearchHit, 'id' | 'kind'>,
+): string | null {
+  if (hit.kind === undefined) return null;
+  if (!(app.manifest.objects ?? []).some((object) => object.type === hit.kind)) return null;
+  return parseObjectRef(`${app.name}:${hit.kind}:${hit.id}`)?.ref ?? null;
 }
 
 class SearchTimeout extends Error {}
@@ -214,7 +258,10 @@ export async function federateSearch(input: {
     results.push({
       app: app.name,
       title: app.displayName,
-      hits: outcome.hits.map((hit: SearchHit) => ({ ...hit, href: `${baseHref}${hit.url}` })),
+      hits: outcome.hits.map((hit: SearchHit) => {
+        const ref = hitRef(app, hit);
+        return { ...hit, href: `${baseHref}${hit.url}`, ...(ref === null ? {} : { ref }) };
+      }),
     });
   }
   return { results, failed, searched };

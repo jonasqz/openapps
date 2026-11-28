@@ -354,3 +354,28 @@ describe('Monogramme', () => {
     expect(monogramTone('crm')).toBe(monogramTone('crm'));
   });
 });
+
+describe('PlatformShell: Home (ADR 0022)', () => {
+  it('zeigt Home oberhalb der Apps, mit Link zur Plattform', () => {
+    renderShell();
+    const apps = screen.getByRole('navigation', { name: 'Apps' });
+    const home = within(apps).getByRole('link', { name: 'Home' });
+    expect(home).toHaveAttribute('href', `${PLATFORM_URL}/home`);
+    expect(home).not.toHaveAttribute('aria-current');
+    // Vor der ersten App in der Reihenfolge des Dokuments.
+    const crm = within(apps).getAllByText('CRM')[0]!;
+    expect(home.compareDocumentPosition(crm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('markiert Home als aktuelle Seite, wenn die Verwaltung es sagt', () => {
+    renderShell({ homeCurrent: true });
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('zeigt Home nicht ohne gueltige Plattform-Adresse', () => {
+    renderShell({ platform: null });
+    expect(screen.queryByRole('link', { name: 'Home' })).not.toBeInTheDocument();
+    renderShell({ platform: { ...platform, platformUrl: 'javascript:alert(1)' } });
+    expect(screen.queryByRole('link', { name: 'Home' })).not.toBeInTheDocument();
+  });
+});

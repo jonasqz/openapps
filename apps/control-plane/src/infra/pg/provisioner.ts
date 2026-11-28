@@ -8,6 +8,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { MissingDatabaseExtensionError } from '../../domain/errors';
 import type { SchemaProvisioner } from '../../domain/ports';
 import type { Queryable } from './pool';
 
@@ -31,6 +32,20 @@ export function createPgProvisioner(
       const password = randomBytes(24).toString('base64url');
       await db.query(`SELECT provision_app_schema($1, $2, $3)`, [schemaName, dbRole, password]);
       return { dsn: options.appDsnTemplate({ role: dbRole, password, schema: schemaName }) };
+    },
+
+    async syncExtensions({ dbRole, extensions }) {
+      assertIdentifier(dbRole);
+      // Die Pruefung, ob die Erweiterung da ist, und das Erteilen stehen in
+      // einer Funktion (Migration 0025), nicht hier: eine Stelle fuer die
+      // Regel „USAGE ja, CREATE nie“.
+      try {
+        await db.query(`SELECT app_database_extensions($1, $2::text[])`, [dbRole, [...extensions]]);
+      } catch (error) {
+        const missing = missingExtension(error);
+        if (missing !== null) throw new MissingDatabaseExtensionError(missing);
+        throw error;
+      }
     },
 
     async grantSelect({ grantee, schemaName, objectName }) {
@@ -60,6 +75,17 @@ export function createPgProvisioner(
       ]);
     },
   };
+}
+
+/** Name der fehlenden Erweiterung aus dem Fehler von Migration 0025, sonst `null`. */
+function missingExtension(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (code !== '42704' || typeof message !== 'string') return null;
+  const match = /^database extension ([a-z_]+) is not installed in schema extensions$/.exec(
+    message,
+  );
+  return match?.[1] ?? null;
 }
 
 /**

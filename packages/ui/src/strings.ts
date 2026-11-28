@@ -131,6 +131,8 @@ export interface UiStrings {
     readonly sidebarLabel: string;
     /** Link der Marke links oben zur Plattform. */
     readonly home: string;
+    /** Eintrag ueber den Apps: der eigene Eingang der Plattform (ADR 0022). */
+    readonly homeLink: string;
     /** Die App hat keine eigenen Bereiche. */
     readonly sectionsEmpty: string;
     readonly collapse: string;
@@ -191,6 +193,45 @@ export interface UiStrings {
     readonly searchError: string;
     /** Diese Apps haben nicht rechtzeitig geantwortet. */
     readonly searchFailed: (apps: string) => string;
+  };
+  /** Verweise zwischen Apps (ADR 0023): Chip, Picker, Rueckverweise, Aktionen. */
+  readonly refs: {
+    readonly loading: string;
+    readonly restricted: string;
+    /** Erklaerung am Chip: warum kein Titel steht. Ohne App-Namen. */
+    readonly restrictedHint: string;
+    readonly notFound: string;
+    readonly unavailable: string;
+    readonly error: string;
+    readonly retry: string;
+    /** „Status: Done" fuer Screenreader. */
+    readonly statusPrefix: string;
+    readonly pickerLabel: string;
+    readonly pickerPlaceholder: string;
+    readonly pickerHint: string;
+    readonly pickerLoading: string;
+    readonly pickerEmptyTitle: string;
+    readonly pickerEmptyDescription: string;
+    readonly pickerErrorTitle: string;
+    readonly pickerErrorDescription: string;
+    readonly pickerPeople: string;
+    readonly pickerObjects: string;
+    readonly agentLabel: string;
+    /** Zweite Zeile eines Objekts im Picker: „Tasks · task". */
+    readonly objectDetail: (appTitle: string, kind: string) => string;
+    readonly backlinksTitle: string;
+    readonly backlinksLoading: string;
+    readonly backlinksEmptyTitle: string;
+    readonly backlinksEmptyDescription: string;
+    readonly backlinksErrorTitle: string;
+    readonly backlinksErrorDescription: string;
+    readonly kindLink: string;
+    readonly kindMention: string;
+    readonly kindDerived: string;
+    readonly actionsLabel: string;
+    readonly actionsLoading: string;
+    readonly actionsEmpty: string;
+    readonly actionsError: string;
   };
   readonly tableSearch: {
     readonly label: (caption: string) => string;
@@ -299,6 +340,7 @@ const en: UiStrings = {
     appsLabel: 'Apps',
     sidebarLabel: 'Sidebar',
     home: 'Platform home',
+    homeLink: 'Home',
     sectionsEmpty: 'No pages yet',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
@@ -350,6 +392,41 @@ const en: UiStrings = {
     searchEmpty: 'No results in your apps',
     searchError: 'Search is not available right now. Try again in a moment.',
     searchFailed: (apps) => `No answer from ${apps}`,
+  },
+  refs: {
+    loading: 'Loading reference…',
+    restricted: 'Restricted',
+    restrictedHint: 'You do not have access to this item.',
+    notFound: 'Not found',
+    unavailable: 'Not available right now',
+    error: 'Reference not loaded',
+    retry: 'Try again',
+    statusPrefix: 'Status: ',
+    pickerLabel: 'Mention a person or link an item',
+    pickerPlaceholder: 'Type a name or search your apps…',
+    pickerHint: 'Type to find people and items.',
+    pickerLoading: 'Searching…',
+    pickerEmptyTitle: 'No matches',
+    pickerEmptyDescription: 'Only people who can open this app can be mentioned.',
+    pickerErrorTitle: 'Search is not available',
+    pickerErrorDescription: 'Try again in a moment.',
+    pickerPeople: 'People',
+    pickerObjects: 'Items',
+    agentLabel: 'Agent',
+    objectDetail: (appTitle, kind) => `${appTitle} · ${kind}`,
+    backlinksTitle: 'Referenced in',
+    backlinksLoading: 'Loading references…',
+    backlinksEmptyTitle: 'No references yet',
+    backlinksEmptyDescription: 'Pages, tasks and deals that link here appear in this list.',
+    backlinksErrorTitle: 'References not loaded',
+    backlinksErrorDescription: 'Try again in a moment.',
+    kindLink: 'Link',
+    kindMention: 'Mention',
+    kindDerived: 'Created from this',
+    actionsLabel: 'Create from this',
+    actionsLoading: 'Loading actions…',
+    actionsEmpty: 'Nothing to create from here',
+    actionsError: 'Actions not loaded',
   },
   tableSearch: {
     label: (caption) => `Search ${caption}`,

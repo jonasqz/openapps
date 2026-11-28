@@ -16,6 +16,7 @@
 import { createServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { createRefCache } from '@openapps/control-plane/domain';
 import { platformContext } from './context';
 import { credentialsFrom } from './credentials';
 import { actorForClient, UnauthenticatedError } from './identity';
@@ -31,6 +32,8 @@ if (masterSecret === undefined) {
   throw new Error('OPENAPPS_AUTH_MASTER_SECRET is missing');
 }
 const invoker = createHttpInvoker({ authMasterSecret: masterSecret });
+// Ein Cache je Prozess fuer `resolve_refs` (ADR 0023 B, 60 s); Rechte prueft jeder Aufruf.
+const refCache = createRefCache();
 
 const httpServer = createServer(async (request, response) => {
   // Lebenszeichen fuer das Startskript — ohne Datenbank, ohne Auskunft.
@@ -48,7 +51,7 @@ const httpServer = createServer(async (request, response) => {
   try {
     const ctx = platformContext();
     const actor = await actorForClient(ctx, credentials.id, credentials.secret);
-    const server = await createPlatformServer({ ctx, actor, invoker });
+    const server = await createPlatformServer({ ctx, actor, invoker, refCache });
     // Zustandslos: ein Transport pro Aufruf. Damit traegt kein Aufruf Rechte
     // eines frueheren mit sich.
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
