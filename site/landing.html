@@ -1,0 +1,885 @@
+<title>openapps</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="openapps is a self-hosted app layer next to Coolify: one login, one permission model and one review gate for every internal app your team or your agents build.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ein Stapel aus Ebenen. Jede Sektion ist eine Schicht der Plattform,
+   die beim Scrollen gegeneinander verschoben wird (Parallax). Farben und
+   Schriften folgen packages/ui (tokens.css). */
+:root {
+  --bg: #ffffff;
+  --bg-subtle: #f5f5f4;
+  --surface: #fafafa;
+  --surface-muted: #ededec;
+  --line: #e4e4e2;
+  --line-strong: #8a8a88;
+  --fg: #0b0b0c;
+  --fg-muted: #55565a;
+  --fg-subtle: #6a6b6f;
+  --accent: #4c5d72;
+  --accent-hover: #3b4859;
+  --accent-fg: #ffffff;
+  --accent-soft: #edf0f4;
+  --accent-soft-fg: #38465a;
+  --ok: #22663e;
+  --ok-soft: #ecf4ef;
+  --stop: #a3312b;
+  --stop-soft: #f8ecea;
+  --band-bg: #0b0b0c;
+  --band-fg: #f2f2f0;
+  --band-muted: #a6a6a8;
+  --band-line: #2a2a2d;
+  --band-accent: #9cadc2;
+  --shadow: 0 2px 6px -2px rgb(11 11 12 / 0.06), 0 32px 64px -24px rgb(11 11 12 / 0.28);
+
+  --font-display: 'Newsreader', 'Iowan Old Style', 'Palatino Linotype', Palatino, ui-serif, Georgia, serif;
+  --font-sans: 'Helvetica Neue', Helvetica, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: clamp(1.875rem, 1.3rem + 2.2vw, 2.75rem);
+  --step-4: clamp(2.5rem, 1.4rem + 4.6vw, 5.25rem);
+  --wrap: 76rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0b0c; --bg-subtle: #070708; --surface: #131314; --surface-muted: #202022;
+    --line: #242426; --line-strong: #707074; --fg: #f2f2f0; --fg-muted: #a6a6a8; --fg-subtle: #8e8e92;
+    --accent: #9cadc2; --accent-hover: #bac8d8; --accent-fg: #0b0e13; --accent-soft: #171c23; --accent-soft-fg: #c2cedc;
+    --ok: #7fc496; --ok-soft: #0f1d14; --stop: #e8857e; --stop-soft: #24110f;
+    --band-bg: #131314; --band-fg: #f2f2f0; --band-muted: #a6a6a8; --band-line: #2a2a2d; --band-accent: #9cadc2;
+    --shadow: 0 2px 6px -2px rgb(0 0 0 / 0.5), 0 32px 64px -24px rgb(0 0 0 / 0.8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0b0c; --bg-subtle: #070708; --surface: #131314; --surface-muted: #202022;
+  --line: #242426; --line-strong: #707074; --fg: #f2f2f0; --fg-muted: #a6a6a8; --fg-subtle: #8e8e92;
+  --accent: #9cadc2; --accent-hover: #bac8d8; --accent-fg: #0b0e13; --accent-soft: #171c23; --accent-soft-fg: #c2cedc;
+  --ok: #7fc496; --ok-soft: #0f1d14; --stop: #e8857e; --stop-soft: #24110f;
+  --band-bg: #131314; --band-fg: #f2f2f0; --band-muted: #a6a6a8; --band-line: #2a2a2d; --band-accent: #9cadc2;
+  --shadow: 0 2px 6px -2px rgb(0 0 0 / 0.5), 0 32px 64px -24px rgb(0 0 0 / 0.8);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 30; background: var(--bg);
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+code, .mono { font-family: var(--font-mono); font-size: 0.875em; }
+
+.wrap {
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 720px) {
+  .wrap { padding-left: max(40px, env(safe-area-inset-left, 0px)); padding-right: max(40px, env(safe-area-inset-right, 0px)); }
+}
+.eyebrow {
+  font-family: var(--font-mono); font-size: var(--step--1); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--fg-subtle);
+}
+.lede { font-size: var(--step-1); color: var(--fg-muted); max-width: 36rem; }
+
+/* ---------- Kopfzeile ---------- */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 0.875rem; }
+.mark { display: inline-flex; align-items: center; gap: 0.625rem; text-decoration: none; font-weight: 500; letter-spacing: -0.01em; }
+.mark svg { width: 22px; height: 22px; }
+.top nav { display: flex; align-items: center; gap: 1.5rem; font-size: 0.9375rem; }
+.top nav a { text-decoration: none; color: var(--fg-muted); }
+.top nav a:hover { color: var(--fg); }
+.top nav .hide-sm { display: none; }
+@media (min-width: 820px) { .top nav .hide-sm { display: inline; } }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none;
+  padding: 0.625rem 1.125rem; border-radius: 0.25rem; font-size: 0.9375rem; font-weight: 500;
+  border: 1px solid var(--fg); background: var(--fg); color: var(--bg);
+  transition: transform .2s ease, background .2s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line-strong); }
+.btn.small { padding: 0.4375rem 0.875rem; font-size: 0.875rem; }
+
+/* ---------- Hero mit Ebenen-Stapel ---------- */
+.hero { position: relative; padding-block: clamp(3rem, 7vw, 6.5rem) clamp(3rem, 6vw, 5rem); overflow: clip; }
+.hero-grid { display: grid; gap: 3rem; align-items: center; }
+@media (min-width: 980px) { .hero-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 2rem; } }
+.hero h1 { font-size: var(--step-4); line-height: 0.98; font-weight: 300; }
+.hero h1 em { font-style: italic; color: var(--accent); }
+.hero .lede { margin-top: 1.75rem; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2.25rem; }
+.hero-text { min-width: 0; }
+
+/* Raster im Hintergrund, bewegt sich langsamer als der Inhalt */
+.grid-bg {
+  position: absolute; inset: -20% 0 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 60% at 70% 40%, #000 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 70% 40%, #000 20%, transparent 75%);
+  opacity: .7;
+  transform: translate3d(0, calc(var(--py, 0) * 1px), 0);
+}
+
+.stack-zone { position: relative; min-width: 0; display: grid; gap: 1.5rem; }
+.legend { grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
+@media (min-width: 1280px) { .stack-zone { grid-template-columns: minmax(0, 1fr) 11rem; align-items: center; } .legend { grid-template-columns: minmax(0, 1fr); } }
+.hero-text { position: relative; z-index: 2; }
+.stack {
+  position: relative; height: 440px; perspective: 2000px;
+  --spread: 0; --tilt-x: 0deg; --tilt-z: 0deg;
+}
+@media (min-width: 980px) { .stack { height: 520px; } }
+.iso {
+  position: absolute; left: 50%; top: 56%; width: 0; height: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(calc(58deg + var(--tilt-x))) rotateZ(calc(-42deg + var(--tilt-z)));
+  transition: transform .5s cubic-bezier(.2,.7,.2,1);
+}
+.plane {
+  --w: 300px; --h: 200px;
+  position: absolute; left: calc(var(--w) / -2); top: calc(var(--h) / -2);
+  width: var(--w); height: var(--h);
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--surface);
+  transform: translateZ(calc(var(--i) * (34px + var(--spread) * 46px)));
+  transform-style: preserve-3d;
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+@media (max-width: 520px) { .plane { --w: 240px; --h: 160px; } .stack { height: 360px; } }
+@media (min-width: 1280px) { .plane { --w: 340px; --h: 228px; } }
+.plane .tag { display: flex; justify-content: space-between; }
+.plane.server { background: var(--bg-subtle);
+  background-image: radial-gradient(var(--line-strong) 1px, transparent 1.2px); background-size: 14px 14px; }
+.plane.coolify .boxes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; flex: 1; }
+.plane.coolify .boxes span { border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface-muted); }
+.plane.core { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.plane.core .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.plane.core .pills span { border: 1px solid color-mix(in srgb, var(--accent-fg) 55%, transparent); border-radius: 99px; padding: 4px 9px; }
+.plane.core .big { font-family: var(--font-display); font-size: 30px; letter-spacing: -0.02em; text-transform: none; }
+.plane.apps .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1; }
+.plane.apps .tiles span { border: 1px solid var(--line); background: var(--bg); border-radius: 4px; padding: 8px; color: var(--fg); }
+.plane.agents { background: transparent; border-style: dashed; box-shadow: none; }
+.plane.agents svg { flex: 1; width: 100%; }
+.plane.agents svg circle { fill: var(--bg); stroke: var(--accent); }
+.plane.agents svg path { stroke: var(--accent); fill: none; stroke-dasharray: 3 4; }
+
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.875rem; font-size: 0.875rem; }
+.legend li { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr); gap: 0.25rem 0.5rem; }
+.legend .n { font-family: var(--font-mono); font-size: var(--step--1); color: var(--fg-subtle); padding-top: 1px; }
+.legend b { font-weight: 500; }
+.legend span.d { grid-column: 2; color: var(--fg-muted); font-size: var(--step--1); line-height: 1.4; }
+.legend li.on b { color: var(--accent); }
+
+/* ---------- Laufband mit Fakten ---------- */
+.ticker { border-block: 1px solid var(--line); overflow: hidden; background: var(--bg-subtle); }
+.ticker-track {
+  display: flex; gap: 3rem; width: max-content; padding-block: 1rem;
+  font-family: var(--font-mono); font-size: var(--step--1); letter-spacing: 0.04em; color: var(--fg-muted);
+  transform: translate3d(calc(var(--tx, 0) * 1px), 0, 0);
+}
+.ticker-track span::before { content: "●"; color: var(--accent); margin-right: 0.75rem; font-size: 0.6em; vertical-align: 0.2em; }
+
+/* ---------- Allgemeine Sektion ---------- */
+section.block { padding-block: clamp(4.5rem, 10vw, 8.5rem); position: relative; }
+.head { display: grid; gap: 1.25rem; margin-bottom: clamp(2.5rem, 5vw, 4rem); }
+@media (min-width: 900px) { .head.split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 4rem; } }
+.head h2 { font-size: var(--step-3); line-height: 1.06; font-weight: 300; }
+.head h2 em { font-style: italic; }
+
+/* ---------- Agents first: Text klebt, Terminal läuft ---------- */
+.agents-grid { display: grid; gap: 2.5rem; }
+@media (min-width: 900px) { .agents-grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 4rem; align-items: start; } }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+@media (min-width: 900px) { .steps { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 6rem); } }
+.steps li {
+  display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); gap: 0.25rem 0.75rem;
+  padding-block: 1.125rem; border-top: 1px solid var(--line);
+  transition: color .3s ease;
+}
+.steps li:last-child { border-bottom: 1px solid var(--line); }
+.steps .n { font-family: var(--font-mono); font-size: var(--step--1); color: var(--fg-subtle); padding-top: 0.3rem; }
+.steps h3 { font-size: var(--step-2); line-height: 1.2; color: var(--fg-muted); transition: color .3s ease; }
+.steps p { grid-column: 2; color: var(--fg-muted); font-size: 0.9375rem; max-width: 30rem; }
+.steps li.on h3 { color: var(--fg); }
+.steps li.on .n { color: var(--accent); }
+
+.term {
+  border-radius: 8px; background: var(--band-bg); color: var(--band-fg);
+  box-shadow: var(--shadow); overflow: hidden; min-width: 0;
+  border: 1px solid var(--band-line);
+}
+.term-bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--band-line); font-family: var(--font-mono); font-size: 0.75rem; color: var(--band-muted); }
+.term-bar i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--band-muted); display: inline-block; }
+.term-bar span { margin-left: auto; }
+.term pre {
+  margin: 0; padding: 1.25rem 1.25rem 1.5rem; overflow-x: auto;
+  font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.75;
+}
+.term .chunk { display: block; padding: 0.375rem 0.625rem; margin-inline: -0.625rem; border-radius: 4px; transition: background .35s ease, opacity .35s ease; opacity: .55; }
+.term .chunk.on { background: color-mix(in srgb, var(--band-accent) 14%, transparent); opacity: 1; }
+.term .p { color: var(--band-accent); }
+.term .k { color: var(--band-muted); }
+.term .ok { color: #7fc496; }
+.term .say { color: var(--band-fg); font-style: italic; font-family: var(--font-display); font-size: 1rem; letter-spacing: 0; }
+
+/* ---------- Review-Gate: dunkles Band ---------- */
+.band { background: var(--band-bg); color: var(--band-fg); overflow: clip; }
+.band .eyebrow { color: var(--band-muted); }
+.band .lede { color: var(--band-muted); }
+.gate { position: relative; margin-top: 1rem; }
+.rail { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+.rail::before { content: ""; position: absolute; left: 0; right: 0; top: 2.25rem; height: 1px; background: var(--band-line); }
+.rail .fill { position: absolute; left: 0; top: 2.25rem; height: 1px; background: var(--band-accent); width: calc(var(--g, 0) * 100%); }
+.rail .pkg {
+  position: absolute; top: calc(2.25rem - 9px); left: calc(var(--g, 0) * 100%);
+  width: 18px; height: 18px; margin-left: -9px; border-radius: 3px; background: var(--band-accent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--band-accent) 22%, transparent);
+}
+.station { padding-right: 1rem; padding-top: 4rem; position: relative; min-width: 0; }
+.station::before {
+  content: ""; position: absolute; top: calc(2.25rem - 5px); left: 0; width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid var(--band-muted); background: var(--band-bg); transition: background .3s ease, border-color .3s ease;
+}
+.station.on::before { background: var(--band-accent); border-color: var(--band-accent); }
+.station .mono { color: var(--band-accent); font-size: 0.8125rem; }
+.station h3 { font-size: var(--step-2); margin-top: 0.5rem; }
+.station p { color: var(--band-muted); font-size: 0.9375rem; margin-top: 0.5rem; max-width: 16rem; }
+@media (max-width: 760px) {
+  .rail { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding-left: 2rem; }
+  .rail::before { left: 4px; right: auto; top: 0; bottom: 0; width: 1px; height: auto; }
+  .rail .fill { left: 4px; top: 0; width: 1px; height: calc(var(--g, 0) * 100%); }
+  .rail .pkg { left: 4px; top: calc(var(--g, 0) * 100%); margin-left: -8px; margin-top: -9px; }
+  .station { padding-top: 0; }
+  .station::before { left: calc(-2rem); top: 0.25rem; }
+}
+.verdicts { display: grid; gap: 1rem; margin-top: clamp(3rem, 6vw, 5rem); }
+@media (min-width: 760px) { .verdicts { grid-template-columns: 1fr 1fr; } }
+.verdict { border: 1px solid var(--band-line); border-radius: 6px; padding: 1.25rem 1.375rem; display: grid; gap: 0.5rem; }
+.verdict .mono { font-size: 0.8125rem; }
+.verdict.pass .mono { color: #7fc496; }
+.verdict.block .mono { color: #e8857e; }
+.verdict p { color: var(--band-muted); font-size: 0.9375rem; }
+
+/* ---------- Ein Rechtemodell ---------- */
+.rule {
+  display: grid; gap: 0.75rem; align-items: baseline;
+  font-family: var(--font-display); font-size: var(--step-3); line-height: 1.15; font-weight: 300;
+}
+@media (min-width: 900px) { .rule { grid-template-columns: auto auto auto auto auto auto; justify-content: start; gap: 0.75rem 1rem; } }
+.slot {
+  display: inline-grid; position: relative; min-width: 0;
+  border-bottom: 1px solid var(--line-strong); padding-bottom: 0.25rem;
+}
+.slot .label { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-subtle); }
+.slot .val { font-style: italic; color: var(--accent); transition: opacity .25s ease, transform .25s ease; }
+.slot .val.swap { opacity: 0; transform: translateY(0.25em); }
+.glue { color: var(--fg-muted); }
+.rights-foot { display: grid; gap: 1.5rem; margin-top: clamp(3rem, 6vw, 4.5rem); }
+@media (min-width: 760px) { .rights-foot { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5rem; } }
+.rights-foot div { border-top: 1px solid var(--line); padding-top: 1.125rem; display: grid; gap: 0.5rem; }
+.rights-foot h3 { font-size: var(--step-1); font-family: var(--font-sans); font-weight: 500; letter-spacing: -0.005em; }
+.rights-foot p { color: var(--fg-muted); font-size: 0.9375rem; }
+.cmdline {
+  margin-top: 2rem; font-family: var(--font-mono); font-size: 0.8125rem; color: var(--fg-muted);
+  background: var(--bg-subtle); border: 1px solid var(--line); border-radius: 4px; padding: 0.75rem 1rem; overflow-x: auto; white-space: nowrap;
+}
+.cmdline b { color: var(--accent); font-weight: 500; }
+
+/* ---------- Standard-Apps: Band läuft seitlich ---------- */
+.apps-zone { overflow: clip; }
+.apps-track { display: flex; gap: 1.25rem; transform: translate3d(calc(var(--ax, 0) * 1px), 0, 0); will-change: transform; }
+.app {
+  flex: 0 0 22rem; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  padding: 1.25rem; display: grid; gap: 1rem; align-content: start;
+}
+.app header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.app h3 { font-size: var(--step-2); }
+.app .v { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-subtle); }
+.app p { color: var(--fg-muted); font-size: 0.9375rem; }
+.mock { border: 1px solid var(--line); border-radius: 5px; background: var(--bg); padding: 0.75rem; display: grid; gap: 0.5rem; font-size: 0.8125rem; }
+.mock .row { display: flex; justify-content: space-between; gap: 0.75rem; padding-block: 0.25rem; border-bottom: 1px solid var(--line); }
+.mock .row:last-child { border-bottom: 0; }
+.mock .muted { color: var(--fg-subtle); font-family: var(--font-mono); font-size: 0.75rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: 0.375rem; border: 1px solid var(--line); border-radius: 99px;
+  padding: 0.125rem 0.5rem; font-size: 0.75rem; background: var(--accent-soft); color: var(--accent-soft-fg); white-space: nowrap;
+}
+.kbd { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 3px; padding: 0 0.3rem; color: var(--fg-muted); }
+.bar { height: 6px; border-radius: 3px; background: var(--surface-muted); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+@media (max-width: 760px) {
+  .apps-track { flex-direction: column; transform: none; }
+  .app { flex-basis: auto; }
+}
+
+/* ---------- Modelle ---------- */
+.models { display: grid; gap: 3rem; }
+@media (min-width: 900px) { .models { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 5rem; align-items: start; } }
+.providers { list-style: none; margin: 0; padding: 0; }
+.providers li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding-block: 1rem; border-top: 1px solid var(--line);
+  font-family: var(--font-display); font-size: var(--step-2);
+}
+.providers li:last-child { border-bottom: 1px solid var(--line); }
+.providers li span { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-subtle); text-align: right; }
+.limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem 2rem; margin-top: 2.5rem; }
+.limits div { display: grid; gap: 0.25rem; }
+.limits b { font-family: var(--font-display); font-weight: 300; font-size: var(--step-3); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.limits span { font-size: 0.875rem; color: var(--fg-muted); }
+
+/* ---------- Messlatte v1 ---------- */
+.bar-list { list-style: none; margin: 0; padding: 0; counter-reset: c; }
+.bar-list li {
+  display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.25rem 1rem;
+  padding-block: 1.375rem; border-top: 1px solid var(--line); align-items: baseline;
+}
+@media (min-width: 900px) { .bar-list li { grid-template-columns: 4rem minmax(0, 1.2fr) minmax(0, 1fr); } }
+.bar-list li:last-child { border-bottom: 1px solid var(--line); }
+.bar-list .n { font-family: var(--font-mono); font-size: var(--step--1); color: var(--fg-subtle); }
+.bar-list h3 { font-size: var(--step-2); line-height: 1.25; }
+.bar-list p { grid-column: 2; color: var(--fg-muted); font-size: 0.9375rem; }
+@media (min-width: 900px) { .bar-list p { grid-column: 3; } }
+
+/* ---------- Start ---------- */
+.start {
+  border-top: 1px solid var(--line);
+  background:
+    radial-gradient(60rem 30rem at 85% 0%, var(--accent-soft), transparent 70%),
+    var(--bg);
+}
+.start-grid { display: grid; gap: 3rem; }
+@media (min-width: 900px) { .start-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 5rem; align-items: start; } }
+.start h2 { font-size: var(--step-4); line-height: 1; font-weight: 300; }
+.start h2 em { font-style: italic; color: var(--accent); }
+.code {
+  border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; min-width: 0;
+}
+.code header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.625rem 0.875rem; border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-subtle); }
+.code pre { margin: 0; padding: 1rem 1.125rem; overflow-x: auto; font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.8; }
+.code pre .c { color: var(--fg-subtle); }
+.copy {
+  font: inherit; font-size: 0.75rem; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg);
+  border-radius: 3px; padding: 0.25rem 0.625rem; cursor: pointer;
+}
+.status {
+  margin-top: 1.5rem; display: grid; gap: 0.5rem; padding: 1rem 1.125rem; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); font-size: 0.9375rem; color: var(--fg-muted);
+}
+.status b { color: var(--fg); font-weight: 500; }
+
+footer.foot { border-top: 1px solid var(--line); }
+footer.foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; padding-block: 2rem; font-size: 0.875rem; color: var(--fg-subtle); }
+
+/* Parallax-Ebenen */
+[data-speed] { transform: translate3d(0, calc(var(--py, 0) * 1px), 0); will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  [data-speed], .grid-bg, .ticker-track, .apps-track { transform: none !important; }
+  .iso { transition: none; }
+  .slot .val { transition: none; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#top" aria-label="openapps, back to top">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3 21 8 12 13 3 8Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+        <path d="M3 12 12 17 21 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" opacity=".55"/>
+        <path d="M3 16 12 21 21 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" opacity=".3"/>
+      </svg>
+      openapps
+    </a>
+    <nav aria-label="Main">
+      <a class="hide-sm" href="#agents">Agents</a>
+      <a class="hide-sm" href="#gate">Review gate</a>
+      <a class="hide-sm" href="#rights">Permissions</a>
+      <a class="hide-sm" href="#apps">Apps</a>
+      <a class="btn small" href="https://github.com/jonasqz/openapps">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="grid-bg" data-bg="0.25" aria-hidden="true"></div>
+    <div class="wrap hero-grid">
+      <div class="hero-text" data-speed="-0.06">
+        <p class="eyebrow">Agents first</p>
+        <h1 style="margin-top:1.25rem">One layer to <em>run them all.</em></h1>
+        <p class="lede">Your team and your agents build the tools. openapps runs them safely next to Coolify, with one login, one permission model and one review gate before every deploy.</p>
+        <div class="hero-actions">
+          <a class="btn" href="#start">Run it locally</a>
+          <a class="btn ghost" href="https://github.com/jonasqz/openapps">Read the code</a>
+        </div>
+      </div>
+
+      <div class="stack-zone">
+        <div class="stack" id="stack" aria-hidden="true">
+          <div class="iso">
+            <div class="plane server" style="--i:0"><div class="tag"><span>Your server</span><span>1</span></div></div>
+            <div class="plane coolify" style="--i:1">
+              <div class="tag"><span>Coolify · unchanged</span><span>2</span></div>
+              <div class="boxes"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            </div>
+            <div class="plane core" style="--i:2">
+              <div class="tag"><span>Control plane</span><span>3</span></div>
+              <div class="big">openapps</div>
+              <div class="pills"><span>Login</span><span>Permissions</span><span>Review gate</span></div>
+            </div>
+            <div class="plane apps" style="--i:3">
+              <div class="tag"><span>Apps</span><span>4</span></div>
+              <div class="tiles"><span>Wiki</span><span>CRM</span><span>Tasks</span><span>Knowledge</span></div>
+            </div>
+            <div class="plane agents" style="--i:4">
+              <div class="tag"><span>Agents over MCP</span><span>5</span></div>
+              <svg viewBox="0 0 300 120" preserveAspectRatio="xMidYMid meet">
+                <path d="M40 60 C 100 10, 200 10, 260 60"/>
+                <path d="M40 60 C 100 110, 200 110, 260 60"/>
+                <path d="M150 20 L150 100"/>
+                <circle cx="40" cy="60" r="9"/><circle cx="260" cy="60" r="9"/>
+                <circle cx="150" cy="20" r="7"/><circle cx="150" cy="100" r="7"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <ol class="legend" id="legend">
+          <li data-layer="4"><span class="n">5</span><b>Agents</b><span class="d">Claude Code, Codex, Cursor, or agents in the platform</span></li>
+          <li data-layer="3"><span class="n">4</span><b>Apps</b><span class="d">own schema, own database role</span></li>
+          <li data-layer="2"><span class="n">3</span><b>openapps</b><span class="d">login, permissions, review gate, audit</span></li>
+          <li data-layer="1"><span class="n">2</span><b>Coolify</b><span class="d">builds and runs, controlled over its API</span></li>
+          <li data-layer="0"><span class="n">1</span><b>Your server</b><span class="d">one compose stack</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <div class="ticker" aria-label="Facts">
+    <div class="ticker-track" id="ticker">
+      <span>Every action is an API and an MCP tool first</span>
+      <span>Default deny for new routes, tools and tables</span>
+      <span>One schema and one database role per app</span>
+      <span>gitleaks · semgrep · UI linter · manifest check</span>
+      <span>Bring your own model key</span>
+      <span>Every tool call in the audit log</span>
+      <span>No fork of Coolify</span>
+      <span>Every action is an API and an MCP tool first</span>
+      <span>Default deny for new routes, tools and tables</span>
+      <span>One schema and one database role per app</span>
+      <span>gitleaks · semgrep · UI linter · manifest check</span>
+    </div>
+  </div>
+
+  <!-- Agents first -->
+  <section class="block" id="agents">
+    <div class="wrap">
+      <div class="head split">
+        <div>
+          <p class="eyebrow">API and MCP before buttons</p>
+          <h2 style="margin-top:1rem">Whatever a person can click, <em>an agent can call.</em></h2>
+        </div>
+        <p class="lede">Every function exists as an API and an MCP tool before it gets a button. An agent works with its own identity and sees only the tools it was granted. Your own coding assistant creates, ships and rolls back apps without anyone opening Coolify.</p>
+      </div>
+
+      <div class="agents-grid">
+        <ol class="steps" id="steps">
+          <li data-step="0"><span class="n">01</span><h3>Create the app</h3><p>From the starter template, with its own schema and database role.</p></li>
+          <li data-step="1"><span class="n">02</span><h3>Request the deploy</h3><p>The agent names a version. The platform does the rest.</p></li>
+          <li data-step="2"><span class="n">03</span><h3>Pass the review gate</h3><p>Scanners and the UI linter run before anything reaches Coolify.</p></li>
+          <li data-step="3"><span class="n">04</span><h3>Grant access</h3><p>Exactly one permission per grant, written to the audit log.</p></li>
+          <li data-step="4"><span class="n">05</span><h3>Roll back if needed</h3><p>One call back to the previous version.</p></li>
+        </ol>
+
+        <div class="term" data-speed="0.05">
+          <div class="term-bar"><i></i><i></i><i></i><span>platform mcp · /mcp</span></div>
+<pre id="term"><span class="chunk" data-step="0"><span class="say">"Build us a project list."</span>
+<span class="p">→ create_app</span> <span class="k">{ name: "projects" }</span>
+  <span class="ok">✓</span> schema and role app_projects</span><span class="chunk" data-step="1"><span class="p">→ request_deploy</span> <span class="k">{ app: "projects", version: "0.1.0" }</span>
+  queued for review</span><span class="chunk" data-step="2">  gitleaks ............ <span class="ok">pass</span>
+  semgrep ............. <span class="ok">pass</span>
+  ui linter ........... <span class="ok">pass</span>
+  manifest ............ <span class="ok">pass</span>
+  <span class="ok">✓</span> live at /projects</span><span class="chunk" data-step="3"><span class="p">→ grant</span> <span class="k">{ subjectKind: "group", subjectId: "team",
+           verb: "read", resourceKind: "app",
+           resourceId: "projects" }</span>
+  <span class="ok">✓</span> granted · audit entry written</span><span class="chunk" data-step="4"><span class="p">→ rollback</span> <span class="k">{ app: "projects" }</span>
+  <span class="ok">✓</span> previous version live</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Review gate -->
+  <section class="block band" id="gate">
+    <div class="wrap">
+      <div class="head split">
+        <div>
+          <p class="eyebrow">Review gate</p>
+          <h2 style="margin-top:1rem">Nothing goes live <em>unchecked.</em></h2>
+        </div>
+        <p class="lede">Before every deploy, machines check the rules. The checks are always on, in every edition. An AI security report can sit on top, with your own key, but never in place of the scanners.</p>
+      </div>
+      <div class="gate" id="gateEl">
+        <div class="rail">
+          <span class="fill" aria-hidden="true"></span>
+          <span class="pkg" aria-hidden="true"></span>
+          <div class="station" data-at="0.08"><span class="mono">gitleaks</span><h3>Secrets</h3><p>A key in the diff stops the deploy.</p></div>
+          <div class="station" data-at="0.33"><span class="mono">semgrep</span><h3>Code</h3><p>Known unsafe patterns are blocked.</p></div>
+          <div class="station" data-at="0.58"><span class="mono">ui linter</span><h3>Interface</h3><p>Only components and tokens from the design system.</p></div>
+          <div class="station" data-at="0.83"><span class="mono">manifest</span><h3>Contract</h3><p>The app does what its manifest says, and no more.</p></div>
+        </div>
+      </div>
+      <div class="verdicts">
+        <div class="verdict pass"><span class="mono">● pass · projects 0.1.0</span><p>All four checks green. The control plane tells Coolify to build, and the app goes live behind the shared login.</p></div>
+        <div class="verdict block"><span class="mono">● blocked · projects 0.1.1</span><p>gitleaks found a key in the source. The deploy stops here, the agent gets the finding, and nothing reaches the server.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Rechtemodell -->
+  <section class="block" id="rights">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">One permission model</p>
+        <h2 style="max-width:44rem">One sentence decides every access, <em>for people and agents alike.</em></h2>
+      </div>
+
+      <div class="rule" id="rule" aria-live="polite">
+        <span class="slot"><span class="label">Who</span><span class="val" data-k="who">group sales</span></span>
+        <span class="glue">may</span>
+        <span class="slot"><span class="label">Do what</span><span class="val" data-k="verb">read</span></span>
+        <span class="glue">on</span>
+        <span class="slot"><span class="label">Which resource</span><span class="val" data-k="res">app crm</span></span>
+        <span class="glue">.</span>
+      </div>
+
+      <div class="cmdline" id="cmd">grant <b>group:sales</b> read <b>app:crm</b></div>
+
+      <div class="rights-foot">
+        <div><h3>Default deny</h3><p>New routes, tools and tables stay closed until a grant opens them.</p></div>
+        <div><h3>Apps carry no auth code</h3><p>The gateway checks every call. The database role limits every query, without BYPASSRLS.</p></div>
+        <div><h3>Agents get the overlap</h3><p>A run may do only what the agent may do and what the person who started it may do.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Standard-Apps -->
+  <section class="block" id="apps" style="background:var(--bg-subtle);border-block:1px solid var(--line)">
+    <div class="wrap">
+      <div class="head split">
+        <div>
+          <p class="eyebrow">Comes with four apps</p>
+          <h2 style="margin-top:1rem">Start with the basics. <em>Build the rest.</em></h2>
+        </div>
+        <p class="lede">Wiki, CRM, Tasks and Knowledge run on the same rails as the apps you build. They search together, link to each other and report into one inbox.</p>
+      </div>
+    </div>
+    <div class="apps-zone" id="appsZone">
+      <div class="wrap">
+        <div class="apps-track" id="appsTrack">
+          <article class="app">
+            <header><h3>Home</h3><span class="v">inbox</span></header>
+            <div class="mock">
+              <div class="row"><span>Assigned: Prepare Q1 offer</span><span class="muted">tasks</span></div>
+              <div class="row"><span>Deal won: Northwind</span><span class="muted">crm</span></div>
+              <div class="row"><span>Mentioned in Onboarding</span><span class="muted">wiki</span></div>
+            </div>
+            <p>One inbox across all apps. Work through it with <span class="kbd">j</span> <span class="kbd">k</span> <span class="kbd">e</span>.</p>
+          </article>
+          <article class="app">
+            <header><h3>Wiki</h3><span class="v">0.5.2</span></header>
+            <div class="mock">
+              <div class="row"><span>Onboarding</span><span class="muted">edited today</span></div>
+              <div style="font-size:.8125rem;color:var(--fg-muted)">Before the first week, check <span class="chip">◇ Set up laptop</span> and read the handbook.</div>
+            </div>
+            <p>Pages and sections. Mention anything with @, and the link works in both directions.</p>
+          </article>
+          <article class="app">
+            <header><h3>CRM</h3><span class="v">0.5.2</span></header>
+            <div class="mock">
+              <div class="row"><span>Northwind</span><span class="muted">won</span></div>
+              <div class="row"><span>Lindqvist &amp; Co</span><span class="muted">proposal</span></div>
+              <div class="bar"><i style="width:62%"></i></div>
+            </div>
+            <p>Companies, contacts and deals. Turn a deal into a task in one step.</p>
+          </article>
+          <article class="app">
+            <header><h3>Tasks</h3><span class="v">0.5.2</span></header>
+            <div class="mock">
+              <div class="row"><span>☐ Prepare Q1 offer</span><span class="muted">Fri</span></div>
+              <div class="row"><span>☑ Set up laptop</span><span class="muted">done</span></div>
+              <div class="row"><span>☐ Review contract</span><span class="muted">Mon</span></div>
+            </div>
+            <p>Tasks with owners, due dates and comments. Referenced in shows where a task came from.</p>
+          </article>
+          <article class="app">
+            <header><h3>Knowledge</h3><span class="v">0.3.0</span></header>
+            <div class="mock">
+              <div class="row"><span>“How long is the notice period?”</span></div>
+              <div style="font-size:.8125rem;color:var(--fg-muted)">Three months to the end of a quarter. <span class="chip">Employment policy §4</span></div>
+            </div>
+            <p>Search by wording and meaning. With a model configured, answers cite the passages they come from.</p>
+          </article>
+          <article class="app">
+            <header><h3>Search</h3><span class="v"><span class="kbd">⌘</span> <span class="kbd">K</span></span></header>
+            <div class="mock">
+              <div class="row"><span>onboarding</span><span class="muted">4 hits</span></div>
+              <div class="row"><span>Onboarding</span><span class="muted">wiki</span></div>
+              <div class="row"><span>Onboarding checklist</span><span class="muted">tasks</span></div>
+            </div>
+            <p>One search across every app, filtered by what you may read.</p>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modelle -->
+  <section class="block" id="models">
+    <div class="wrap models">
+      <div data-speed="-0.04">
+        <p class="eyebrow">Bring your own key</p>
+        <h2 style="margin-top:1rem;font-size:var(--step-3);line-height:1.06;font-weight:300">Any model. <em>Your key.</em> No key, no calls.</h2>
+        <p class="lede" style="margin-top:1.5rem">The platform calls a model only with a key you set in your own environment. There is no default model. Without a key, everything works as before, and agent features stay off.</p>
+        <div class="limits">
+          <div><b>1,000,000</b><span>tokens per day for the platform, by default</span></div>
+          <div><b>200,000</b><span>tokens per day for each person or agent</span></div>
+          <div><b>8</b><span>steps at most in one agent run</span></div>
+          <div><b>50,000</b><span>tokens at most in one agent run</span></div>
+        </div>
+      </div>
+      <ul class="providers" data-speed="0.04">
+        <li>Anthropic<span>Claude</span></li>
+        <li>Google<span>Gemini</span></li>
+        <li>OpenAI-compatible<span>any endpoint</span></li>
+        <li>Local<span>Ollama, on your hardware</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Messlatte -->
+  <section class="block" id="bar" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div class="head split">
+        <div>
+          <p class="eyebrow">The bar for version 1</p>
+          <h2 style="margin-top:1rem">Seven checks, <em>each with proof.</em></h2>
+        </div>
+        <p class="lede">Version 1 is done when all seven pass in a real run. They are the definition of done, and we publish the proof next to the code.</p>
+      </div>
+      <ol class="bar-list">
+        <li><span class="n">1</span><h3>From prompt to live app in under 15 minutes</h3><p>Created and deployed over MCP, without opening Coolify.</p></li>
+        <li><span class="n">2</span><h3>No way in without the login</h3><p>Every app domain, before and after a Coolify update.</p></li>
+        <li><span class="n">3</span><h3>Apps cannot see each other</h3><p>Until a grant opens a table or view. Revoking works at once.</p></li>
+        <li><span class="n">4</span><h3>A planted secret is blocked</h3><p>The review gate stops the deploy.</p></li>
+        <li><span class="n">5</span><h3>Rollback in under two minutes</h3><p>One command, back to the previous version.</p></li>
+        <li><span class="n">6</span><h3>Agents see only granted tools</h3><p>Without a grant they are blocked, and every call is logged.</p></li>
+        <li><span class="n">7</span><h3>A fresh agent ships an app on its own</h3><p>With only the agent guide, the skill and the platform MCP.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Start -->
+  <section class="block start" id="start">
+    <div class="wrap start-grid">
+      <div>
+        <p class="eyebrow">Try it</p>
+        <h2 style="margin-top:1rem">The whole platform <em>on your laptop.</em></h2>
+        <p class="lede" style="margin-top:1.5rem">The local stack runs in Docker, without Coolify and without GitHub, with all four apps and test agents. Switch between admin and user at <code>/_local/as/admin</code>.</p>
+        <div class="status">
+          <b>Status: version 1 is under construction.</b>
+          <span>openapps runs first inside one team, then we decide on a standalone open-source project. The license follows that decision.</span>
+        </div>
+      </div>
+      <div class="code">
+        <header><span>terminal</span><button class="copy" type="button" id="copyBtn">Copy</button></header>
+<pre id="cmds"><span class="c"># get the code</span>
+git clone https://github.com/jonasqz/openapps.git
+cd openapps
+
+<span class="c"># start the platform and roll out the apps</span>
+./infra/lokal/einrichten.sh
+./infra/lokal/apps-ausrollen.sh
+
+<span class="c"># apps:  http://127.0.0.1:8090</span>
+<span class="c"># admin: http://127.0.0.1:8091</span></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>openapps · the app layer next to Coolify</span>
+    <span><a href="https://github.com/jonasqz/openapps">github.com/jonasqz/openapps</a></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var vh = window.innerHeight;
+  var clamp = function (v, a, b) { return Math.min(b, Math.max(a, v)); };
+
+  // Fortschritt einer Sektion: 0, wenn sie unten hereinkommt, 1, wenn sie oben hinaus ist
+  function progress(el, startAt, endAt) {
+    var r = el.getBoundingClientRect();
+    var s = vh * (startAt == null ? 1 : startAt);
+    var e = vh * (endAt == null ? 0 : endAt) - r.height;
+    return clamp((s - r.top) / (s - e), 0, 1);
+  }
+
+  var speedEls = Array.prototype.slice.call(document.querySelectorAll('[data-speed]'));
+  var grid = document.querySelector('.grid-bg');
+  var stack = document.getElementById('stack');
+  var legend = Array.prototype.slice.call(document.querySelectorAll('#legend li'));
+  var ticker = document.getElementById('ticker');
+  var steps = Array.prototype.slice.call(document.querySelectorAll('#steps li'));
+  var chunks = Array.prototype.slice.call(document.querySelectorAll('#term .chunk'));
+  var agents = document.getElementById('agents');
+  var gateEl = document.getElementById('gateEl');
+  var rail = gateEl.querySelector('.rail');
+  var stations = Array.prototype.slice.call(gateEl.querySelectorAll('.station'));
+  var appsZone = document.getElementById('appsZone');
+  var appsTrack = document.getElementById('appsTrack');
+
+  function setStep(i) {
+    steps.forEach(function (li, k) { li.classList.toggle('on', k === i); });
+    chunks.forEach(function (c) { c.classList.toggle('on', Number(c.dataset.step) <= i); });
+  }
+
+  function frame() {
+    var y = window.scrollY;
+
+    if (!reduce) {
+      speedEls.forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        var center = r.top + r.height / 2 - vh / 2;
+        el.style.setProperty('--py', (center * Number(el.dataset.speed)).toFixed(1));
+      });
+      grid.style.setProperty('--py', (y * 0.25).toFixed(1));
+      ticker.style.setProperty('--tx', (-y * 0.35 % 1400).toFixed(1));
+    }
+
+    // Hero: die Ebenen fahren beim Scrollen auseinander
+    var spread = reduce ? 0.6 : clamp(0.15 + y / (vh * 0.7), 0, 1);
+    stack.style.setProperty('--spread', spread.toFixed(3));
+    var lit = Math.round(spread * 4);
+    legend.forEach(function (li) { li.classList.toggle('on', Number(li.dataset.layer) === 4 - lit || (lit === 0 && li.dataset.layer === '2')); });
+
+    // Agents: Schritt nach Scroll-Position
+    var pa = progress(agents, 0.6, 0.4);
+    setStep(Math.min(steps.length - 1, Math.floor(pa * steps.length)));
+
+    // Review-Gate: das Paket fährt durch die Stationen
+    var pg = reduce ? 1 : progress(gateEl, 0.85, 0.35);
+    rail.style.setProperty('--g', pg.toFixed(3));
+    stations.forEach(function (s) { s.classList.toggle('on', pg >= Number(s.dataset.at)); });
+
+    // Apps: Band läuft seitlich, nur breit genug
+    if (!reduce && window.innerWidth > 760) {
+      var over = appsTrack.scrollWidth - appsTrack.parentElement.clientWidth + 40;
+      var pz = progress(appsZone, 0.95, 0.1);
+      appsTrack.style.setProperty('--ax', (-Math.max(0, over) * pz).toFixed(1));
+    }
+    ticking = false;
+  }
+
+  var ticking = false;
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', function () { vh = window.innerHeight; onScroll(); });
+  frame();
+
+  // Hero: leichte Neigung zur Maus
+  if (!reduce && window.matchMedia('(pointer: fine)').matches) {
+    var hero = document.querySelector('.hero');
+    hero.addEventListener('pointermove', function (e) {
+      var r = hero.getBoundingClientRect();
+      var nx = (e.clientX - r.left) / r.width - 0.5;
+      var ny = (e.clientY - r.top) / r.height - 0.5;
+      stack.style.setProperty('--tilt-z', (nx * 8).toFixed(2) + 'deg');
+      stack.style.setProperty('--tilt-x', (-ny * 6).toFixed(2) + 'deg');
+    });
+    hero.addEventListener('pointerleave', function () {
+      stack.style.setProperty('--tilt-z', '0deg');
+      stack.style.setProperty('--tilt-x', '0deg');
+    });
+  }
+
+  // Rechtemodell: der Satz wechselt seine Beispiele
+  var examples = [
+    { who: 'group sales', verb: 'read', res: 'app crm', cmd: 'grant <b>group:sales</b> read <b>app:crm</b>' },
+    { who: 'agent support-bot', verb: 'execute', res: 'tool tasks.create', cmd: 'grant <b>agent:support-bot</b> execute <b>tool:tasks.tasks.create</b>' },
+    { who: 'app wiki', verb: 'read', res: 'view crm.companies', cmd: 'grant <b>app:wiki</b> read <b>view:crm.companies</b>' },
+    { who: 'Mara', verb: 'write', res: 'app knowledge', cmd: 'grant <b>user:mara</b> write <b>app:knowledge</b>' }
+  ];
+  var vals = { who: document.querySelector('[data-k="who"]'), verb: document.querySelector('[data-k="verb"]'), res: document.querySelector('[data-k="res"]') };
+  var cmd = document.getElementById('cmd');
+  var idx = 0;
+  if (!reduce) {
+    setInterval(function () {
+      idx = (idx + 1) % examples.length;
+      var ex = examples[idx];
+      Object.keys(vals).forEach(function (k) { vals[k].classList.add('swap'); });
+      setTimeout(function () {
+        Object.keys(vals).forEach(function (k) { vals[k].textContent = ex[k]; vals[k].classList.remove('swap'); });
+        cmd.innerHTML = ex.cmd;
+      }, 250);
+    }, 3200);
+  }
+
+  // Befehle kopieren
+  var btn = document.getElementById('copyBtn');
+  btn.addEventListener('click', function () {
+    var text = document.getElementById('cmds').innerText.split('\n').filter(function (l) { return l.trim() && l.trim().charAt(0) !== '#'; }).join('\n');
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { selectCmds(); });
+    } else { selectCmds(); }
+  });
+  function selectCmds() {
+    var range = document.createRange(); range.selectNodeContents(document.getElementById('cmds'));
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    btn.textContent = 'Selected';
+  }
+})();
+</script>
