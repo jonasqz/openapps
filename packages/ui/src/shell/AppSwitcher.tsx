@@ -90,7 +90,7 @@ export function AppSwitcher({ apps, currentName, onNavigate, className }: AppSwi
         }}
         className={cn(
           'flex min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-bg',
-          'px-3.5 py-1.5 text-sm font-medium text-fg hover:border-border-strong hover:bg-surface',
+          'px-4 py-1.5 text-sm font-medium text-fg hover:border-border-strong hover:bg-surface',
           focusRing,
         )}
       >

@@ -1,14 +1,11 @@
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
-import { cn } from '@openapps/ui';
+import { buttonClasses, cn, textLinkClasses } from '@openapps/ui';
 
 /**
  * Verweise innerhalb der App. Immer `next/link`: Der rechnet den basePath
  * (/tasks) ein, ein rohes `<a href="/...">` landet auf der Plattform.
  */
-
-const TEXT_LINK =
-  'rounded-sm font-medium text-primary underline-offset-2 hover:underline outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
 export function TextLink({
   href,
@@ -20,18 +17,13 @@ export function TextLink({
   className?: string;
 }): JSX.Element {
   return (
-    <Link href={href} className={cn(TEXT_LINK, className)}>
+    <Link href={href} className={cn(textLinkClasses, className)}>
       {children}
     </Link>
   );
 }
 
-const BUTTON_LINK = {
-  primary: 'bg-primary text-primary-fg hover:bg-primary-hover',
-  secondary: 'bg-surface text-fg border border-border-strong hover:bg-surface-hover',
-} as const;
-
-/** Ein Verweis, der wie ein `Button` aus @openapps/ui aussieht. */
+/** Ein Verweis, der wie ein `Button` aus @openapps/ui aussieht (dieselben Klassen). */
 export function ButtonLink({
   href,
   children,
@@ -39,16 +31,10 @@ export function ButtonLink({
 }: {
   href: string;
   children: ReactNode;
-  variant?: keyof typeof BUTTON_LINK;
+  variant?: 'primary' | 'secondary' | 'ghost';
 }): JSX.Element {
   return (
-    <Link
-      href={href}
-      className={cn(
-        'inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-        BUTTON_LINK[variant],
-      )}
-    >
+    <Link href={href} className={buttonClasses({ variant })}>
       {children}
     </Link>
   );

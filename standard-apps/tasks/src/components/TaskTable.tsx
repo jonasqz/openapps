@@ -95,7 +95,7 @@ export function TaskTable({
     {
       key: 'action',
       header: <span className="sr-only">Action</span>,
-      className: 'w-32',
+      className: 'w-[8rem]',
       cell: (row) => (row.status === 'done' ? null : <CompleteButton id={row.id} title={row.title} />),
     },
   ];

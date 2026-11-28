@@ -29,7 +29,7 @@ export function EmptyState({
       data-oa-empty-state=""
       className={cn(
         'flex min-w-0 flex-col items-center justify-center gap-3 rounded-lg',
-        'border border-dashed border-border-strong bg-bg px-5 py-14 text-center',
+        'border border-dashed border-border-strong bg-bg px-5 py-16 text-center',
         className,
       )}
     >

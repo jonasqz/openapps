@@ -1,6 +1,6 @@
 export { Badge } from './Badge.tsx';
 export type { BadgeProps, BadgeTone } from './Badge.tsx';
-export { Button } from './Button.tsx';
+export { Button, buttonClasses, textLinkClasses } from './Button.tsx';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button.tsx';
 export { Card, CardBody, CardFooter, CardHeader } from './Card.tsx';
 export type { CardHeaderProps, CardProps } from './Card.tsx';

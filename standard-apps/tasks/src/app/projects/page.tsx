@@ -63,7 +63,7 @@ export default async function ProjectsPage() {
           { field: 'open', header: 'Open', align: 'right' },
           { field: 'overdue', header: 'Overdue', align: 'right', hideBelow: 'sm' },
           { field: 'done', header: 'Done', align: 'right', hideBelow: 'sm' },
-          { field: 'link', header: <span className="sr-only">Tasks</span>, className: 'w-32' },
+          { field: 'link', header: <span className="sr-only">Tasks</span>, className: 'w-[8rem]' },
         ]}
         empty={{
           title: 'No projects yet',

@@ -230,7 +230,7 @@ export function AppShell({
           {strings.shell.skipToContent}
         </a>
 
-        <header className="sticky top-0 z-shell flex min-h-14 min-w-0 items-center gap-2 border-b border-border bg-bg px-3 py-2 sm:px-4">
+        <header className="sticky top-0 z-shell flex min-h-[3.5rem] min-w-0 items-center gap-2 border-b border-border bg-bg px-3 py-2 sm:px-4">
           {hasNav ? (
             <button
               ref={menuButtonRef}
@@ -280,7 +280,7 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1">
           {hasNav ? (
-            <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-nav min-w-0 shrink-0 overflow-y-auto border-r border-border bg-bg px-3 py-5 md:block">
+            <aside className="sticky top-[3.5rem] hidden h-[calc(100vh-3.5rem)] w-nav min-w-0 shrink-0 overflow-y-auto border-r border-border bg-bg px-3 py-5 md:block">
               {searchTrigger}
               {navList}
             </aside>

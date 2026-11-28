@@ -145,7 +145,7 @@ export function ListPattern<Row>({
               options={filter.options}
               value={filter.value}
               onChange={(event) => filter.onChange(event.target.value)}
-              fieldClassName="min-w-0 sm:w-48"
+              fieldClassName="min-w-0 sm:w-field"
               {...(filter.placeholder === undefined ? {} : { placeholder: filter.placeholder })}
             />
           ))}

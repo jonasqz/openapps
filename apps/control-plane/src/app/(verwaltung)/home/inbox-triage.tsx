@@ -360,7 +360,7 @@ export function InboxTriage({ initial, initialError }: InboxTriageProps): JSX.El
         <p className="text-sm text-fg-muted" aria-live="polite">
           {data === null ? '' : `${String(data.unread)} unread`}
         </p>
-        <div className="w-56">
+        <div className="w-[14rem]">
           <Select
             label="App"
             options={appOptions}

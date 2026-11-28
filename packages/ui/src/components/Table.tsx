@@ -289,7 +289,7 @@ export function Table<Row>({
                       <td
                         key={columnKey(column)}
                         className={cn(
-                          'border-b border-border px-4 py-3.5',
+                          'border-b border-border px-4 py-3',
                           column.hideBelow === undefined ? undefined : HIDE[column.hideBelow],
                         )}
                       >
@@ -327,12 +327,15 @@ export function Table<Row>({
                               {content}
                             </button>
                           ) : (
-                            <span
-                              className="block truncate"
-                              title={typeof content === 'string' || typeof content === 'number' ? String(content) : undefined}
-                            >
-                              {content}
-                            </span>
+                            typeof content === 'string' || typeof content === 'number' ? (
+                              <span className="block truncate" title={String(content)}>
+                                {content}
+                              </span>
+                            ) : (
+                              // Elemente (Badge, Knopf) werden nie abgeschnitten.
+                              // Die Spalte bricht sie lieber um.
+                              <span className="flex min-w-0 flex-wrap items-center gap-1.5">{content}</span>
+                            )
                           )}
                         </td>
                       );

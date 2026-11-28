@@ -441,23 +441,51 @@ function escapeHtml(value: string): string {
   );
 }
 
-/** Startseite: die deployten Apps als Links. Leer und Fehler sind eigene Faelle. */
+/**
+ * Startseite: die deployten Apps als Links. Leer und Fehler sind eigene Faelle.
+ *
+ * Reines HTML aus dem Proxy, ohne `@openapps/ui`. Damit trotzdem keine eigenen
+ * Farbwerte entstehen, nutzt sie nur die Systemfarben des Browsers
+ * (`Canvas`, `CanvasText`, `GrayText`) und folgt so auch hell/dunkel. Form
+ * wie ADR 0010: Mono-Wortmarke, Serifentitel, Haarlinien.
+ */
 export function indexPage(apps: readonly AnsichtApp[]): string {
   const deployed = apps.filter((a) => a.primaryDomain !== null);
   const body =
     deployed.length === 0
-      ? '<p>No app deployed yet. Run <code>./infra/lokal/apps-ausrollen.sh</code> first.</p>'
+      ? '<p class="empty">No app deployed yet. Run <code>./infra/lokal/apps-ausrollen.sh</code> first.</p>'
       : `<ul>${deployed
           .map(
             (a) =>
-              `<li><a href="${appPathFor(a.name)}">${escapeHtml(a.displayName)}</a> <code>${escapeHtml(a.name)}</code></li>`,
+              `<li><a href="${appPathFor(a.name)}"><span class="n">${escapeHtml(a.displayName)}</span><code>${escapeHtml(a.name)}</code><span class="go" aria-hidden="true">&rarr;</span></a></li>`,
           )
           .join('')}</ul>`;
-  return `<!doctype html><meta charset="utf-8"><title>openapps local</title>
-<body style="font-family:system-ui;margin:3rem;max-width:40rem">
-<h1>openapps local</h1>
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>openapps local</title>
+<style>
+:root{color-scheme:light dark;font-family:'Helvetica Neue',Helvetica,ui-sans-serif,system-ui,sans-serif}
+body{margin:0;background:Canvas;color:CanvasText;-webkit-font-smoothing:antialiased}
+main{max-width:36rem;margin:0 auto;padding:4rem 1.25rem}
+.brand{font:500 .75rem/1 ui-monospace,'SF Mono',Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:.5rem}
+.brand::before{content:"";width:.625rem;height:.625rem;background:currentColor}
+.brand small{font:inherit;color:GrayText;letter-spacing:.08em}
+h1{font:400 2.25rem/1.1 'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;letter-spacing:-.02em;margin:2.5rem 0 .5rem}
+p{margin:0;color:GrayText;font-size:.875rem;line-height:1.5}
+code{font:.75rem ui-monospace,'SF Mono',Menlo,monospace}
+ul{list-style:none;margin:2rem 0 0;padding:0;border-top:1px solid color-mix(in srgb,CanvasText 14%,Canvas)}
+li a{display:flex;align-items:baseline;gap:.75rem;padding:.875rem .25rem;border-bottom:1px solid color-mix(in srgb,CanvasText 14%,Canvas);color:inherit;text-decoration:none}
+li a:hover .n{text-decoration:underline;text-underline-offset:4px}
+li a:focus-visible{outline:2px solid CanvasText;outline-offset:2px}
+.n{font-weight:500;flex:1}
+li code{color:GrayText}
+.go{color:GrayText}
+.empty{margin-top:2rem;padding:2rem;border:1px dashed GrayText;text-align:center}
+</style>
+<main>
+<div class="brand">openapps<small>/ local</small></div>
+<h1>Your apps</h1>
 <p>Signed in as <code>${ANSICHT_IDENTITY.email}</code>, on this machine only.</p>
-${body}</body>`;
+${body}
+</main></html>`;
 }
 
 async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {

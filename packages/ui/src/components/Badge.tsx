@@ -30,13 +30,13 @@ export function Badge({ tone = 'neutral', srPrefix, className, children, ...rest
       className={cn(
         'inline-flex max-w-full items-center gap-1.5 rounded-sm border px-1.5 py-0.5',
         'font-mono text-2xs font-medium uppercase tracking-label',
-        "truncate before:h-1.5 before:w-1.5 before:shrink-0 before:bg-current before:content-['']",
+        "min-w-0 before:h-1.5 before:w-1.5 before:shrink-0 before:bg-current before:content-['']",
         TONE[tone],
         className,
       )}
     >
       {srPrefix === undefined ? null : <span className="sr-only">{srPrefix}</span>}
-      {children}
+      <span className="min-w-0 [overflow-wrap:break-word]">{children}</span>
     </span>
   );
 }

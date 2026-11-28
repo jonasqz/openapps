@@ -36,7 +36,7 @@ export function FilterBar({
       {showStatus ? (
         <Select
           label="Status"
-          fieldClassName="w-40"
+          fieldClassName="w-[10rem]"
           value={values.status}
           options={[
             { value: '', label: 'Any status' },
@@ -53,7 +53,7 @@ export function FilterBar({
       ) : null}
       <Select
         label="Assignee"
-        fieldClassName="w-48"
+        fieldClassName="w-field"
         value={values.assignee}
         options={[
           { value: '', label: 'Anyone' },
@@ -65,7 +65,7 @@ export function FilterBar({
       />
       <Select
         label="Project"
-        fieldClassName="w-48"
+        fieldClassName="w-field"
         value={values.project}
         options={[
           { value: '', label: 'All projects' },

@@ -51,11 +51,9 @@ export function monogramOf(title: string): string {
  * Jedes Paar ist in `tokens.contrast.test.ts` nachgerechnet.
  */
 export const MONOGRAM_TONES = [
-  'bg-primary text-primary-fg',
   'bg-primary-subtle text-primary-subtle-fg',
-  'bg-fg text-fg-inverted',
-  'bg-surface-muted text-fg',
-  'bg-bg text-fg ring-1 ring-inset ring-border-strong',
+  'bg-surface-muted text-fg-muted',
+  'bg-bg text-fg-muted ring-1 ring-inset ring-border',
 ] as const;
 
 /** Fester Ton je App-Name: dieselbe App sieht in jeder App gleich aus. */

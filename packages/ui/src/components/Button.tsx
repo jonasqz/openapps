@@ -32,10 +32,37 @@ const VARIANT: Record<ButtonVariant, string> = {
  * statt abgeschnitten zu werden.
  */
 const SIZE: Record<ButtonSize, string> = {
-  sm: 'min-h-8 px-3.5 py-1 text-sm gap-1.5',
+  sm: 'min-h-8 shrink-0 whitespace-nowrap px-4 py-1 text-sm gap-1.5',
   md: 'min-h-10 px-5 py-2 text-sm gap-2',
   lg: 'min-h-12 px-6 py-2.5 text-base gap-2',
 };
+
+/**
+ * Die Klassen eines Knopfs, für Elemente, die wie ein Knopf aussehen, aber
+ * keiner sind: vor allem Links zum Seitenwechsel (`next/link`). So kopiert
+ * keine App die Optik und bleibt beim nächsten Redesign zurück.
+ */
+export function buttonClasses({
+  variant = 'primary',
+  size = 'md',
+  fullWidth = false,
+}: { variant?: ButtonVariant; size?: ButtonSize; fullWidth?: boolean } = {}): string {
+  return cn(
+    'inline-flex min-w-0 items-center justify-center rounded-full font-medium',
+    'transition-colors duration-150',
+    focusRing,
+    VARIANT[variant],
+    SIZE[size],
+    fullWidth && 'w-full',
+  );
+}
+
+/** Klassen für einen Textverweis: Text in Vordergrundfarbe, Unterstrich in Blaugrau. */
+export const textLinkClasses = cn(
+  'rounded-sm font-medium text-fg underline decoration-border-strong underline-offset-4',
+  'transition-colors duration-150 hover:decoration-primary',
+  focusRing,
+);
 
 /**
  * Knopf als Pille: die einzige runde Form im System, damit Bedienbares sofort
@@ -71,14 +98,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={isDisabled}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex min-w-0 items-center justify-center rounded-full font-medium',
-        'transition-colors duration-150',
+        buttonClasses({ variant, size, fullWidth }),
         'disabled:cursor-not-allowed disabled:opacity-50',
         'overflow-hidden',
-        focusRing,
-        VARIANT[variant],
-        SIZE[size],
-        fullWidth && 'w-full',
         className,
       )}
     >
